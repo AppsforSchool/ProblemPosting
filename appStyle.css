@@ -1,0 +1,673 @@
+:root {
+  --primary: #CE579B;
+  --primary-rgb: 206, 87, 155;
+  
+  --light: #faf0f5;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  touch-action: manipulation;
+}
+html {
+  font-size: 16px;
+}
+body {
+  font-family: "BIZ UDGothic", sans-serif;
+  background-color: #f0f2f5;
+  color: #333;
+  line-height: 1.6;
+  touch-action: manipulation;
+}
+
+.hidden {
+  display: none;
+}
+
+.mini {
+  font-size: 70%;
+}
+
+.split-line {
+  display: flex;
+  width: 90%;
+  border-bottom: 1.5px solid #ddd;
+  margin: 2rem auto;
+}
+
+
+.drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+.drawer-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 300px; /* ドロワーの幅 */
+  max-width: 80%; /* 狭い画面での最大幅 */
+  height: 100%;
+  background-color: white;
+  box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+  z-index: 1000;
+  transform: translateX(100%); /* 初期状態：画面外に隠す */
+  transition: transform 0.3s ease;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+.drawer.is-open {
+  transform: translateX(0); /* オープン状態：画面内に表示 */
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 10px;
+}
+.drawer-header p {
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin: 0;
+  color: #333;
+}
+.drawer-close-button {
+  /*
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #333;
+  background-color: #eee;
+  
+  width: 3rem;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+  */
+  background-color: #eee;
+  border: none;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  color: #333;
+  
+  width: 3rem;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+  text-align: center;
+}
+
+.drawer-content {
+  flex-grow: 1;
+  overflow-y: auto; /* コンテンツがはみ出たらスクロール */
+  padding-left: 5px;
+  padding-right: 10px; /* スクロールバーとの間隔 */
+}
+
+.drawer-section {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1.5px solid #eee;
+}
+.drawer-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0
+}
+.drawer-section p.title {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--primary);
+  margin-top: 0;
+}
+.drawer-section p {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.drawer button.normal-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  
+  padding: 0.6rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  text-align: center;
+  cursor: pointer;
+  display: block;
+  box-sizing: border-box;
+
+  background-color: var(--primary);
+  color: #fff; 
+  border: none;
+  border-radius: 0.4rem;
+  box-shadow: 0 4px 8px rgba(var(--primary-rgb), 0.25);
+  transition: all 0.3s ease;
+}
+.drawer button.normal-button:disabled {
+  background-color: #ccc;
+  border: none;
+  box-shadow: none;
+}
+
+.drawer input {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.8rem;
+  
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 10px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  box-sizing: border-box;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.drawer input:hover {
+  border-color: #999;
+}
+.drawer input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.25);
+  outline: none;
+}
+.drawer #username-message {
+  font-size: 0.8rem;
+  margin-top: 0.4rem;
+}
+.drawer #passwordMessage {
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+
+
+#app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem;
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+#app-header .hidden {
+  display: none;
+}
+#app-header #title-area {
+  display: flex;
+}
+#app-header #title-area #header-title {
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+#user-data {
+  display: flex;
+  align-items: center;
+}
+#header-username {
+  font-weight: 700;
+}
+#setting-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  
+  padding: 0.4rem;
+  margin: 0 0 0 0.8rem;
+  width: auto;
+  text-align: center;
+  cursor: pointer;
+  display: block;
+  box-sizing: border-box;
+
+  background-color: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 0.3rem;
+  box-shadow: 0 4px 8px rgba(var(--primary-rgb), 0.25);
+}
+
+#share-modal-btn {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  
+  padding: 0.4rem;
+  margin: 0 0 0 0.8rem;
+  width: auto;
+  text-align: center;
+  cursor: pointer;
+  display: block;
+  box-sizing: border-box;
+
+  background-color: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 0.3rem;
+  box-shadow: 0 4px 8px rgba(var(--primary-rgb), 0.25);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6); /* 少し濃いめの黒 */
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.modal-overlay.hidden {
+  display: none;
+}
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 15px;
+  width: 90%;
+  max-width: 500px;
+  text-align: center;
+  
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.modal-content .title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  /*margin-bottom: 2rem;*/
+}
+.modal-content .close-button {
+  background-color: #eee;
+  border: none;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  color: #333;
+  
+  width: 3rem;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+  text-align: center;
+}
+.modal-content .close-button:hover,
+.modal-content .close-button:focus {
+  color: #000;
+  background-color: #e0e0e0;
+  text-decoration: none;
+  cursor: pointer;
+}
+.modal-content img {
+    max-width: 100%; 
+    max-height: 80vh; /* ビューポートの高さの80%など、適切な値に調整 */
+    height: auto; /* アスペクト比を維持 */
+}
+
+
+.setting-card-top {
+  display: flex;
+  //justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.6rem;
+  
+  margin-bottom: 8px;
+}
+
+.card-info-area {
+  display: flex;
+  flex-direction: column;
+  //justify-content: flex-start;
+  //align-items: left;
+  
+  text-align: left;
+  
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1.5px solid #ddd;
+  
+  gap: 8px;
+}
+#setting-title {
+  font-weight: bold;
+  font-size: 1.05rem;
+}
+#setting-description {
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: #666;
+}
+#setting-madeBy-p {
+  font-weight: bold;
+  font-size: 0.75rem;
+  color: #999;
+}
+#setting-madeBy-p .admin {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+  
+  -webkit-background-clip: text;
+  background-clip: text;
+  
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  
+  animation: wave 2s linear infinite;
+}
+.buttons-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  gap: 1rem;
+}
+.buttons-area button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  
+  padding: 12px 20px;
+  cursor: pointer;
+  background-color: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  transition: filter 0.15s ease;
+  box-shadow: 0 4px 8px rgba(var(--primary-rgb), 0.25);
+}
+.buttons-area button:disabled {
+  background-color: #ccc;
+  box-shadow: none;
+}
+.buttons-area #edit-button {
+  width: 35%;
+}
+.buttons-area #start-button {
+  width: 65%;
+}
+
+
+#drawerUsername.admin {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+  
+  -webkit-background-clip: text;
+  background-clip: text;
+  
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  
+  animation: wave 2s linear infinite;
+}
+
+
+.books-container {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 30px;
+  background-color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+.books-container .title {
+  font-size: 1.3rem;
+  color: #333;
+  font-weight: 700;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #ddd;
+  padding-bottom: 10px;
+}
+
+.narrow-down-area {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.narrow-down-area p {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+#subject-select,
+#grade-select {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--primary);
+  
+  border-radius: 6px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+#subject-select:focus,
+#grade-select:focus {
+  //background-color: #E9E9EA;
+  //box-shadow: 0 0 0 4px rgba(53, 119, 176, 0.25);
+  outline: none;
+}
+
+#loading-text {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.card-area {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 2.5rem;
+}
+.card-area .card {
+  font-family: "BIZ UDGothic", sans-serif;
+  color: #333;
+  
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  padding: 1.1rem 1.2rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  
+  text-align: left;
+  
+  gap: 8px;
+}
+.card-area .card:hover {
+  //transform: translateY(-3px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+}
+.card-area .card.make-card {
+  background-color: #eee;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  
+  flex-direction: row;
+  gap: 3px;
+}
+
+.card-top {
+  display: flex;
+  //justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badge svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+.badge.t0 {
+  background-color: rgba(0, 0, 0, 0.12);
+  color: #000;
+}
+.badge.t1 {
+  background-color: rgba(237, 30, 20, 0.12);
+  color: #ED1E14;
+}
+.badge.t2 {
+  background-color: rgba(0, 122, 183, 0.12);
+  color: #007AB7;
+}
+.badge.t3 {
+  background-color: rgba(9, 163, 24, 0.12);
+  color: #09A318;
+}
+.badge.t4 {
+  background-color: rgba(229, 131, 57, 0.12);
+  color: #E58339;
+}
+.badge.t5, 
+.badge.t6,
+.badge.t7 {
+  background-color: rgba(206, 87, 155, 0.12);
+  color: #CE579B;
+}
+
+.card-description {
+  //margin-top: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #666;
+  line-height: 1.5;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-madeBy {
+  //margin-top: 0.7rem;
+  font-size: 0.75rem;
+  color: #999;
+  
+  font-weight: bold;
+}
+.card-madeBy .admin {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+  
+  -webkit-background-clip: text;
+  background-clip: text;
+  
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  
+  animation: wave 2s linear infinite;
+}
+@keyframes wave {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+
+footer {
+  background-color: #333;
+  color: white;
+  padding: 0.5rem 0;
+  text-align: center;
+  width: 100%;
+}
+footer p {
+  font-size: 0.7rem;
+}
+
+@media (max-width: 600px) {
+  /*#app-header {
+    flex-direction: column;
+    gap: 10px;
+  }*/
+  #user-data {
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  #setting-button {
+    margin: 0;
+  }
+  
+  #share-modal-btn {
+    width: auto;
+  }
+  
+  .selection .segmented-buttons {
+    flex-direction: column;
+  }
+  .selection .segmented-buttons button {
+    margin: 0;
+    margin-top: -2px;
+    margin-bottom: -2px;
+    border-radius: 0;
+  }
+  .selection .segmented-buttons :first-child {
+    border-radius: 8px 8px 0 0;
+    margin-top: 0;
+  }
+  .selection .segmented-buttons :last-child {
+    border-radius: 0 0 8px 8px;
+    margin-bottom: 0;
+  }
+  
+  /*button {
+    width: 80%;
+  }*/
+}

@@ -1,0 +1,176 @@
+<html lang="ja">
+  
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>問題投稿</title>
+  <meta name="apple-mobile-web-app-capable" content="yes"> 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Signika+Negative:wght@300..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="appStyle.css">
+  
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+  
+<body>
+  <div id="share-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="title">シェア</p>
+        <span id="share-modal-close" class="close-button">&times;</span>
+      </div>
+      <img src="qrcode.png" alt="QR Code">
+    </div>
+  </div>
+  <div id="setting-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="title">出題設定</p>
+        <span id="setting-modal-close" class="close-button">&times;</span>
+        
+      </div>
+      
+      <div class="setting-card-top">
+        <span id="setting-subject" class="badge t0">不明</span>
+        <span id="setting-grade" class="badge t0">不明</span>
+        <span id="setting-count" class="badge t0">
+        <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="1" width="11" height="8" rx="1.4" opacity="0.45"></rect>
+  <rect x="1.5" y="4" width="11" height="8" rx="1.4" opacity="0.7"></rect>
+  <rect x="0" y="7" width="11" height="8" rx="1.4"></rect>
+          </svg><span id="setting-count-text">--</span></span>
+        </div>
+      <div class="card-info-area">
+        <p id="setting-title">loading...</p>
+        <p id="setting-description">loading...</p>
+        <p id="setting-madeBy-p">作成者: <span id="setting-madeBy-name" class="">loading...</span></p>
+      </div>
+      <div class="buttons-area">
+        <button id="edit-button" disabled>編集</button>
+        <button id="start-button">スタート</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="drawerOverlay" class="drawer-overlay"></div>
+  <div id="accountSettingsDrawer" class="drawer">
+    <div class="drawer-header">
+      <p>アカウント設定</p>
+      <span id="drawerCloseButton" class="drawer-close-button">&times;</span>
+    </div>
+    <div class="drawer-content">
+      <div class="drawer-section">
+        <p class="title">現在のユーザー</p>
+        <p>ID: <strong id="drawerUserId">取得中...</strong><span></span></p>
+        
+        <button id="logout-button" class="logout-button normal-button">ログアウト</button>
+      </div>
+      <div class="drawer-section">
+        <p class="title">ユーザーネーム</p>
+        <p>現在の名前: <strong id="drawerUsername">取得中...</strong></p>
+        <input type="text" id="newUsernameInput" placeholder="新しい名前">
+        <button id="changeUsernameButton" class="normal-button" disabled="true">名前を変更</button>
+        <p id="username-message"></p>
+      </div>
+    </div>
+</div>
+  
+  
+  <header id="app-header">
+    <div id="title-area">
+      <p id="header-title">問題投稿</p>
+      <button id="share-modal-btn">シェア</button>
+    </div>
+    
+    <div id="user-data">
+     <!--<p id="header-username">取得中...</p>-->
+      <button id="setting-button">アカウント情報</button>
+    </div>
+  </header>
+  
+  
+  <main>
+    <div class="books-container">
+      <p class="title">問題集一覧</p>
+      <!--<div class="narrow-down-area">
+        <p>絞り込み</p>
+        <select id="subject-select">
+          <option>すべて</option>
+          <option>国語</option>
+          <option>数学</option>
+          <option>理科</option>
+          <option>英語</option>
+          <option>社会(歴史)</option>
+          <option>社会(地理)</option>
+          <option>社会(公民)</option>
+        </select>
+        <select id="grade-select">
+          <option>すべて</option>
+          <option>1年</option>
+          <option>2年</option>
+          <option>3年</option>
+          <option>総合</option>
+        </select>
+      </div>-->
+      
+      <p id="loading-text">読み込み中...</p>
+      <div id="card-area" class="card-area hidden">
+        <!--
+        <button class="card make-card">
+          <svg xmlns="http://w3.org" viewBox="0 0 24 24" width="24" height="24">
+  <circle cx="12" cy="12" r="10" fill="currentColor"/>
+  <path d="M 12,8 L 12,16 M 8,12 L 16,12" 
+        fill="none" 
+        stroke="white" 
+        stroke-width="2" 
+        stroke-linecap="round"/>
+</svg>
+          <p class="card-title">問題集を作成</p>
+        </button>
+        
+          <div class="card">  
+            <div class="card-top">
+              <span class="badge t0">社会(歴史)</span>
+              <span class="badge t1">2年</span>
+              <span class="badge t2">
+              <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="1" width="11" height="8" rx="1.4" opacity="0.45"></rect>
+  <rect x="1.5" y="4" width="11" height="8" rx="1.4" opacity="0.7"></rect>
+  <rect x="0" y="7" width="11" height="8" rx="1.4"></rect>
+</svg>10問</span>
+            </div>
+            <p class="card-title">近世の日本</p>
+            <p class="card-description">悪問。</p>
+            <p class="card-madeBy">作成者: 螺鈿紫檀五弦琵琶</p>
+          </div>
+          <div class="card">  
+            <div class="card-top">
+              <span class="badge t3">社会(歴史)</span>
+              <span class="badge t4">2年</span>
+              <span class="badge t5">
+              <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="1" width="11" height="8" rx="1.4" opacity="0.45"></rect>
+  <rect x="1.5" y="4" width="11" height="8" rx="1.4" opacity="0.7"></rect>
+  <rect x="0" y="7" width="11" height="8" rx="1.4"></rect>
+</svg>10問</span>
+            </div>
+            <p class="card-title">あいうえおあいうえおあいうえおあいうえおあいうえおあいうえお</p>
+            <p class="card-description">あいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえお</p>
+            <p class="card-madeBy">作成者: 螺鈿紫檀五弦琵琶</p>
+        </div>
+-->
+      </div>
+    </div>
+  </main>
+  
+  
+  
+  <script type="module" src="appScript.js"></script>
+</html>
