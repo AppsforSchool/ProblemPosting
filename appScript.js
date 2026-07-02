@@ -25,7 +25,9 @@ const subjectIdList = [
   "英語",
   "社会(歴史)",
   "社会(地理)",
-  "社会(公民)"
+  "社会(公民)",
+  "保健体育(保健)",
+  "保健体育(実技)"
 ];
 const gradeIdList = ["不明", "1年", "2年", "3年", "総合"];
 
@@ -126,10 +128,17 @@ async function loadProblemBooks() {
       const title = data.title || "タイトルがありません";
       const description = data.description || "説明文がありません";
       let subjectId = data.subjectId || 0;
-      if (7 < subjectId) subjectId = 0;
+      if (9 < subjectId) subjectId = 0;
       let gradeId = data.gradeId || 0;
       if (4 < gradeId) gradeId = 0;
-      let problemCount = 0;
+      const problemSnapshot = await db
+      .collection("ProblemPosting")
+      .doc("books")
+      .collection("data")
+      .doc(bookId)
+      .collection("problems")
+      .get();
+      let problemCount = problemSnapshot.size;
       const makerUserId = data.madeBy || "";
 
       bookCache[bookId] = [
@@ -375,7 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
     settingModalSubject.textContent = "不明";
     settingModalGrade.textContent = "不明";
     settingModalCountText.textContent = "--問";
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 9; i++) {
       settingModalSubject.classList.remove(`t${i + 1}`);
       settingModalGrade.classList.remove(`t${i + 1}`);
       settingModalCount.classList.remove(`t${i + 1}`);

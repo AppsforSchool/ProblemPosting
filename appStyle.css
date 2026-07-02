@@ -576,6 +576,11 @@ body {
   background-color: rgba(206, 87, 155, 0.12);
   color: #CE579B;
 }
+.badge.t8,
+.badge.t9 {
+  background-color: rgba(110, 183, 219, 0.12);
+  color: #6EB7DB;
+}
 
 .card-description {
   //margin-top: 0.5rem;
