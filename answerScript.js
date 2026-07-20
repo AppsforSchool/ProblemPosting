@@ -45,6 +45,11 @@ let answerExplanationText;
 let answerCorrectList;
 let answerModalNextButton;
 
+let homeButton;
+let resultModal;
+let resultScoreText;
+let resultHomeButton;
+
 let loadingOverlay;
 let drawerOverlay;
 let accountSettingsDrawer;
@@ -77,6 +82,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   answerButton.addEventListener("click", handleAnswerSubmit);
   answerModalNextButton.addEventListener("click", handleAnswerModalNext);
+
+  homeButton = document.getElementById("home-button");
+  resultModal = document.getElementById("result-modal");
+  resultScoreText = document.getElementById("result-score-text");
+  resultHomeButton = document.getElementById("result-home-button");
+
+  homeButton.addEventListener("click", () => {
+    if (confirm("本当にやめますか？")) {
+      window.location.href = "./app.html";
+    }
+  });
+  resultHomeButton.addEventListener("click", () => {
+    window.location.href = "./app.html";
+  });
 });
 
 function openDrawer() {
@@ -118,6 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
       nextProblem(0);
     } else {
       console.log("logout");
+      window.location.href = "./index.html";
     }
   });
 });
@@ -129,6 +149,7 @@ const handleLogout = async () => {
       await auth.signOut(auth);
       console.log("ログアウトしました！");
       alert("ログアウトしました。");
+      window.location.href = "./index.html";
     } catch (error) {
       console.error("ログアウトエラー:", error);
       alert("ログアウトに失敗しました。");
@@ -320,8 +341,13 @@ function handleAnswerModalNext() {
   if (nextIndex < problemsData.length) {
     nextProblem(nextIndex);
   } else {
-    alert(`全${problemsData.length}問終了しました！\n正解数: ${correctAnswersCount} / ${problemsData.length}`);
+    showResultModal();
   }
+}
+
+function showResultModal() {
+  resultScoreText.textContent = `${correctAnswersCount} / ${problemsData.length} 問正解`;
+  resultModal.classList.remove("hidden");
 }
 
 
