@@ -5,7 +5,7 @@ const firebaseConfig = {
   projectId: "appsforschool-study",
   storageBucket: "appsforschool-study.firebasestorage.app",
   messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:982702b6d53aaa18ec60e5"
+  appId: "1:740735293440:web:a1363adbab57f1ceec60e5"
 };
 
 // Firebase 初期化とサービス取得
@@ -62,8 +62,6 @@ async function startScan(qrReaderId)  {
       (decodedText) => {
         // 【成功】QRコードからテキストが読み取れた時
         console.log("読み取り成功:", decodedText);
-
-        // 音を鳴らすなどの演出を入れるならここ
 
         // 読み取りを停止
         stopScan();

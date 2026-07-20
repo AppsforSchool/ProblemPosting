@@ -1,9 +1,10 @@
+<!DOCTYPE html>
 <html lang="ja">
   
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+  <meta name="theme-color" content="#CE579B">
   <title>問題投稿</title>
   <meta name="apple-mobile-web-app-capable" content="yes"> 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,7 +25,7 @@
 </head>
   
 <body>
-  <div id="loading-overlay" class="hidde">
+  <div id="loading-overlay">
     <h1>loading...</h1>
     <p>ログインシステムの読み込みに時間がかかる場合があります｡</p>
   </div>
@@ -72,7 +73,6 @@
         
         <button type="submit" id="login-button" disabled="true">ログイン</button>
         <p id="error-message"></p>
-        <!--<button type="submit" id="qr-login-button">QRコードで入力</button>-->
       </div>
     </div>
   </main>
@@ -82,4 +82,5 @@
   </footer>
   
   <script type="module" src="script.js"></script>
-  </html>
+</body>
+</html>
