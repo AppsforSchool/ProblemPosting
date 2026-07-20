@@ -280,7 +280,7 @@ body {
   align-items: stretch;
   gap: 0.6rem;
 }
-.choice-row .choice-text-input {
+.choice-row input.choice-text-input {
   margin-bottom: 0;
   flex: 1;
 }
