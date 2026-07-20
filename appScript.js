@@ -106,6 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
       makeDisplayBooks("all", "all");
     } else {
       console.log("logout");
+      window.location.href = "./index.html";
     }
   });
 });
@@ -117,6 +118,7 @@ const handleLogout = async () => {
       await auth.signOut(auth);
       console.log("ログアウトしました！");
       alert("ログアウトしました。");
+      window.location.href = "./index.html";
     } catch (error) {
       console.error("ログアウトエラー:", error);
       alert("ログアウトに失敗しました。");
@@ -337,6 +339,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   settingModalStartButton.addEventListener("click", () => {
     window.location.href = `./answer.html?id=${settingModalBookId}`;
+  });
+  settingModalEditButton.addEventListener("click", () => {
+    window.location.href = `./edit.html?id=${settingModalBookId}`;
   });
 });
 
