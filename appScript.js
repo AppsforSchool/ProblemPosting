@@ -45,6 +45,10 @@ let drawerCloseButton;
 let accountSettingsButton;
 let drawerUserId;
 let drawerLogoutButton;
+
+let subjectSelect;
+let gradeSelect;
+
 document.addEventListener("DOMContentLoaded", () => {
   drawerOverlay = document.getElementById("drawerOverlay");
   accountSettingsDrawer = document.getElementById("accountSettingsDrawer");
@@ -58,7 +62,17 @@ document.addEventListener("DOMContentLoaded", () => {
   drawerCloseButton.addEventListener("click", closeDrawer);
   drawerOverlay.addEventListener("click", closeDrawer);
   drawerLogoutButton.addEventListener("click", handleLogout);
+
+  subjectSelect = document.getElementById("subject-select");
+  gradeSelect = document.getElementById("grade-select");
+
+  subjectSelect.addEventListener("change", handleFilterChange);
+  gradeSelect.addEventListener("change", handleFilterChange);
 });
+
+function handleFilterChange() {
+  makeDisplayBooks(subjectSelect.value, gradeSelect.value);
+}
 
 function openDrawer() {
   accountSettingsDrawer.classList.add("is-open");
@@ -89,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       //displayVocabularyBooks();
       await loadProblemBooks();
-      makeDisplayBooks(0, 0);
+      makeDisplayBooks("all", "all");
     } else {
       console.log("logout");
     }
@@ -112,10 +126,6 @@ const handleLogout = async () => {
 
 async function loadProblemBooks() {
   try {
-    /*
-    
-    */
-
     const querySnapshot = await db
       .collection("ProblemPosting")
       .doc("books")
@@ -150,39 +160,6 @@ async function loadProblemBooks() {
         makerUserId
       ];
 
-      /*
-      const card = document.createElement("div");
-      card.classList.add("card");
-      
-      const cardTop = document.createElement("div");
-      cardTop.classList.add("card-top");
-      const subjectBadge = document.createElement("span");
-      subjectBadge.classList.add("badge");
-      subjectBadge.classList.add(`t${subjectId}`);
-      subjectBadge.textContent = subjectIdList[subjectId];
-      const gradeBadge = document.createElement("span");
-      gradeBadge.classList.add("badge");
-      gradeBadge.classList.add(`t${subjectId}`);
-      gradeBadge.textContent = gradeIdList[gradeId];
-      const wordCountBadge = document.createElement("span");
-      wordCountBadge.classList.add("badge");
-      wordCountBadge.classList.add(`t${subjectId}`);
-      wordCountBadge.innerHTML = `${STACK_ICON_SVG}${0}問`;
-      cardTop.appendChild(subjectBadge);
-      cardTop.appendChild(gradeBadge);
-      cardTop.appendChild(wordCountBadge);
-      
-      const cardTitle = document.createElement("p");
-      cardTitle.classList.add("card-title");
-      cardTitle.textContent = title;
-      
-      const cardDescription = document.createElement("p");
-      cardDescription.classList.add("card-description");
-      cardDescription.textContent = description;
-      
-      const cardMadeBy = document.createElement("span");
-      cardMadeBy.classList.add("card-madeBy");
-      */
       if (!(makerUserId in userCache) || !(makerUserId in userAdminCache)) {
         // Firestoreへのアクセスは「1回だけ」
         const userSnapshot = await db.collection("users_random").doc(makerUserId).get();
@@ -199,63 +176,18 @@ async function loadProblemBooks() {
           userAdminCache[makerUserId] = false;
         }
       }
-      /*
-      const makerName = userCache[makerUserId];
-      const isAdmin = userAdminCache[makerUserId];
-      const nameSpan = document.createElement("span");
-      nameSpan.textContent = makerName;
-      if (isAdmin) nameSpan.classList.add("admin");
-      const madeByTextContent = document.createTextNode('作成者: ');
-      cardMadeBy.appendChild(madeByTextContent);
-      cardMadeBy.appendChild(nameSpan);
-      
-      if (isAdmin) nameSpan.classList.add("admin");
-      
-      
-      card.addEventListener("click", () => {
-        openSettingModal(bookId);
-      });
-      
-      
-      card.appendChild(cardTop);
-      card.appendChild(cardTitle);
-      card.appendChild(cardDescription);
-      card.appendChild(cardMadeBy);
-      fragment.appendChild(card);
-      */
     }
-
-    /*
-    const makeBookButton = document.createElement("button");
-    makeBookButton.classList.add("card");
-    makeBookButton.classList.add("make-card");
-    makeBookButton.innerHTML = `
-    <svg xmlns="http://w3.org" viewBox="0 0 24 24" width="24" height="24">
-      <circle cx="12" cy="12" r="10" fill="currentColor"/>
-      <path d="M 12,8 L 12,16 M 8,12 L 16,12" 
-        fill="none" 
-        stroke="white" 
-        stroke-width="2" 
-        stroke-linecap="round"/>
-    </svg>
-    <p class="card-title">問題集を作成</p>`;
-    
-    loadingText.classList.add("hidden");
-    listElement.appendChild(makeBookButton);
-    listElement.appendChild(fragment);
-    */
   } catch (error) {
     console.log(error);
     alert(error);
   }
 }
 
-function makeDisplayBooks(subjectId, gradeId) {
+function makeDisplayBooks(subjectFilter, gradeFilter) {
   const listElement = document.getElementById("card-area");
   const loadingText = document.getElementById("loading-text");
 
   listElement.innerHTML = "";
-  loadingText.classList.remove("hidden");
   const fragment = document.createDocumentFragment();
 
   Object.entries(bookCache).forEach(([bookId, book]) => {
@@ -314,7 +246,9 @@ function makeDisplayBooks(subjectId, gradeId) {
     card.appendChild(cardDescription);
     card.appendChild(cardMadeBy);
     
-    if (subjectId === 0) {
+    const subjectMatches = subjectFilter === "all" || book[2] === Number(subjectFilter);
+    const gradeMatches = gradeFilter === "all" || book[3] === Number(gradeFilter);
+    if (subjectMatches && gradeMatches) {
       fragment.appendChild(card);
     }
   });
@@ -337,6 +271,7 @@ function makeDisplayBooks(subjectId, gradeId) {
     });
   
     loadingText.classList.add("hidden");
+    listElement.classList.remove("hidden");
     listElement.appendChild(makeBookButton);
     listElement.appendChild(fragment);
 }
@@ -401,8 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
     settingModalEditButton.disabled = true;
   });
   settingModalStartButton.addEventListener("click", () => {
-    //console.log(`./solve.html?id=${settingModalBookId}`);
-    window.location.href = `./solve.html?id=${settingModalBookId}`;
+    window.location.href = `./answer.html?id=${settingModalBookId}`;
   });
 });
 
