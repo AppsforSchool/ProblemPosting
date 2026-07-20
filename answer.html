@@ -50,6 +50,14 @@
     </div>
   </div>
 
+  <div id="result-modal" class="modal-overlay hidden">
+    <div class="modal-content answer-modal-content">
+      <p class="result-title">結果発表</p>
+      <p id="result-score-text" class="result-score-text"></p>
+      <button id="result-home-button" class="answer-next-button">ホームにもどる</button>
+    </div>
+  </div>
+
   <div id="drawerOverlay" class="drawer-overlay"></div>
   <div id="accountSettingsDrawer" class="drawer">
     <div class="drawer-header">
@@ -81,7 +89,6 @@
     </div>
     
     <div id="user-data">
-     <!--<p id="header-username">取得中...</p>-->
       <button id="setting-button">アカウント情報</button>
     </div>
   </header>
@@ -89,30 +96,22 @@
   
   <main>
     <div class="books-container">
+      <button id="home-button" class="home-button" aria-label="ホームへもどる">&larr; ホームへもどる</button>
       <div id="title-area">
         <p id="title-area-title">loading...</p>
         <div id="gauge-area">
           <div class="gauge-container">
           <div id="gauge-bar" class="gauge-bar"></div>
         </div>
-          <!--<p id="title-area-count"><span>3</span><span class="mini">問</span>/<span>10</span><span class="mini">問目</span></p>-->
-          <p id="title-area-count"><span id="now-problem-count">3</span>/<span id="all-problems-count">10</span></p>
+          <p id="title-area-count"><span id="now-problem-count"></span>/<span id="all-problems-count"></span></p>
         </div>
       </div>
       
-      <!--<p id="loading-text">読み込み中...</p>-->
       <div id="problem-area" class="problem-area hidden">
-        <p id="answer-type-text">単数選択</p>
+        <p id="answer-type-text"></p>
         <p id="problem-text"></p>
         <img id="problem-image" class="problem-image hidden" alt="問題の画像">
-        <div id="choices-area" class="choices-area">
-          <!--
-          <button>選択肢1</button>
-          <button class="active">選択肢2<br>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaa</button>
-          <button>選択肢3</button>
-          <button>選択肢4</button>
--->
-        </div>
+        <div id="choices-area" class="choices-area"></div>
         <button id="answer-button">答える</button>
       </div>
     </div>
