@@ -99,73 +99,31 @@
   <main>
     <div class="books-container">
       <p class="title">問題集一覧</p>
-      <!--<div class="narrow-down-area">
+      <div class="narrow-down-area">
         <p>絞り込み</p>
         <select id="subject-select">
-          <option>すべて</option>
-          <option>国語</option>
-          <option>数学</option>
-          <option>理科</option>
-          <option>英語</option>
-          <option>社会(歴史)</option>
-          <option>社会(地理)</option>
-          <option>社会(公民)</option>
+          <option value="all">すべて</option>
+          <option value="1">国語</option>
+          <option value="2">数学</option>
+          <option value="3">理科</option>
+          <option value="4">英語</option>
+          <option value="5">社会(歴史)</option>
+          <option value="6">社会(地理)</option>
+          <option value="7">社会(公民)</option>
+          <option value="8">保健体育(保健)</option>
+          <option value="9">保健体育(実技)</option>
         </select>
         <select id="grade-select">
-          <option>すべて</option>
-          <option>1年</option>
-          <option>2年</option>
-          <option>3年</option>
-          <option>総合</option>
+          <option value="all">すべて</option>
+          <option value="1">1年</option>
+          <option value="2">2年</option>
+          <option value="3">3年</option>
+          <option value="4">総合</option>
         </select>
-      </div>-->
+      </div>
       
       <p id="loading-text">読み込み中...</p>
       <div id="card-area" class="card-area hidden">
-        <!--
-        <button class="card make-card">
-          <svg xmlns="http://w3.org" viewBox="0 0 24 24" width="24" height="24">
-  <circle cx="12" cy="12" r="10" fill="currentColor"/>
-  <path d="M 12,8 L 12,16 M 8,12 L 16,12" 
-        fill="none" 
-        stroke="white" 
-        stroke-width="2" 
-        stroke-linecap="round"/>
-</svg>
-          <p class="card-title">問題集を作成</p>
-        </button>
-        
-          <div class="card">  
-            <div class="card-top">
-              <span class="badge t0">社会(歴史)</span>
-              <span class="badge t1">2年</span>
-              <span class="badge t2">
-              <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-  <rect x="3" y="1" width="11" height="8" rx="1.4" opacity="0.45"></rect>
-  <rect x="1.5" y="4" width="11" height="8" rx="1.4" opacity="0.7"></rect>
-  <rect x="0" y="7" width="11" height="8" rx="1.4"></rect>
-</svg>10問</span>
-            </div>
-            <p class="card-title">近世の日本</p>
-            <p class="card-description">悪問。</p>
-            <p class="card-madeBy">作成者: 螺鈿紫檀五弦琵琶</p>
-          </div>
-          <div class="card">  
-            <div class="card-top">
-              <span class="badge t3">社会(歴史)</span>
-              <span class="badge t4">2年</span>
-              <span class="badge t5">
-              <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-  <rect x="3" y="1" width="11" height="8" rx="1.4" opacity="0.45"></rect>
-  <rect x="1.5" y="4" width="11" height="8" rx="1.4" opacity="0.7"></rect>
-  <rect x="0" y="7" width="11" height="8" rx="1.4"></rect>
-</svg>10問</span>
-            </div>
-            <p class="card-title">あいうえおあいうえおあいうえおあいうえおあいうえおあいうえお</p>
-            <p class="card-description">あいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえおあいうえお</p>
-            <p class="card-madeBy">作成者: 螺鈿紫檀五弦琵琶</p>
-        </div>
--->
       </div>
     </div>
   </main>
