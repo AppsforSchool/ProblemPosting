@@ -1,0 +1,124 @@
+<html lang="ja">
+  
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>問題投稿</title>
+  <meta name="apple-mobile-web-app-capable" content="yes"> 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Signika+Negative:wght@300..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="answerStyle.css">
+  
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+  
+<body>
+  <div id="loading-overlay" class="hidde">
+    <h1>loading...</h1>
+    <p>問題を読み込んでいます｡</p>
+  </div>
+  
+  <div id="share-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="title">シェア</p>
+        <span id="share-modal-close" class="close-button">&times;</span>
+      </div>
+      <img src="qrcode.png" alt="QR Code">
+    </div>
+  </div>
+  
+  <div id="answer-modal" class="modal-overlay hidden">
+    <div class="modal-content answer-modal-content">
+      <p id="answer-result-text" class="answer-result-text"></p>
+      <div id="answer-correct-area" class="answer-correct-area">
+        <p class="answer-correct-label">正解</p>
+        <ul id="answer-correct-list" class="answer-correct-list"></ul>
+      </div>
+      <div id="answer-explanation-area" class="answer-explanation-area hidden">
+        <p class="answer-explanation-label">解説</p>
+        <p id="answer-explanation-text"></p>
+      </div>
+      <button id="answer-modal-next-button" class="answer-next-button">次へ</button>
+    </div>
+  </div>
+
+  <div id="drawerOverlay" class="drawer-overlay"></div>
+  <div id="accountSettingsDrawer" class="drawer">
+    <div class="drawer-header">
+      <p>アカウント設定</p>
+      <span id="drawerCloseButton" class="drawer-close-button">&times;</span>
+    </div>
+    <div class="drawer-content">
+      <div class="drawer-section">
+        <p class="title">現在のユーザー</p>
+        <p>ID: <strong id="drawerUserId">取得中...</strong><span></span></p>
+        
+        <button id="logout-button" class="logout-button normal-button">ログアウト</button>
+      </div>
+      <div class="drawer-section">
+        <p class="title">ユーザーネーム</p>
+        <p>現在の名前: <strong id="drawerUsername">取得中...</strong></p>
+        <input type="text" id="newUsernameInput" placeholder="新しい名前">
+        <button id="changeUsernameButton" class="normal-button" disabled="true">名前を変更</button>
+        <p id="username-message"></p>
+      </div>
+    </div>
+</div>
+  
+  
+  <header id="app-header">
+    <div id="title-area">
+      <p id="header-title">問題投稿</p>
+      <button id="share-modal-btn">シェア</button>
+    </div>
+    
+    <div id="user-data">
+     <!--<p id="header-username">取得中...</p>-->
+      <button id="setting-button">アカウント情報</button>
+    </div>
+  </header>
+  
+  
+  <main>
+    <div class="books-container">
+      <div id="title-area">
+        <p id="title-area-title">loading...</p>
+        <div id="gauge-area">
+          <div class="gauge-container">
+          <div id="gauge-bar" class="gauge-bar"></div>
+        </div>
+          <!--<p id="title-area-count"><span>3</span><span class="mini">問</span>/<span>10</span><span class="mini">問目</span></p>-->
+          <p id="title-area-count"><span id="now-problem-count">3</span>/<span id="all-problems-count">10</span></p>
+        </div>
+      </div>
+      
+      <!--<p id="loading-text">読み込み中...</p>-->
+      <div id="problem-area" class="problem-area hidden">
+        <p id="answer-type-text">単数選択</p>
+        <p id="problem-text"></p>
+        <img id="problem-image" class="problem-image hidden" alt="問題の画像">
+        <div id="choices-area" class="choices-area">
+          <!--
+          <button>選択肢1</button>
+          <button class="active">選択肢2<br>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaa</button>
+          <button>選択肢3</button>
+          <button>選択肢4</button>
+-->
+        </div>
+        <button id="answer-button">答える</button>
+      </div>
+    </div>
+  </main>
+  
+  
+  
+  <script src="answerScript.js"></script>
+</html>
