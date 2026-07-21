@@ -10,14 +10,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Signika+Negative:wght@300..700&display=swap" rel="stylesheet">
-  
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Signika+Negative:wght@300..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="appStyle.css">
-
-  <link rel="icon" type="image/png" sizes="32x32" href="icon-512.png">
-  <link rel="apple-touch-icon" href="icon-512.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-512.png">
   
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -64,6 +59,16 @@
     </div>
   </div>
   
+  <div id="solved-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="title">解いた人</p>
+        <span id="solved-modal-close" class="close-button">&times;</span>
+      </div>
+      <div id="solved-area"></div>
+    </div>
+  </div>
+
   <div id="drawerOverlay" class="drawer-overlay"></div>
   <div id="accountSettingsDrawer" class="drawer">
     <div class="drawer-header">
