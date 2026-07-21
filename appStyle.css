@@ -727,6 +727,109 @@ body {
 
   animation: wave 2s linear infinite;
 }
+
+/* --- アバター（頭文字 or 画像アイコン） --- */
+.avatar-circle {
+  width: 2.2rem;
+  height: 2.2rem;
+  min-width: 2.2rem;
+  border-radius: var(--radius-full);
+  background: linear-gradient(155deg, var(--primary), var(--primary-dark));
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  user-select: none;
+  object-fit: cover;
+}
+.avatar-circle.small {
+  width: 1.7rem;
+  height: 1.7rem;
+  min-width: 1.7rem;
+  font-size: 0.75rem;
+}
+.avatar-circle.large {
+  width: 4.4rem;
+  height: 4.4rem;
+  min-width: 4.4rem;
+  font-size: 1.7rem;
+}
+
+/* --- 「解いた人」の重なりアバター表示 --- */
+.solved-by-area {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+  cursor: pointer;
+}
+.solved-by-stack {
+  display: flex;
+}
+.solved-by-avatar {
+  border: 2px solid var(--surface-alt);
+  margin-left: -0.6rem;
+}
+.solved-by-stack .solved-by-avatar:first-child {
+  margin-left: 0;
+}
+.solved-by-overflow {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.solved-by-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* --- メンバー系モーダルの一覧表示（解いた人モーダルで使用） --- */
+#solved-area {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  text-align: left;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+#solved-area p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 0.6rem 0.5rem;
+}
+.member-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.6rem 0.5rem;
+  border-radius: var(--radius-sm);
+  gap: 10px;
+  transition: background-color 0.15s var(--ease);
+}
+.member-item:hover {
+  background-color: var(--surface-alt);
+}
+.member-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.member-name {
+  font-weight: bold;
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
 @keyframes wave {
   0% {
     background-position: 0% center;
