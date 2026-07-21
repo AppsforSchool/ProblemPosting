@@ -36,6 +36,7 @@ let problemsData = [];
 
 let currentProblemIndex = 0;
 let correctAnswersCount = 0;
+let currentBookId = "";
 
 let answerButton;
 let answerModal;
@@ -130,6 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("問題集が指定されていません。");
         return;
       }
+      currentBookId = bookId;
       await loadProblemBook(bookId);
       loadingOverlay.classList.add("hidden");
       document.getElementById("problem-area").classList.remove("hidden");
@@ -195,10 +197,11 @@ async function loadProblemBook(bookId) {
       const choices = data.choices;
       if (!data.answer) throw new Error("解答がありません");
       const answer = data.answer;
+      const answerType = data.answerType || (answer.length === 1 ? "single" : "multiple");
       const explanation = data.explanation || "";
       const imageUrl = data.imageUrl || "";
       
-      problemsData.push([problem, choices, answer, explanation, imageUrl]);
+      problemsData.push([problem, choices, answer, explanation, imageUrl, answerType]);
     }
   } catch (error) {
     console.log(error);
@@ -219,7 +222,7 @@ function nextProblem(problemCount) {
   
   choicesArea.innerHTML = "";
   
-  const isSingle = problemsData[problemCount][2].length === 1;
+  const isSingle = problemsData[problemCount][5] === "single";
   answerTypeText.textContent = isSingle ? "単数選択" : "複数選択";
   
   gaugeBar.style.width = `${((problemCount + 1) / problemsData.length) * 100}%`;
@@ -348,6 +351,15 @@ function handleAnswerModalNext() {
 function showResultModal() {
   resultScoreText.textContent = `${correctAnswersCount} / ${problemsData.length} 問正解`;
   resultModal.classList.remove("hidden");
+
+  db.collection("ProblemPosting")
+    .doc("books")
+    .collection("data")
+    .doc(currentBookId)
+    .update({
+      solvedBy: firebase.firestore.FieldValue.arrayUnion(myUserId)
+    })
+    .catch(error => console.error("解答済み記録エラー:", error));
 }
 
 
