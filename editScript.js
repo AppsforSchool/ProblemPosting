@@ -15,8 +15,10 @@ const MIN_CHOICES = 2;
 const MAX_CHOICES = 6;
 
 let myUserId = "";
+let meIsAdmin = false;
 let currentBookId = "";
 let imgbbApiKeyCache = null;
+let problemUidCounter = 0;
 
 // ★ ImgBBへの画像アップロード（チャットサイトと同じ仕様：system_keys/imgbb からAPIキーを取得してアップロードし、URLを保存する）
 async function uploadImageToImgbb(file) {
@@ -61,6 +63,8 @@ let bookTitleInput;
 let bookDescriptionInput;
 let bookSubjectSelect;
 let bookGradeSelect;
+let madeByArea;
+let bookMadeByInput;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
@@ -76,6 +80,8 @@ document.addEventListener("DOMContentLoaded", () => {
   bookDescriptionInput = document.getElementById("book-description-input");
   bookSubjectSelect = document.getElementById("book-subject-select");
   bookGradeSelect = document.getElementById("book-grade-select");
+  madeByArea = document.getElementById("made-by-area");
+  bookMadeByInput = document.getElementById("book-madeBy-input");
 
   addProblemButton.addEventListener("click", () => addProblemBlock());
   submitButton.addEventListener("click", handleUpdate);
@@ -89,6 +95,9 @@ document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged(async (user) => {
     if (user) {
       myUserId = user.email.split("@")[0];
+
+      const mySnapshot = await db.collection("users_random").doc(myUserId).get();
+      meIsAdmin = mySnapshot.exists ? !!mySnapshot.data().isAdmin : false;
 
       currentBookId = getParmFromUrl("id");
       if (!currentBookId) {
@@ -122,7 +131,7 @@ async function loadBookData(bookId) {
 
     const bookData = bookSnap.data();
 
-    if (bookData.madeBy !== myUserId) {
+    if (bookData.madeBy !== myUserId && !meIsAdmin) {
       loadingOverlay.classList.add("hidden");
       noPermissionOverlay.classList.remove("hidden");
       return;
@@ -133,15 +142,23 @@ async function loadBookData(bookId) {
     bookSubjectSelect.value = String(bookData.subjectId || 0);
     bookGradeSelect.value = String(bookData.gradeId || 0);
 
+    if (meIsAdmin) {
+      madeByArea.classList.remove("hidden");
+      bookMadeByInput.value = bookData.madeBy || "";
+    }
+
     const problemsSnap = await bookRef.collection("problems").orderBy("no").get();
     problemsListEl.innerHTML = "";
 
     problemsSnap.forEach(doc => {
       const data = doc.data();
+      const answer = data.answer || [];
+      const inferredAnswerType = answer.length === 1 ? "single" : "multiple";
       addProblemBlock({
         problem: data.problem || "",
         choices: data.choices || [],
-        answer: data.answer || [],
+        answer,
+        answerType: data.answerType || inferredAnswerType,
         explanation: data.explanation || "",
         imageUrl: data.imageUrl || ""
       });
@@ -168,6 +185,8 @@ function addProblemBlock(prefill) {
   const problemTextInput = card.querySelector(".problem-text-input");
   const explanationInput = card.querySelector(".explanation-input");
 
+  card.dataset.uid = String(problemUidCounter++);
+
   removeProblemButton.addEventListener("click", () => {
     card.remove();
     renumberProblems();
@@ -178,12 +197,18 @@ function addProblemBlock(prefill) {
   });
 
   setupImageControls(card, prefill ? prefill.imageUrl : "");
+  setupAnswerTypeControls(card);
 
   problemsListEl.appendChild(card);
 
   if (prefill) {
     problemTextInput.value = prefill.problem || "";
     explanationInput.value = prefill.explanation || "";
+
+    const answerTypeRadio = card.querySelector(
+      `.answer-type-radio[value="${prefill.answerType === "multiple" ? "multiple" : "single"}"]`
+    );
+    if (answerTypeRadio) answerTypeRadio.checked = true;
 
     const choices = prefill.choices && prefill.choices.length ? prefill.choices : ["", ""];
     const answer = prefill.answer || [];
@@ -198,6 +223,34 @@ function addProblemBlock(prefill) {
 
   updateChoiceButtonsState(card);
   renumberProblems();
+}
+
+function setupAnswerTypeControls(card) {
+  const radios = card.querySelectorAll(".answer-type-radio");
+  radios.forEach(radio => {
+    radio.name = `answer-type-${card.dataset.uid}`;
+    radio.addEventListener("change", () => {
+      if (radio.checked && radio.value === "single") {
+        enforceSingleCorrectChoice(card);
+      }
+    });
+  });
+}
+
+function getAnswerType(card) {
+  const checked = card.querySelector(".answer-type-radio:checked");
+  return checked ? checked.value : "single";
+}
+
+function enforceSingleCorrectChoice(card, keepCheckbox) {
+  const checkboxes = Array.from(card.querySelectorAll(".choice-correct-checkbox"));
+  const checked = checkboxes.filter(cb => cb.checked);
+  if (checked.length <= 1) return;
+
+  const toKeep = keepCheckbox && checked.includes(keepCheckbox) ? keepCheckbox : checked[0];
+  checked.forEach(cb => {
+    if (cb !== toKeep) cb.checked = false;
+  });
 }
 
 function setupImageControls(card, existingImageUrl) {
@@ -265,6 +318,13 @@ function addChoiceRow(choicesListEl, prefillText, prefillChecked) {
     updateChoiceButtonsState(card);
   });
 
+  checkbox.addEventListener("change", () => {
+    const card = choicesListEl.closest(".problem-card");
+    if (checkbox.checked && getAnswerType(card) === "single") {
+      enforceSingleCorrectChoice(card, checkbox);
+    }
+  });
+
   choicesListEl.appendChild(row);
 }
 
@@ -300,6 +360,15 @@ function validateAndCollectPayload() {
   const subjectId = Number(bookSubjectSelect.value);
   const gradeId = Number(bookGradeSelect.value);
 
+  let madeBy = null;
+  if (meIsAdmin) {
+    madeBy = bookMadeByInput.value.trim();
+    if (!madeBy) {
+      alert("作成者のユーザーIDを入力してください。");
+      return null;
+    }
+  }
+
   const problemCards = Array.from(problemsListEl.querySelectorAll(".problem-card"));
   if (problemCards.length === 0) {
     alert("問題を1問以上追加してください。");
@@ -324,6 +393,8 @@ function validateAndCollectPayload() {
       return null;
     }
 
+    const answerType = getAnswerType(card);
+
     const choices = [];
     const answer = [];
     for (let c = 0; c < choiceRows.length; c++) {
@@ -342,6 +413,10 @@ function validateAndCollectPayload() {
       alert(`${problemNumber}問目の正解を1つ以上チェックしてください。`);
       return null;
     }
+    if (answerType === "single" && answer.length !== 1) {
+      alert(`${problemNumber}問目は単数選択なので、正解は1つだけチェックしてください。`);
+      return null;
+    }
 
     const explanation = card.querySelector(".explanation-input").value.trim();
 
@@ -349,6 +424,7 @@ function validateAndCollectPayload() {
       problem: problemText,
       choices,
       answer,
+      answerType,
       explanation,
       imageFile: card._selectedImageFile || null,
       imageRemoved: !!card._imageRemoved,
@@ -356,13 +432,13 @@ function validateAndCollectPayload() {
     });
   }
 
-  return { title, description, subjectId, gradeId, problemsPayload };
+  return { title, description, subjectId, gradeId, madeBy, problemsPayload };
 }
 
 async function handleUpdate() {
   const collected = validateAndCollectPayload();
   if (!collected) return;
-  const { title, description, subjectId, gradeId, problemsPayload } = collected;
+  const { title, description, subjectId, gradeId, madeBy, problemsPayload } = collected;
 
   if (!myUserId) {
     alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
@@ -405,13 +481,17 @@ async function handleUpdate() {
     const existingProblemsSnap = await bookRef.collection("problems").get();
 
     const batch = db.batch();
-    batch.update(bookRef, {
+    const bookUpdateData = {
       title,
       description,
       subjectId,
       gradeId,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    };
+    if (meIsAdmin && madeBy) {
+      bookUpdateData.madeBy = madeBy;
+    }
+    batch.update(bookRef, bookUpdateData);
     existingProblemsSnap.forEach(doc => batch.delete(doc.ref));
     problemsPayload.forEach((p, index) => {
       const problemRef = bookRef.collection("problems").doc();
@@ -420,6 +500,7 @@ async function handleUpdate() {
         problem: p.problem,
         choices: p.choices,
         answer: p.answer,
+        answerType: p.answerType,
         explanation: p.explanation,
         imageUrl: p.imageUrl
       });
