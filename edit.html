@@ -47,6 +47,11 @@
         <label class="make-label" for="book-description-input">説明</label>
         <textarea id="book-description-input" placeholder="どんな問題集か説明を書きましょう" maxlength="200"></textarea>
 
+        <div id="made-by-area" class="hidden">
+          <label class="make-label" for="book-madeBy-input">作成者のユーザーID（管理者のみ変更可）</label>
+          <input type="text" id="book-madeBy-input" placeholder="userId">
+        </div>
+
         <div class="make-inline-fields">
           <div class="make-inline-field">
             <label class="make-label" for="book-subject-select">教科</label>
@@ -109,6 +114,18 @@
         </div>
         <button type="button" class="select-image-button">＋ 画像を選択</button>
         <input type="file" class="image-file-input hidden" accept="image/*">
+      </div>
+
+      <label class="make-label">回答形式</label>
+      <div class="answer-type-selector">
+        <label class="answer-type-option">
+          <input type="radio" class="answer-type-radio" value="single" checked>
+          <span>単数選択</span>
+        </label>
+        <label class="answer-type-option">
+          <input type="radio" class="answer-type-radio" value="multiple">
+          <span>複数選択</span>
+        </label>
       </div>
 
       <label class="make-label">選択肢（正解にはチェックを入れてください）</label>
