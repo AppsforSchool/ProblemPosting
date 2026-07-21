@@ -16,6 +16,7 @@ const MAX_CHOICES = 6;
 
 let myUserId = "";
 let imgbbApiKeyCache = null;
+let problemUidCounter = 0;
 
 // ★ ImgBBへの画像アップロード（チャットサイトと同じ仕様：system_keys/imgbb からAPIキーを取得してアップロードし、URLを保存する）
 async function uploadImageToImgbb(file) {
@@ -78,6 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
       myUserId = user.email.split("@")[0];
     } else {
       console.log("logout");
+      window.location.href = "./index.html";
     }
   });
 });
@@ -90,6 +92,8 @@ function addProblemBlock() {
   const addChoiceButton = card.querySelector(".add-choice-button");
   const removeProblemButton = card.querySelector(".remove-problem-button");
 
+  card.dataset.uid = String(problemUidCounter++);
+
   removeProblemButton.addEventListener("click", () => {
     card.remove();
     renumberProblems();
@@ -100,6 +104,7 @@ function addProblemBlock() {
   });
 
   setupImageControls(card);
+  setupAnswerTypeControls(card);
 
   problemsListEl.appendChild(card);
 
@@ -109,6 +114,34 @@ function addProblemBlock() {
   updateChoiceButtonsState(card);
 
   renumberProblems();
+}
+
+function setupAnswerTypeControls(card) {
+  const radios = card.querySelectorAll(".answer-type-radio");
+  radios.forEach(radio => {
+    radio.name = `answer-type-${card.dataset.uid}`;
+    radio.addEventListener("change", () => {
+      if (radio.checked && radio.value === "single") {
+        enforceSingleCorrectChoice(card);
+      }
+    });
+  });
+}
+
+function getAnswerType(card) {
+  const checked = card.querySelector(".answer-type-radio:checked");
+  return checked ? checked.value : "single";
+}
+
+function enforceSingleCorrectChoice(card, keepCheckbox) {
+  const checkboxes = Array.from(card.querySelectorAll(".choice-correct-checkbox"));
+  const checked = checkboxes.filter(cb => cb.checked);
+  if (checked.length <= 1) return;
+
+  const toKeep = keepCheckbox && checked.includes(keepCheckbox) ? keepCheckbox : checked[0];
+  checked.forEach(cb => {
+    if (cb !== toKeep) cb.checked = false;
+  });
 }
 
 function setupImageControls(card) {
@@ -154,11 +187,19 @@ function addChoiceRow(choicesListEl) {
   const fragment = choiceTemplate.content.cloneNode(true);
   const row = fragment.querySelector(".choice-row");
   const removeChoiceButton = row.querySelector(".remove-choice-button");
+  const correctCheckbox = row.querySelector(".choice-correct-checkbox");
 
   removeChoiceButton.addEventListener("click", () => {
     row.remove();
     const card = choicesListEl.closest(".problem-card");
     updateChoiceButtonsState(card);
+  });
+
+  correctCheckbox.addEventListener("change", () => {
+    const card = choicesListEl.closest(".problem-card");
+    if (correctCheckbox.checked && getAnswerType(card) === "single") {
+      enforceSingleCorrectChoice(card, correctCheckbox);
+    }
   });
 
   choicesListEl.appendChild(row);
@@ -220,6 +261,8 @@ async function handleSubmit() {
       return;
     }
 
+    const answerType = getAnswerType(card);
+
     const choices = [];
     const answer = [];
     for (let c = 0; c < choiceRows.length; c++) {
@@ -238,6 +281,10 @@ async function handleSubmit() {
       alert(`${problemNumber}問目の正解を1つ以上チェックしてください。`);
       return;
     }
+    if (answerType === "single" && answer.length !== 1) {
+      alert(`${problemNumber}問目は単数選択なので、正解は1つだけチェックしてください。`);
+      return;
+    }
 
     const explanation = card.querySelector(".explanation-input").value.trim();
 
@@ -245,6 +292,7 @@ async function handleSubmit() {
       problem: problemText,
       choices,
       answer,
+      answerType,
       explanation,
       imageFile: card._selectedImageFile || null
     });
@@ -298,6 +346,7 @@ async function handleSubmit() {
         problem: p.problem,
         choices: p.choices,
         answer: p.answer,
+        answerType: p.answerType,
         explanation: p.explanation,
         imageUrl: p.imageUrl
       });
