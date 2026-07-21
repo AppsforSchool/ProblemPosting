@@ -279,6 +279,10 @@ function makeDisplayBooks(subjectFilter, gradeFilter) {
       solvedByArea = document.createElement("div");
       solvedByArea.classList.add("solved-by-area");
 
+      const solvedByLabel = document.createElement("span");
+      solvedByLabel.classList.add("solved-by-label");
+      solvedByLabel.textContent = "解いた人:";
+
       const stack = document.createElement("div");
       stack.classList.add("solved-by-stack");
 
@@ -295,12 +299,8 @@ function makeDisplayBooks(subjectFilter, gradeFilter) {
         stack.appendChild(overflow);
       }
 
-      const solvedByLabel = document.createElement("span");
-      solvedByLabel.classList.add("solved-by-label");
-      solvedByLabel.textContent = `解いた人 ${solvedBy.length}人`;
-
-      solvedByArea.appendChild(stack);
       solvedByArea.appendChild(solvedByLabel);
+      solvedByArea.appendChild(stack);
 
       solvedByArea.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -477,9 +477,171 @@ function openSolvedModal(bookId) {
       left.appendChild(nameSpan);
 
       item.appendChild(left);
+      item.addEventListener("click", () => {
+        openProfileModal(userId);
+      });
       solvedArea.appendChild(item);
     });
   }
 
   solvedModal.classList.remove("hidden");
+}
+
+let profileModal;
+let profileModalClose;
+let profileAvatarHolder;
+let profileName;
+let profileNameInput;
+let profileText;
+let profileTextEdit;
+let profileEditButton;
+let isProfileEditing = false;
+let currentProfileUserId = "";
+
+document.addEventListener("DOMContentLoaded", () => {
+  profileModal = document.getElementById("profile-modal");
+  profileModalClose = document.getElementById("profile-modal-close");
+  profileAvatarHolder = document.getElementById("profile-avatar-holder");
+  profileName = document.getElementById("profile-name");
+  profileNameInput = document.getElementById("profile-name-input");
+  profileText = document.getElementById("profile-text");
+  profileTextEdit = document.getElementById("profile-text-edit");
+  profileEditButton = document.getElementById("profile-edit-button");
+
+  profileModalClose.addEventListener("click", () => {
+    profileModal.classList.add("hidden");
+    resetProfileEditMode();
+  });
+
+  profileEditButton.addEventListener("click", handleProfileEditOrSave);
+});
+
+// 編集モードをリセットする関数
+function resetProfileEditMode() {
+  isProfileEditing = false;
+  if (profileEditButton) {
+    profileEditButton.textContent = "プロフィールを編集";
+    profileEditButton.disabled = false;
+  }
+  if (profileName) profileName.classList.remove("hidden");
+  if (profileNameInput) profileNameInput.classList.add("hidden");
+  if (profileText) profileText.classList.remove("hidden");
+  if (profileTextEdit) profileTextEdit.classList.add("hidden");
+}
+
+// 編集ボタン・保存ボタンが押された時の処理
+async function handleProfileEditOrSave() {
+  if (!isProfileEditing) {
+    isProfileEditing = true;
+    profileEditButton.textContent = "プロフィールを保存";
+
+    let currentName = profileName.textContent;
+    let currentText = profileText.textContent;
+
+    if (currentText === "ステータスメッセージはありません。" || currentText === "取得中...") {
+      currentText = "";
+    }
+    if (currentName === "取得中..." || currentName === "不明なユーザー") {
+      currentName = "";
+    }
+
+    profileName.classList.add("hidden");
+    profileNameInput.classList.remove("hidden");
+    profileNameInput.value = currentName;
+
+    profileText.classList.add("hidden");
+    profileTextEdit.classList.remove("hidden");
+    profileTextEdit.value = currentText;
+
+  } else {
+    const newName = profileNameInput.value.trim();
+    const newProfileText = profileTextEdit.value.trim();
+
+    if (!newName) {
+      alert("ユーザーネームを入力してください。");
+      return;
+    }
+
+    profileEditButton.disabled = true;
+    profileEditButton.textContent = "保存中...";
+
+    try {
+      await db.collection("users_random").doc(currentProfileUserId).set(
+        {
+          name: newName,
+          profileText: newProfileText
+        },
+        { merge: true }
+      );
+
+      userCache[currentProfileUserId] = newName;
+
+      if (currentProfileUserId === myUserId) {
+        drawerUsername.textContent = newName;
+      }
+
+      profileName.textContent = newName;
+      profileText.textContent = newProfileText || "ステータスメッセージはありません。";
+
+      profileAvatarHolder.innerHTML = "";
+      profileAvatarHolder.appendChild(createAvatar(newName, "large", userImageCache[currentProfileUserId]));
+
+      const userSnapshot = await db.collection("users_random").doc(currentProfileUserId).get();
+      if (userSnapshot.exists && userSnapshot.data().isAdmin) {
+        profileName.classList.add("admin");
+      } else {
+        profileName.classList.remove("admin");
+      }
+
+      resetProfileEditMode();
+      alert("プロフィールを保存しました。");
+    } catch (error) {
+      console.error("プロフィール保存エラー:", error);
+      alert("プロフィールの保存に失敗しました: " + error.message);
+      profileEditButton.disabled = false;
+      profileEditButton.textContent = "プロフィールを保存";
+    }
+  }
+}
+
+// プロフィールモーダルを開いてFirebaseから最新のステメ等を取得する関数
+async function openProfileModal(userId) {
+  currentProfileUserId = userId;
+  resetProfileEditMode();
+
+  profileName.textContent = userCache[userId] || "取得中...";
+  profileName.classList.toggle("admin", !!userAdminCache[userId]);
+  profileText.textContent = "取得中...";
+
+  profileAvatarHolder.innerHTML = "";
+  profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", userImageCache[userId]));
+
+  const canEdit = meIsAdmin || userId === myUserId;
+  profileEditButton.classList.toggle("hidden", !canEdit);
+  profileModal.classList.remove("hidden");
+
+  try {
+    const userSnapshot = await db.collection("users_random").doc(userId).get();
+    if (userSnapshot.exists) {
+      const userData = userSnapshot.data();
+
+      userCache[userId] = userData.name || "名前未設定";
+      userAdminCache[userId] = userData.isAdmin || false;
+      userImageCache[userId] = userData.imageUrl || "";
+
+      profileName.textContent = userCache[userId];
+      profileName.classList.toggle("admin", !!userData.isAdmin);
+      profileText.textContent = userData.profileText || "ステータスメッセージはありません。";
+
+      profileAvatarHolder.innerHTML = "";
+      profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", userImageCache[userId]));
+    } else {
+      profileName.textContent = "不明なユーザー";
+      profileText.textContent = "";
+    }
+  } catch (error) {
+    console.error("プロフィール取得エラー:", error);
+    profileName.textContent = "エラー";
+    profileText.textContent = "プロフィールの取得に失敗しました。";
+  }
 }
