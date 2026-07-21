@@ -33,11 +33,55 @@ const gradeIdList = ["不明", "1年", "2年", "3年", "総合"];
 
 let myUid = "";
 let myUserId = "";
+let meIsAdmin = false;
 
 let userCache = {};
 let userAdminCache = {};
+let userImageCache = {};
 
 let bookCache = {};
+
+// ★ アバターの頭文字を安全に取り出すヘルパー
+function getInitial(name) {
+  if (!name) return "?";
+  return Array.from(name.trim())[0] || "?";
+}
+
+// ★ 頭文字アバター、または画像アバターを生成するヘルパー（size: "small" | "large" | 省略で通常サイズ）
+function createAvatar(name, size, imageUrl) {
+  if (imageUrl) {
+    const img = document.createElement("img");
+    img.classList.add("avatar-circle");
+    if (size === "small") img.classList.add("small");
+    if (size === "large") img.classList.add("large");
+    img.src = imageUrl;
+    img.alt = name || "";
+    return img;
+  }
+  const avatar = document.createElement("div");
+  avatar.classList.add("avatar-circle");
+  if (size === "small") avatar.classList.add("small");
+  if (size === "large") avatar.classList.add("large");
+  avatar.textContent = getInitial(name);
+  return avatar;
+}
+
+// ★ 指定したユーザーの情報（name/isAdmin/imageUrl）がキャッシュになければ取得する
+async function ensureUserCached(userId) {
+  if (userId in userCache && userId in userAdminCache && userId in userImageCache) return;
+
+  const userSnapshot = await db.collection("users_random").doc(userId).get();
+  if (userSnapshot.exists) {
+    const userData = userSnapshot.data();
+    userCache[userId] = userData.name || "名前未設定";
+    userAdminCache[userId] = userData.isAdmin || false;
+    userImageCache[userId] = userData.imageUrl || "";
+  } else {
+    userCache[userId] = "不明なユーザー";
+    userAdminCache[userId] = false;
+    userImageCache[userId] = "";
+  }
+}
 
 let drawerOverlay;
 let accountSettingsDrawer;
@@ -96,6 +140,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const userData = userSnapshot.data();
       userCache[myUserId] = userData.name;
       userAdminCache[myUserId] = userData.isAdmin;
+      userImageCache[myUserId] = userData.imageUrl || "";
+      meIsAdmin = userData.isAdmin || false;
       drawerUsername.textContent = userCache[myUserId];
       if (userAdminCache[myUserId]) drawerUsername.classList.add("admin");
 
@@ -152,6 +198,7 @@ async function loadProblemBooks() {
       .get();
       let problemCount = problemSnapshot.size;
       const makerUserId = data.madeBy || "";
+      const solvedBy = data.solvedBy || [];
 
       bookCache[bookId] = [
         title,
@@ -159,24 +206,13 @@ async function loadProblemBooks() {
         subjectId,
         gradeId,
         problemCount,
-        makerUserId
+        makerUserId,
+        solvedBy
       ];
 
-      if (!(makerUserId in userCache) || !(makerUserId in userAdminCache)) {
-        // Firestoreへのアクセスは「1回だけ」
-        const userSnapshot = await db.collection("users_random").doc(makerUserId).get();
-    
-        if (userSnapshot.exists) {
-          const userData = userSnapshot.data();
-      
-          // 1回の通信で、両方のキャッシュを同時に保存する！
-          userCache[makerUserId] = userData.name || "名前未設定";
-          userAdminCache[makerUserId] = userData.isAdmin || false;
-        } else {
-          // ドキュメントが存在しなかった場合のセーフティ
-          userCache[makerUserId] = "不明なユーザー";
-          userAdminCache[makerUserId] = false;
-        }
+      await ensureUserCached(makerUserId);
+      for (const solverId of solvedBy) {
+        await ensureUserCached(solverId);
       }
     }
   } catch (error) {
@@ -237,6 +273,41 @@ function makeDisplayBooks(subjectFilter, gradeFilter) {
       
     if (isAdmin) nameSpan.classList.add("admin");
       
+    const solvedBy = book[6] || [];
+    let solvedByArea = null;
+    if (solvedBy.length > 0) {
+      solvedByArea = document.createElement("div");
+      solvedByArea.classList.add("solved-by-area");
+
+      const stack = document.createElement("div");
+      stack.classList.add("solved-by-stack");
+
+      const MAX_SHOWN = 4;
+      solvedBy.slice(0, MAX_SHOWN).forEach(userId => {
+        const avatar = createAvatar(userCache[userId], "small", userImageCache[userId]);
+        avatar.classList.add("solved-by-avatar");
+        stack.appendChild(avatar);
+      });
+      if (solvedBy.length > MAX_SHOWN) {
+        const overflow = document.createElement("div");
+        overflow.classList.add("avatar-circle", "small", "solved-by-avatar", "solved-by-overflow");
+        overflow.textContent = "…";
+        stack.appendChild(overflow);
+      }
+
+      const solvedByLabel = document.createElement("span");
+      solvedByLabel.classList.add("solved-by-label");
+      solvedByLabel.textContent = `解いた人 ${solvedBy.length}人`;
+
+      solvedByArea.appendChild(stack);
+      solvedByArea.appendChild(solvedByLabel);
+
+      solvedByArea.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSolvedModal(bookId);
+      });
+    }
+      
       
     card.addEventListener("click", () => {
       openSettingModal(bookId);
@@ -247,6 +318,7 @@ function makeDisplayBooks(subjectFilter, gradeFilter) {
     card.appendChild(cardTitle);
     card.appendChild(cardDescription);
     card.appendChild(cardMadeBy);
+    if (solvedByArea) card.appendChild(solvedByArea);
     
     const subjectMatches = subjectFilter === "all" || book[2] === Number(subjectFilter);
     const gradeMatches = gradeFilter === "all" || book[3] === Number(gradeFilter);
@@ -363,5 +435,51 @@ function openSettingModal(id) {
   if (userAdminCache[bookCache[id][5]])
     settingModalMadeByName.classList.add("admin");
 
-  if (bookCache[id][5] === myUserId) settingModalEditButton.disabled = false;
+  if (bookCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.disabled = false;
+}
+
+let solvedModal;
+let solvedModalClose;
+let solvedArea;
+document.addEventListener("DOMContentLoaded", () => {
+  solvedModal = document.getElementById("solved-modal");
+  solvedModalClose = document.getElementById("solved-modal-close");
+  solvedArea = document.getElementById("solved-area");
+
+  solvedModalClose.addEventListener("click", () => {
+    solvedModal.classList.add("hidden");
+  });
+});
+
+function openSolvedModal(bookId) {
+  const solvedBy = (bookCache[bookId] && bookCache[bookId][6]) || [];
+  solvedArea.innerHTML = "";
+
+  if (solvedBy.length === 0) {
+    const emptyMessage = document.createElement("p");
+    emptyMessage.textContent = "まだ誰も解いていません";
+    solvedArea.appendChild(emptyMessage);
+  } else {
+    solvedBy.forEach(userId => {
+      const item = document.createElement("div");
+      item.classList.add("member-item");
+
+      const left = document.createElement("div");
+      left.classList.add("member-left");
+
+      const avatar = createAvatar(userCache[userId], "small", userImageCache[userId]);
+      left.appendChild(avatar);
+
+      const nameSpan = document.createElement("span");
+      nameSpan.classList.add("member-name");
+      nameSpan.textContent = userCache[userId] || "不明なユーザー";
+      if (userAdminCache[userId]) nameSpan.classList.add("admin");
+      left.appendChild(nameSpan);
+
+      item.appendChild(left);
+      solvedArea.appendChild(item);
+    });
+  }
+
+  solvedModal.classList.remove("hidden");
 }
