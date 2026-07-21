@@ -810,6 +810,7 @@ body {
   padding: 0.6rem 0.5rem;
   border-radius: var(--radius-sm);
   gap: 10px;
+  cursor: pointer;
   transition: background-color 0.15s var(--ease);
 }
 .member-item:hover {
@@ -828,6 +829,148 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);
+}
+.member-name.admin {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wave 2s linear infinite;
+}
+
+/* --- プロフィールモーダル --- */
+#profile-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 0.9rem;
+}
+.profile-avatar-wrap {
+  display: flex;
+  justify-content: center;
+}
+#profile-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  word-break: break-all;
+  text-align: center;
+}
+#profile-name.admin {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wave 2s linear infinite;
+}
+#profile-name-input {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-alt);
+  text-align: center;
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+#profile-name-input:hover {
+  border-color: #c7ccd2;
+}
+#profile-name-input:focus {
+  border-color: var(--primary);
+  background-color: var(--surface);
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.15);
+  outline: none;
+}
+.profile-label {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: -0.3rem;
+}
+#profile-text,
+#profile-text-edit {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  width: 100%;
+  min-height: 110px;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  word-break: break-word;
+  box-sizing: border-box;
+  line-height: 1.55;
+  text-align: left;
+}
+#profile-text {
+  background-color: var(--surface-alt);
+  border: 1.5px solid var(--border);
+  white-space: pre-wrap;
+  color: var(--text);
+}
+#profile-text-edit {
+  background-color: var(--surface);
+  border: 1.5px solid var(--border);
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+#profile-text-edit:hover {
+  border-color: #c7ccd2;
+}
+#profile-text-edit:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.15);
+  outline: none;
+}
+#profile-text-edit.hidden {
+  display: none;
+}
+#profile-edit-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0.7rem;
+  width: 100%;
+  text-align: center;
+  cursor: pointer;
+  display: block;
+  box-sizing: border-box;
+  background-color: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease), background-color 0.15s var(--ease);
+}
+#profile-edit-button:hover:not(:disabled) {
+  background-color: var(--primary-dark);
+  box-shadow: var(--shadow-md);
+}
+#profile-edit-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+#profile-edit-button:disabled {
+  background-color: #dbe0e6;
+  color: #9aa4ae;
+  box-shadow: none;
+}
+#profile-edit-button.hidden {
+  display: none;
 }
 
 @keyframes wave {
