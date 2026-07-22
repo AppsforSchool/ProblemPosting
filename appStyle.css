@@ -505,6 +505,83 @@ body {
   width: 65%;
 }
 
+.view-impressions-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+
+  padding: 0.65rem;
+  width: 100%;
+  margin-top: 0.8rem;
+  text-align: center;
+  cursor: pointer;
+
+  background-color: var(--surface-alt);
+  color: var(--primary-dark);
+  border: 1.5px dashed rgba(var(--primary-rgb), 0.4);
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.view-impressions-button:hover {
+  background-color: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+/* --- 上からスライドして出るモーダル（感想の閲覧用） --- */
+.modal-overlay.top-sheet {
+  align-items: flex-start;
+}
+.top-sheet-content {
+  width: 100%;
+  max-width: 500px;
+  margin-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  animation: slide-down 0.25s var(--ease);
+}
+@keyframes slide-down {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+#impressions-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  text-align: left;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+#impressions-area p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem 0;
+}
+.impression-card {
+  background-color: var(--surface-alt);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 1rem;
+}
+.impression-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+.impression-card-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.impression-card-text {
+  font-size: 0.9rem;
+  color: var(--text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 
 #drawerUsername.admin {
   background: linear-gradient(
@@ -792,6 +869,12 @@ body {
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--text-muted);
+}
+.solved-by-empty-text {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 /* --- メンバー系モーダルの一覧表示（解いた人モーダルで使用） --- */
