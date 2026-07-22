@@ -535,7 +535,9 @@ body {
   display: block;
   width: 100%;
   max-width: 240px;
+  */
   margin: 0.5rem auto 1rem;
+  /*
   border-radius: var(--radius-md);
   */
 }
