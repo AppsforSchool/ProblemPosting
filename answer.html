@@ -54,7 +54,19 @@
     <div class="modal-content answer-modal-content">
       <p class="result-title">結果発表</p>
       <p id="result-score-text" class="result-score-text"></p>
+      <button id="write-impression-button" class="secondary-next-button">感想を書く</button>
       <button id="result-home-button" class="answer-next-button">ホームにもどる</button>
+    </div>
+  </div>
+
+  <div id="impression-modal" class="modal-overlay top-sheet hidden">
+    <div class="modal-content top-sheet-content">
+      <div class="modal-header">
+        <p class="title">感想を書く</p>
+        <span id="impression-modal-close" class="close-button">&times;</span>
+      </div>
+      <textarea id="impression-input" rows="5" placeholder="この問題集の感想を書いてみましょう"></textarea>
+      <button id="impression-save-button" class="answer-next-button">保存する</button>
     </div>
   </div>
 
