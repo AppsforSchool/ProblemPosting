@@ -293,15 +293,15 @@ function makeDisplayBooks(subjectFilter, gradeFilter) {
     cardMadeBy.appendChild(nameSpan);
       
     const solvedBy = book[6] || [];
-    let solvedByArea = null;
+    const solvedByArea = document.createElement("div");
+    solvedByArea.classList.add("solved-by-area");
+
+    const solvedByLabel = document.createElement("span");
+    solvedByLabel.classList.add("solved-by-label");
+    solvedByLabel.textContent = "解いた人:";
+    solvedByArea.appendChild(solvedByLabel);
+
     if (solvedBy.length > 0) {
-      solvedByArea = document.createElement("div");
-      solvedByArea.classList.add("solved-by-area");
-
-      const solvedByLabel = document.createElement("span");
-      solvedByLabel.classList.add("solved-by-label");
-      solvedByLabel.textContent = "解いた人:";
-
       const stack = document.createElement("div");
       stack.classList.add("solved-by-stack");
 
@@ -319,13 +319,16 @@ function makeDisplayBooks(subjectFilter, gradeFilter) {
         stack.appendChild(overflow);
       }
 
-      solvedByArea.appendChild(solvedByLabel);
       solvedByArea.appendChild(stack);
-
       solvedByArea.addEventListener("click", (e) => {
         e.stopPropagation();
         openSolvedModal(bookId);
       });
+    } else {
+      const emptyText = document.createElement("span");
+      emptyText.classList.add("solved-by-empty-text");
+      emptyText.textContent = "解いた人はまだいません";
+      solvedByArea.appendChild(emptyText);
     }
       
       
@@ -394,7 +397,7 @@ let settingModalSubject,
   settingModalCount,
   settingModalCountText;
 let settingModalTitle, settingModalDescription, settingModalMadeByName;
-let settingModalEditButton, settingModalStartButton;
+let settingModalEditButton, settingModalStartButton, viewImpressionsButton;
 document.addEventListener("DOMContentLoaded", () => {
   settingModal = document.getElementById("setting-modal");
   settingModalClose = document.getElementById("setting-modal-close");
@@ -407,6 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
   settingModalMadeByName = document.getElementById("setting-madeBy-name");
   settingModalStartButton = document.getElementById("start-button");
   settingModalEditButton = document.getElementById("edit-button");
+  viewImpressionsButton = document.getElementById("view-impressions-button");
 
   settingModalClose.addEventListener("click", () => {
     settingModal.classList.add("hidden");
@@ -437,6 +441,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   settingModalMadeByName.addEventListener("click", () => {
     openProfileModal(bookCache[settingModalBookId][5]);
+  });
+  viewImpressionsButton.addEventListener("click", () => {
+    openImpressionsModal(settingModalBookId);
   });
 });
 
@@ -679,5 +686,80 @@ async function openProfileModal(userId, startEditMode = false) {
     console.error("プロフィール取得エラー:", error);
     profileName.textContent = "エラー";
     profileText.textContent = "プロフィールの取得に失敗しました。";
+  }
+}
+
+let impressionsModal;
+let impressionsModalClose;
+let impressionsArea;
+document.addEventListener("DOMContentLoaded", () => {
+  impressionsModal = document.getElementById("impressions-modal");
+  impressionsModalClose = document.getElementById("impressions-modal-close");
+  impressionsArea = document.getElementById("impressions-area");
+
+  impressionsModalClose.addEventListener("click", () => {
+    impressionsModal.classList.add("hidden");
+  });
+});
+
+async function openImpressionsModal(bookId) {
+  impressionsArea.innerHTML = "<p>読み込み中...</p>";
+  impressionsModal.classList.remove("hidden");
+
+  try {
+    const bookSnap = await db
+      .collection("ProblemPosting")
+      .doc("books")
+      .collection("data")
+      .doc(bookId)
+      .get();
+    const impressions = (bookSnap.exists && bookSnap.data().impressions) || {};
+    const entries = Object.entries(impressions).filter(([, text]) => text && text.trim() !== "");
+
+    impressionsArea.innerHTML = "";
+
+    if (entries.length === 0) {
+      const emptyMessage = document.createElement("p");
+      emptyMessage.textContent = "まだ感想はありません";
+      impressionsArea.appendChild(emptyMessage);
+      return;
+    }
+
+    for (const [userId] of entries) {
+      await ensureUserCached(userId);
+    }
+
+    entries.forEach(([userId, text]) => {
+      const cached = getUserCache(userId) || {};
+
+      const card = document.createElement("div");
+      card.classList.add("impression-card");
+
+      const header = document.createElement("div");
+      header.classList.add("impression-card-header");
+
+      const avatar = createAvatar(cached.name, "small", cached.imageUrl);
+      header.appendChild(avatar);
+
+      const nameSpan = document.createElement("span");
+      nameSpan.classList.add("impression-card-name", "clickable-user");
+      nameSpan.textContent = cached.name || "不明なユーザー";
+      if (cached.isAdmin) nameSpan.classList.add("admin");
+      nameSpan.addEventListener("click", () => {
+        openProfileModal(userId);
+      });
+      header.appendChild(nameSpan);
+
+      const textP = document.createElement("p");
+      textP.classList.add("impression-card-text");
+      textP.textContent = text;
+
+      card.appendChild(header);
+      card.appendChild(textP);
+      impressionsArea.appendChild(card);
+    });
+  } catch (error) {
+    console.error("感想の取得エラー:", error);
+    impressionsArea.innerHTML = "<p>感想の取得に失敗しました。</p>";
   }
 }
