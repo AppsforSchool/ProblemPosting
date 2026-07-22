@@ -35,9 +35,14 @@ let myUid = "";
 let myUserId = "";
 let meIsAdmin = false;
 
-let userCache = {};
-let userAdminCache = {};
-let userImageCache = {};
+let userDataCache = {};
+function getUserCache(userId) {
+  return userDataCache[userId] || null;
+}
+function setUserCache(userId, data) {
+  userDataCache[userId] = Object.assign({}, userDataCache[userId] || {}, data);
+  return userDataCache[userId];
+}
 
 let bookCache = {};
 
@@ -66,20 +71,21 @@ function createAvatar(name, size, imageUrl) {
   return avatar;
 }
 
-// ★ 指定したユーザーの情報（name/isAdmin/imageUrl）がキャッシュになければ取得する
+// ★ 指定したユーザーの情報（name/isAdmin/imageUrl/profileText）がキャッシュになければ取得する
 async function ensureUserCached(userId) {
-  if (userId in userCache && userId in userAdminCache && userId in userImageCache) return;
+  if (getUserCache(userId)) return;
 
   const userSnapshot = await db.collection("users_random").doc(userId).get();
   if (userSnapshot.exists) {
     const userData = userSnapshot.data();
-    userCache[userId] = userData.name || "名前未設定";
-    userAdminCache[userId] = userData.isAdmin || false;
-    userImageCache[userId] = userData.imageUrl || "";
+    setUserCache(userId, {
+      name: userData.name || "名前未設定",
+      isAdmin: userData.isAdmin || false,
+      imageUrl: userData.imageUrl || "",
+      profileText: userData.profileText || ""
+    });
   } else {
-    userCache[userId] = "不明なユーザー";
-    userAdminCache[userId] = false;
-    userImageCache[userId] = "";
+    setUserCache(userId, { name: "不明なユーザー", isAdmin: false, imageUrl: "", profileText: "" });
   }
 }
 
@@ -88,7 +94,9 @@ let accountSettingsDrawer;
 let drawerCloseButton;
 let accountSettingsButton;
 let drawerUserId;
+let drawerUsername;
 let drawerLogoutButton;
+let drawerEditProfileButton;
 
 let subjectSelect;
 let gradeSelect;
@@ -100,12 +108,18 @@ document.addEventListener("DOMContentLoaded", () => {
   accountSettingsButton = document.getElementById("setting-button");
 
   drawerUserId = document.getElementById("drawerUserId");
+  drawerUsername = document.getElementById("drawerUsername");
   drawerLogoutButton = document.getElementById("logout-button");
+  drawerEditProfileButton = document.getElementById("drawer-edit-profile-button");
 
   accountSettingsButton.addEventListener("click", openDrawer);
   drawerCloseButton.addEventListener("click", closeDrawer);
   drawerOverlay.addEventListener("click", closeDrawer);
   drawerLogoutButton.addEventListener("click", handleLogout);
+  drawerEditProfileButton.addEventListener("click", () => {
+    closeDrawer();
+    openProfileModal(myUserId, true);
+  });
 
   subjectSelect = document.getElementById("subject-select");
   gradeSelect = document.getElementById("grade-select");
@@ -138,12 +152,15 @@ document.addEventListener("DOMContentLoaded", () => {
         .doc(myUserId)
         .get();
       const userData = userSnapshot.data();
-      userCache[myUserId] = userData.name;
-      userAdminCache[myUserId] = userData.isAdmin;
-      userImageCache[myUserId] = userData.imageUrl || "";
+      setUserCache(myUserId, {
+        name: userData.name,
+        isAdmin: userData.isAdmin,
+        imageUrl: userData.imageUrl || "",
+        profileText: userData.profileText || ""
+      });
       meIsAdmin = userData.isAdmin || false;
-      drawerUsername.textContent = userCache[myUserId];
-      if (userAdminCache[myUserId]) drawerUsername.classList.add("admin");
+      drawerUsername.textContent = userData.name;
+      if (meIsAdmin) drawerUsername.classList.add("admin");
 
       myUid = userData.uid;
 
@@ -262,16 +279,18 @@ function makeDisplayBooks(subjectFilter, gradeFilter) {
     const cardMadeBy = document.createElement("span");
     cardMadeBy.classList.add("card-madeBy");
       
-    const makerName = userCache[book[5]];
-    const isAdmin = userAdminCache[book[5]];
+    const makerCached = getUserCache(book[5]) || {};
     const nameSpan = document.createElement("span");
-    nameSpan.textContent = makerName;
-    if (isAdmin) nameSpan.classList.add("admin");
+    nameSpan.textContent = makerCached.name;
+    nameSpan.classList.add("clickable-user");
+    if (makerCached.isAdmin) nameSpan.classList.add("admin");
+    nameSpan.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openProfileModal(book[5]);
+    });
     const madeByTextContent = document.createTextNode('作成者: ');
     cardMadeBy.appendChild(madeByTextContent);
     cardMadeBy.appendChild(nameSpan);
-      
-    if (isAdmin) nameSpan.classList.add("admin");
       
     const solvedBy = book[6] || [];
     let solvedByArea = null;
@@ -288,7 +307,8 @@ function makeDisplayBooks(subjectFilter, gradeFilter) {
 
       const MAX_SHOWN = 4;
       solvedBy.slice(0, MAX_SHOWN).forEach(userId => {
-        const avatar = createAvatar(userCache[userId], "small", userImageCache[userId]);
+        const cached = getUserCache(userId) || {};
+        const avatar = createAvatar(cached.name, "small", cached.imageUrl);
         avatar.classList.add("solved-by-avatar");
         stack.appendChild(avatar);
       });
@@ -415,6 +435,9 @@ document.addEventListener("DOMContentLoaded", () => {
   settingModalEditButton.addEventListener("click", () => {
     window.location.href = `./edit.html?id=${settingModalBookId}`;
   });
+  settingModalMadeByName.addEventListener("click", () => {
+    openProfileModal(bookCache[settingModalBookId][5]);
+  });
 });
 
 function openSettingModal(id) {
@@ -431,9 +454,9 @@ function openSettingModal(id) {
   settingModalSubject.textContent = subjectIdList[bookCache[id][2]];
   settingModalGrade.textContent = gradeIdList[bookCache[id][3]];
   settingModalCountText.textContent = `${bookCache[id][4]}問`;
-  settingModalMadeByName.textContent = userCache[bookCache[id][5]];
-  if (userAdminCache[bookCache[id][5]])
-    settingModalMadeByName.classList.add("admin");
+  const makerCached = getUserCache(bookCache[id][5]) || {};
+  settingModalMadeByName.textContent = makerCached.name;
+  settingModalMadeByName.classList.toggle("admin", !!makerCached.isAdmin);
 
   if (bookCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.disabled = false;
 }
@@ -467,13 +490,14 @@ function openSolvedModal(bookId) {
       const left = document.createElement("div");
       left.classList.add("member-left");
 
-      const avatar = createAvatar(userCache[userId], "small", userImageCache[userId]);
+      const cached = getUserCache(userId) || {};
+      const avatar = createAvatar(cached.name, "small", cached.imageUrl);
       left.appendChild(avatar);
 
       const nameSpan = document.createElement("span");
       nameSpan.classList.add("member-name");
-      nameSpan.textContent = userCache[userId] || "不明なユーザー";
-      if (userAdminCache[userId]) nameSpan.classList.add("admin");
+      nameSpan.textContent = cached.name || "不明なユーザー";
+      if (cached.isAdmin) nameSpan.classList.add("admin");
       left.appendChild(nameSpan);
 
       item.appendChild(left);
@@ -574,7 +598,13 @@ async function handleProfileEditOrSave() {
         { merge: true }
       );
 
-      userCache[currentProfileUserId] = newName;
+      const previousCache = getUserCache(currentProfileUserId) || {};
+      const updated = setUserCache(currentProfileUserId, {
+        name: newName,
+        isAdmin: previousCache.isAdmin || false,
+        imageUrl: previousCache.imageUrl || "",
+        profileText: newProfileText
+      });
 
       if (currentProfileUserId === myUserId) {
         drawerUsername.textContent = newName;
@@ -584,14 +614,9 @@ async function handleProfileEditOrSave() {
       profileText.textContent = newProfileText || "ステータスメッセージはありません。";
 
       profileAvatarHolder.innerHTML = "";
-      profileAvatarHolder.appendChild(createAvatar(newName, "large", userImageCache[currentProfileUserId]));
+      profileAvatarHolder.appendChild(createAvatar(newName, "large", updated.imageUrl));
 
-      const userSnapshot = await db.collection("users_random").doc(currentProfileUserId).get();
-      if (userSnapshot.exists && userSnapshot.data().isAdmin) {
-        profileName.classList.add("admin");
-      } else {
-        profileName.classList.remove("admin");
-      }
+      profileName.classList.toggle("admin", !!updated.isAdmin);
 
       resetProfileEditMode();
       alert("プロフィールを保存しました。");
@@ -604,37 +629,48 @@ async function handleProfileEditOrSave() {
   }
 }
 
-// プロフィールモーダルを開いてFirebaseから最新のステメ等を取得する関数
-async function openProfileModal(userId) {
+// プロフィールモーダルを開く関数。キャッシュにステータスメッセージまで揃っていれば再取得しない
+async function openProfileModal(userId, startEditMode = false) {
   currentProfileUserId = userId;
   resetProfileEditMode();
 
-  profileName.textContent = userCache[userId] || "取得中...";
-  profileName.classList.toggle("admin", !!userAdminCache[userId]);
-  profileText.textContent = "取得中...";
+  const cached = getUserCache(userId);
+  profileName.textContent = (cached && cached.name) || "取得中...";
+  profileName.classList.toggle("admin", !!(cached && cached.isAdmin));
+  profileText.textContent = (cached && cached.profileText) || "取得中...";
 
   profileAvatarHolder.innerHTML = "";
-  profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", userImageCache[userId]));
+  profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", cached && cached.imageUrl));
 
   const canEdit = meIsAdmin || userId === myUserId;
   profileEditButton.classList.toggle("hidden", !canEdit);
   profileModal.classList.remove("hidden");
 
+  // すでにステータスメッセージまでキャッシュ済みなら、Firestoreへは再取得しに行かない
+  if (cached && cached.profileText !== undefined) {
+    if (canEdit && startEditMode) handleProfileEditOrSave();
+    return;
+  }
+
   try {
     const userSnapshot = await db.collection("users_random").doc(userId).get();
     if (userSnapshot.exists) {
       const userData = userSnapshot.data();
+      const updated = setUserCache(userId, {
+        name: userData.name || "名前未設定",
+        isAdmin: userData.isAdmin || false,
+        imageUrl: userData.imageUrl || "",
+        profileText: userData.profileText || ""
+      });
 
-      userCache[userId] = userData.name || "名前未設定";
-      userAdminCache[userId] = userData.isAdmin || false;
-      userImageCache[userId] = userData.imageUrl || "";
-
-      profileName.textContent = userCache[userId];
-      profileName.classList.toggle("admin", !!userData.isAdmin);
-      profileText.textContent = userData.profileText || "ステータスメッセージはありません。";
+      profileName.textContent = updated.name;
+      profileName.classList.toggle("admin", !!updated.isAdmin);
+      profileText.textContent = updated.profileText || "ステータスメッセージはありません。";
 
       profileAvatarHolder.innerHTML = "";
-      profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", userImageCache[userId]));
+      profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", updated.imageUrl));
+
+      if (canEdit && startEditMode) handleProfileEditOrSave();
     } else {
       profileName.textContent = "不明なユーザー";
       profileText.textContent = "";
