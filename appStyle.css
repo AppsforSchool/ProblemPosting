@@ -526,6 +526,22 @@ body {
   background-color: var(--primary-soft);
   border-color: var(--primary);
 }
+#setting-modal-share-button {
+  margin-top: 0.6rem;
+}
+
+.book-share-qr {
+  display: block;
+  width: 100%;
+  max-width: 240px;
+  margin: 0.5rem auto 1rem;
+  border-radius: var(--radius-md);
+}
+.book-share-url {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  word-break: break-all;
+}
 
 /* --- 上からスライドして出るモーダル（感想の閲覧用） --- */
 .modal-overlay.top-sheet {
