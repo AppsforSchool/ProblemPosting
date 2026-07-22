@@ -712,6 +712,13 @@ body {
 
   font-weight: bold;
 }
+.clickable-user {
+  cursor: pointer;
+  transition: opacity 0.15s var(--ease);
+}
+.clickable-user:hover {
+  opacity: 0.7;
+}
 .card-madeBy .admin {
   background: linear-gradient(
     90deg,
