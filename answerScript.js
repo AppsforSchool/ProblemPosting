@@ -51,6 +51,12 @@ let resultModal;
 let resultScoreText;
 let resultHomeButton;
 
+let writeImpressionButton;
+let impressionModal;
+let impressionModalClose;
+let impressionInput;
+let impressionSaveButton;
+
 let loadingOverlay;
 let drawerOverlay;
 let accountSettingsDrawer;
@@ -89,6 +95,12 @@ document.addEventListener("DOMContentLoaded", () => {
   resultScoreText = document.getElementById("result-score-text");
   resultHomeButton = document.getElementById("result-home-button");
 
+  writeImpressionButton = document.getElementById("write-impression-button");
+  impressionModal = document.getElementById("impression-modal");
+  impressionModalClose = document.getElementById("impression-modal-close");
+  impressionInput = document.getElementById("impression-input");
+  impressionSaveButton = document.getElementById("impression-save-button");
+
   homeButton.addEventListener("click", () => {
     if (confirm("本当にやめますか？")) {
       window.location.href = "./app.html";
@@ -97,7 +109,60 @@ document.addEventListener("DOMContentLoaded", () => {
   resultHomeButton.addEventListener("click", () => {
     window.location.href = "./app.html";
   });
+
+  writeImpressionButton.addEventListener("click", openImpressionModal);
+  impressionModalClose.addEventListener("click", () => {
+    impressionModal.classList.add("hidden");
+  });
+  impressionSaveButton.addEventListener("click", saveImpression);
 });
+
+async function openImpressionModal() {
+  impressionInput.value = "";
+  impressionInput.disabled = true;
+  impressionModal.classList.remove("hidden");
+
+  try {
+    const bookSnap = await db
+      .collection("ProblemPosting")
+      .doc("books")
+      .collection("data")
+      .doc(currentBookId)
+      .get();
+    const impressions = (bookSnap.exists && bookSnap.data().impressions) || {};
+    impressionInput.value = impressions[myUserId] || "";
+  } catch (error) {
+    console.error("感想の取得エラー:", error);
+  } finally {
+    impressionInput.disabled = false;
+  }
+}
+
+async function saveImpression() {
+  const text = impressionInput.value.trim();
+
+  impressionSaveButton.disabled = true;
+  impressionSaveButton.textContent = "保存中...";
+
+  try {
+    await db
+      .collection("ProblemPosting")
+      .doc("books")
+      .collection("data")
+      .doc(currentBookId)
+      .update({
+        [`impressions.${myUserId}`]: text
+      });
+    alert("感想を保存しました。");
+    impressionModal.classList.add("hidden");
+  } catch (error) {
+    console.error("感想の保存エラー:", error);
+    alert("感想の保存に失敗しました。\n" + error);
+  } finally {
+    impressionSaveButton.disabled = false;
+    impressionSaveButton.textContent = "保存する";
+  }
+}
 
 function openDrawer() {
   accountSettingsDrawer.classList.add("is-open");
