@@ -167,6 +167,7 @@ document.addEventListener("DOMContentLoaded", () => {
       //displayVocabularyBooks();
       await loadProblemBooks();
       makeDisplayBooks("all", "all");
+      openSettingModalFromHash();
     } else {
       console.log("logout");
       window.location.href = "./index.html";
@@ -414,6 +415,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   settingModalClose.addEventListener("click", () => {
     settingModal.classList.add("hidden");
+    clearBookHash();
     settingModalSubject.textContent = "不明";
     settingModalGrade.textContent = "不明";
     settingModalCountText.textContent = "--問";
@@ -450,6 +452,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function openSettingModal(id) {
   settingModalBookId = id;
   settingModal.classList.remove("hidden");
+  setBookHash(id);
   settingModalTitle.textContent = bookCache[id][0];
   settingModalDescription.textContent = bookCache[id][1];
   settingModalSubject.classList.remove("t0");
@@ -466,6 +469,51 @@ function openSettingModal(id) {
   settingModalMadeByName.classList.toggle("admin", !!makerCached.isAdmin);
 
   if (bookCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.disabled = false;
+}
+
+// ★ URLのハッシュ(#問題集ID)を使った出題設定モーダルの直リンク対応
+function setBookHash(bookId) {
+  if (window.location.hash === `#${bookId}`) return;
+  const newUrl = `${window.location.pathname}${window.location.search}#${bookId}`;
+  history.pushState(null, "", newUrl);
+}
+function clearBookHash() {
+  if (!window.location.hash) return;
+  const newUrl = `${window.location.pathname}${window.location.search}`;
+  history.replaceState(null, "", newUrl);
+}
+function openSettingModalFromHash() {
+  const id = window.location.hash.replace("#", "");
+  if (id && bookCache[id]) {
+    openSettingModal(id);
+  }
+}
+
+let bookShareModal;
+let bookShareModalClose;
+let bookShareQr;
+let bookShareUrl;
+let settingModalShareButton;
+document.addEventListener("DOMContentLoaded", () => {
+  bookShareModal = document.getElementById("book-share-modal");
+  bookShareModalClose = document.getElementById("book-share-modal-close");
+  bookShareQr = document.getElementById("book-share-qr");
+  bookShareUrl = document.getElementById("book-share-url");
+  settingModalShareButton = document.getElementById("setting-modal-share-button");
+
+  bookShareModalClose.addEventListener("click", () => {
+    bookShareModal.classList.add("hidden");
+  });
+  settingModalShareButton.addEventListener("click", () => {
+    openBookShareModal(settingModalBookId);
+  });
+});
+
+function openBookShareModal(bookId) {
+  const targetUrl = new URL(`app.html#${bookId}`, window.location.href).href;
+  bookShareUrl.textContent = targetUrl;
+  bookShareQr.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(targetUrl)}`;
+  bookShareModal.classList.remove("hidden");
 }
 
 let solvedModal;
