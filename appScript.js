@@ -434,7 +434,7 @@ document.addEventListener("DOMContentLoaded", () => {
     settingModalMadeByName.textContent = "loading...";
     settingModalMadeByName.classList.remove("admin");
 
-    settingModalEditButton.disabled = true;
+    settingModalEditButton.classList.add("hidden");
   });
   settingModalStartButton.addEventListener("click", () => {
     window.location.href = `./answer.html?id=${settingModalBookId}`;
@@ -469,7 +469,7 @@ function openSettingModal(id) {
   settingModalMadeByName.textContent = makerCached.name;
   settingModalMadeByName.classList.toggle("admin", !!makerCached.isAdmin);
 
-  if (bookCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.disabled = false;
+  if (bookCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.classList.remove("hidden");
 }
 
 // ★ URLのハッシュ(#問題集ID)を使った出題設定モーダルの直リンク対応
