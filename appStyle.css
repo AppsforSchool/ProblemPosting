@@ -437,6 +437,8 @@ body {
   font-weight: bold;
   font-size: 0.85rem;
   color: var(--text-muted);
+
+  white-space: pre-line;
 }
 #setting-madeBy-p {
   font-weight: bold;
@@ -802,6 +804,8 @@ body {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+
+  white-space: pre-line;
 }
 .card-madeBy {
   font-size: 0.75rem;
