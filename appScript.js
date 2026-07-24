@@ -101,6 +101,7 @@ let drawerEditProfileButton;
 let subjectSelect;
 let gradeSelect;
 let sortOrderSelect;
+let solvedFilterSelect;
 
 document.addEventListener("DOMContentLoaded", () => {
   drawerOverlay = document.getElementById("drawerOverlay");
@@ -125,14 +126,16 @@ document.addEventListener("DOMContentLoaded", () => {
   subjectSelect = document.getElementById("subject-select");
   gradeSelect = document.getElementById("grade-select");
   sortOrderSelect = document.getElementById("sort-order-select");
+  solvedFilterSelect = document.getElementById("solved-filter-select");
 
   subjectSelect.addEventListener("change", handleFilterChange);
   gradeSelect.addEventListener("change", handleFilterChange);
   sortOrderSelect.addEventListener("change", handleFilterChange);
+  solvedFilterSelect.addEventListener("change", handleFilterChange);
 });
 
 function handleFilterChange() {
-  makeDisplayBooks(subjectSelect.value, gradeSelect.value, sortOrderSelect.value);
+  makeDisplayBooks(subjectSelect.value, gradeSelect.value, sortOrderSelect.value, solvedFilterSelect.value);
 }
 
 function openDrawer() {
@@ -169,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       //displayVocabularyBooks();
       await loadProblemBooks();
-      makeDisplayBooks("all", "all", "created");
+      makeDisplayBooks("all", "all", "created", "all");
       openSettingModalFromHash();
     } else {
       console.log("logout");
@@ -240,7 +243,7 @@ async function loadProblemBooks() {
   }
 }
 
-function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder) {
+function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
   const listElement = document.getElementById("card-area");
   const loadingText = document.getElementById("loading-text");
 
@@ -352,7 +355,13 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder) {
     
     const subjectMatches = subjectFilter === "all" || book[2] === Number(subjectFilter);
     const gradeMatches = gradeFilter === "all" || book[3] === Number(gradeFilter);
-    if (subjectMatches && gradeMatches) {
+    const hasSolved = (book[6] || []).includes(myUserId);
+    const solvedMatches =
+      !solvedFilter ||
+      solvedFilter === "all" ||
+      (solvedFilter === "solved" && hasSolved) ||
+      (solvedFilter === "unsolved" && !hasSolved);
+    if (subjectMatches && gradeMatches && solvedMatches) {
       fragment.appendChild(card);
     }
   });

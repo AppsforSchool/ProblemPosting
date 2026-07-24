@@ -644,6 +644,7 @@ body {
 
 .narrow-down-area {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   margin-bottom: 1rem;
@@ -659,7 +660,8 @@ body {
 }
 #sort-order-select,
 #subject-select,
-#grade-select {
+#grade-select,
+#solved-filter-select {
   font-family: "BIZ UDGothic", sans-serif;
   font-weight: 700;
   font-size: 0.88rem;
@@ -674,12 +676,14 @@ body {
 }
 #sort-order-select:hover,
 #subject-select:hover,
-#grade-select:hover {
+#grade-select:hover,
+#solved-filter-select:hover {
   border-color: #c7ccd2;
 }
 #sort-order-select:focus,
 #subject-select:focus,
-#grade-select:focus {
+#grade-select:focus,
+#solved-filter-select:focus {
   border-color: var(--primary);
   background-color: var(--surface);
   box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.15);
