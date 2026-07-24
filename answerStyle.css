@@ -778,6 +778,8 @@ body {
 .problem-area p {
   font-weight: bold;
   font-size: 1.05rem;
+
+  white-space: pre-line;
 }
 .problem-area #answer-type-text {
   font-size: 0.8rem;
