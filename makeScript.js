@@ -335,7 +335,9 @@ async function handleSubmit() {
         subjectId,
         gradeId,
         madeBy: myUserId,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        problemCount: problemsPayload.length,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
 
     const batch = db.batch();

@@ -486,6 +486,7 @@ async function handleUpdate() {
       description,
       subjectId,
       gradeId,
+      problemCount: problemsPayload.length,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if (meIsAdmin && madeBy) {

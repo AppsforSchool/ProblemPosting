@@ -652,6 +652,12 @@ body {
   font-weight: bold;
   font-size: 1.1rem;
 }
+.sort-order-area {
+  padding-right: 10px;
+  border-right: 1px solid var(--border);
+  margin-right: 4px;
+}
+#sort-order-select,
 #subject-select,
 #grade-select {
   font-family: "BIZ UDGothic", sans-serif;
@@ -666,10 +672,12 @@ body {
   cursor: pointer;
   transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), background-color 0.2s var(--ease);
 }
+#sort-order-select:hover,
 #subject-select:hover,
 #grade-select:hover {
   border-color: #c7ccd2;
 }
+#sort-order-select:focus,
 #subject-select:focus,
 #grade-select:focus {
   border-color: var(--primary);

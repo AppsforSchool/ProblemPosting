@@ -100,6 +100,7 @@ let drawerEditProfileButton;
 
 let subjectSelect;
 let gradeSelect;
+let sortOrderSelect;
 
 document.addEventListener("DOMContentLoaded", () => {
   drawerOverlay = document.getElementById("drawerOverlay");
@@ -123,13 +124,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   subjectSelect = document.getElementById("subject-select");
   gradeSelect = document.getElementById("grade-select");
+  sortOrderSelect = document.getElementById("sort-order-select");
 
   subjectSelect.addEventListener("change", handleFilterChange);
   gradeSelect.addEventListener("change", handleFilterChange);
+  sortOrderSelect.addEventListener("change", handleFilterChange);
 });
 
 function handleFilterChange() {
-  makeDisplayBooks(subjectSelect.value, gradeSelect.value);
+  makeDisplayBooks(subjectSelect.value, gradeSelect.value, sortOrderSelect.value);
 }
 
 function openDrawer() {
@@ -166,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       //displayVocabularyBooks();
       await loadProblemBooks();
-      makeDisplayBooks("all", "all");
+      makeDisplayBooks("all", "all", "created");
       openSettingModalFromHash();
     } else {
       console.log("logout");
@@ -208,16 +211,11 @@ async function loadProblemBooks() {
       if (9 < subjectId) subjectId = 0;
       let gradeId = data.gradeId || 0;
       if (4 < gradeId) gradeId = 0;
-      const problemSnapshot = await db
-      .collection("ProblemPosting")
-      .doc("books")
-      .collection("data")
-      .doc(bookId)
-      .collection("problems")
-      .get();
-      let problemCount = problemSnapshot.size;
+      const problemCount = data.problemCount || 0;
       const makerUserId = data.madeBy || "";
       const solvedBy = data.solvedBy || [];
+      const createdAtMillis = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0;
+      const updatedAtMillis = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : createdAtMillis;
 
       bookCache[bookId] = [
         title,
@@ -226,7 +224,9 @@ async function loadProblemBooks() {
         gradeId,
         problemCount,
         makerUserId,
-        solvedBy
+        solvedBy,
+        createdAtMillis,
+        updatedAtMillis
       ];
 
       await ensureUserCached(makerUserId);
@@ -240,14 +240,19 @@ async function loadProblemBooks() {
   }
 }
 
-function makeDisplayBooks(subjectFilter, gradeFilter) {
+function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder) {
   const listElement = document.getElementById("card-area");
   const loadingText = document.getElementById("loading-text");
 
   listElement.innerHTML = "";
   const fragment = document.createDocumentFragment();
 
-  Object.entries(bookCache).forEach(([bookId, book]) => {
+  const sortIndex = sortOrder === "updated" ? 8 : 7;
+  const sortedEntries = Object.entries(bookCache).sort(
+    ([, bookA], [, bookB]) => (bookB[sortIndex] || 0) - (bookA[sortIndex] || 0)
+  );
+
+  sortedEntries.forEach(([bookId, book]) => {
     
     const card = document.createElement("div");
     card.classList.add("card");
