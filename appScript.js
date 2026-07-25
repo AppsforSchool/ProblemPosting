@@ -705,9 +705,12 @@ async function openProfileModal(userId, startEditMode = false) {
   resetProfileEditMode();
 
   const cached = getUserCache(userId);
+  const hasCachedProfileText = !!cached && cached.profileText !== undefined;
   profileName.textContent = (cached && cached.name) || "取得中...";
   profileName.classList.toggle("admin", !!(cached && cached.isAdmin));
-  profileText.textContent = (cached && cached.profileText) || "取得中...";
+  profileText.textContent = hasCachedProfileText
+    ? (cached.profileText || "ステータスメッセージはありません。")
+    : "取得中...";
 
   profileAvatarHolder.innerHTML = "";
   profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", cached && cached.imageUrl));
@@ -717,7 +720,7 @@ async function openProfileModal(userId, startEditMode = false) {
   profileModal.classList.remove("hidden");
 
   // すでにステータスメッセージまでキャッシュ済みなら、Firestoreへは再取得しに行かない
-  if (cached && cached.profileText !== undefined) {
+  if (hasCachedProfileText) {
     if (canEdit && startEditMode) handleProfileEditOrSave();
     return;
   }
