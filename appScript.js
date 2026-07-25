@@ -45,6 +45,32 @@ function setUserCache(userId, data) {
 }
 
 let bookCache = {};
+let imgbbApiKeyCache = null;
+
+// ★ ImgBBへの画像アップロード（チャットサイトと同じ仕様：system_keys/imgbb からAPIキーを取得してアップロードし、URLを保存する）
+async function uploadImageToImgbb(file) {
+  if (!imgbbApiKeyCache) {
+    const keyDoc = await db.collection("system_keys").doc("imgbb").get();
+    if (!keyDoc.exists) {
+      throw new Error("APIキーの設定が見つかりません。セキュリティルールかドキュメントを確認してください。");
+    }
+    imgbbApiKeyCache = keyDoc.data().apiKey;
+  }
+
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const response = await fetch(`https://api.imgbb.com/1/upload?key=${imgbbApiKeyCache}`, {
+    method: "POST",
+    body: formData
+  });
+
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error("画像のアップロードに失敗しました。");
+  }
+  return result.data.url;
+}
 
 // ★ アバターの頭文字を安全に取り出すヘルパー
 function getInitial(name) {
@@ -583,7 +609,10 @@ function openSolvedModal(bookId) {
 
 let profileModal;
 let profileModalClose;
+let profileAvatarWrap;
 let profileAvatarHolder;
+let profileAvatarInput;
+let profileAvatarRemoveButton;
 let profileName;
 let profileNameInput;
 let profileText;
@@ -591,11 +620,18 @@ let profileTextEdit;
 let profileEditButton;
 let isProfileEditing = false;
 let currentProfileUserId = "";
+let canEditCurrentProfile = false;
+let profileAvatarCurrentUrl = "";
+let profileAvatarFile = null;
+let profileAvatarRemoved = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   profileModal = document.getElementById("profile-modal");
   profileModalClose = document.getElementById("profile-modal-close");
+  profileAvatarWrap = document.querySelector(".profile-avatar-wrap");
   profileAvatarHolder = document.getElementById("profile-avatar-holder");
+  profileAvatarInput = document.getElementById("profile-avatar-input");
+  profileAvatarRemoveButton = document.getElementById("profile-avatar-remove-button");
   profileName = document.getElementById("profile-name");
   profileNameInput = document.getElementById("profile-name-input");
   profileText = document.getElementById("profile-text");
@@ -608,6 +644,44 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   profileEditButton.addEventListener("click", handleProfileEditOrSave);
+
+  // アイコンをタップ（編集モード中のみ有効）→ ファイル選択を開く
+  profileAvatarHolder.addEventListener("click", () => {
+    if (!isProfileEditing || !canEditCurrentProfile) return;
+    profileAvatarInput.click();
+  });
+
+  // ファイルが選択されたらプレビューに反映（アップロードは保存時にまとめて行う）
+  profileAvatarInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    profileAvatarFile = file;
+    profileAvatarRemoved = false;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      profileAvatarHolder.innerHTML = "";
+      const img = document.createElement("img");
+      img.classList.add("avatar-circle", "large");
+      img.src = event.target.result;
+      profileAvatarHolder.appendChild(img);
+      profileAvatarRemoveButton.classList.remove("hidden");
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // 「画像を削除」→ プレビューを頭文字アバターに戻し、保存時に画像を消去
+  profileAvatarRemoveButton.addEventListener("click", () => {
+    profileAvatarFile = null;
+    profileAvatarRemoved = true;
+    profileAvatarInput.value = "";
+
+    profileAvatarHolder.innerHTML = "";
+    const nameForInitial = isProfileEditing ? profileNameInput.value : profileName.textContent;
+    profileAvatarHolder.appendChild(createAvatar(nameForInitial, "large"));
+    profileAvatarRemoveButton.classList.add("hidden");
+  });
 });
 
 // 編集モードをリセットする関数
@@ -621,6 +695,15 @@ function resetProfileEditMode() {
   if (profileNameInput) profileNameInput.classList.add("hidden");
   if (profileText) profileText.classList.remove("hidden");
   if (profileTextEdit) profileTextEdit.classList.add("hidden");
+
+  if (profileAvatarWrap) profileAvatarWrap.classList.remove("editable");
+  if (profileAvatarRemoveButton) profileAvatarRemoveButton.classList.add("hidden");
+  profileAvatarFile = null;
+  profileAvatarRemoved = false;
+  if (profileAvatarHolder && profileName) {
+    profileAvatarHolder.innerHTML = "";
+    profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", profileAvatarCurrentUrl));
+  }
 }
 
 // 編集ボタン・保存ボタンが押された時の処理
@@ -647,6 +730,14 @@ async function handleProfileEditOrSave() {
     profileTextEdit.classList.remove("hidden");
     profileTextEdit.value = currentText;
 
+    // アイコンをタップして変更できるようにする（自分／管理者のみ）
+    if (canEditCurrentProfile) {
+      profileAvatarWrap.classList.add("editable");
+      if (profileAvatarCurrentUrl) {
+        profileAvatarRemoveButton.classList.remove("hidden");
+      }
+    }
+
   } else {
     const newName = profileNameInput.value.trim();
     const newProfileText = profileTextEdit.value.trim();
@@ -660,10 +751,21 @@ async function handleProfileEditOrSave() {
     profileEditButton.textContent = "保存中...";
 
     try {
+      let finalImageUrl = profileAvatarCurrentUrl;
+      if (profileAvatarFile) {
+        profileEditButton.textContent = "画像をアップロード中...";
+        finalImageUrl = await uploadImageToImgbb(profileAvatarFile);
+      } else if (profileAvatarRemoved) {
+        finalImageUrl = "";
+      }
+
+      profileEditButton.textContent = "保存中...";
+
       await db.collection("users_random").doc(currentProfileUserId).set(
         {
           name: newName,
-          profileText: newProfileText
+          profileText: newProfileText,
+          imageUrl: finalImageUrl
         },
         { merge: true }
       );
@@ -672,7 +774,7 @@ async function handleProfileEditOrSave() {
       const updated = setUserCache(currentProfileUserId, {
         name: newName,
         isAdmin: previousCache.isAdmin || false,
-        imageUrl: previousCache.imageUrl || "",
+        imageUrl: finalImageUrl,
         profileText: newProfileText
       });
 
@@ -683,6 +785,9 @@ async function handleProfileEditOrSave() {
       profileName.textContent = newName;
       profileText.textContent = newProfileText || "ステータスメッセージはありません。";
 
+      profileAvatarCurrentUrl = finalImageUrl;
+      profileAvatarFile = null;
+      profileAvatarRemoved = false;
       profileAvatarHolder.innerHTML = "";
       profileAvatarHolder.appendChild(createAvatar(newName, "large", updated.imageUrl));
 
@@ -702,6 +807,7 @@ async function handleProfileEditOrSave() {
 // プロフィールモーダルを開く関数。キャッシュにステータスメッセージまで揃っていれば再取得しない
 async function openProfileModal(userId, startEditMode = false) {
   currentProfileUserId = userId;
+  canEditCurrentProfile = meIsAdmin || userId === myUserId;
   resetProfileEditMode();
 
   const cached = getUserCache(userId);
@@ -711,17 +817,17 @@ async function openProfileModal(userId, startEditMode = false) {
   profileText.textContent = hasCachedProfileText
     ? (cached.profileText || "ステータスメッセージはありません。")
     : "取得中...";
+  profileAvatarCurrentUrl = (cached && cached.imageUrl) || "";
 
   profileAvatarHolder.innerHTML = "";
-  profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", cached && cached.imageUrl));
+  profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", profileAvatarCurrentUrl));
 
-  const canEdit = meIsAdmin || userId === myUserId;
-  profileEditButton.classList.toggle("hidden", !canEdit);
+  profileEditButton.classList.toggle("hidden", !canEditCurrentProfile);
   profileModal.classList.remove("hidden");
 
   // すでにステータスメッセージまでキャッシュ済みなら、Firestoreへは再取得しに行かない
   if (hasCachedProfileText) {
-    if (canEdit && startEditMode) handleProfileEditOrSave();
+    if (canEditCurrentProfile && startEditMode) handleProfileEditOrSave();
     return;
   }
 
@@ -739,11 +845,12 @@ async function openProfileModal(userId, startEditMode = false) {
       profileName.textContent = updated.name;
       profileName.classList.toggle("admin", !!updated.isAdmin);
       profileText.textContent = updated.profileText || "ステータスメッセージはありません。";
+      profileAvatarCurrentUrl = updated.imageUrl || "";
 
       profileAvatarHolder.innerHTML = "";
-      profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", updated.imageUrl));
+      profileAvatarHolder.appendChild(createAvatar(profileName.textContent, "large", profileAvatarCurrentUrl));
 
-      if (canEdit && startEditMode) handleProfileEditOrSave();
+      if (canEditCurrentProfile && startEditMode) handleProfileEditOrSave();
     } else {
       profileName.textContent = "不明なユーザー";
       profileText.textContent = "";
