@@ -861,14 +861,18 @@ body {
   cursor: default;
   opacity: 1;
 }
+.answer-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
 #answer-button {
   font-family: "BIZ UDGothic", sans-serif;
   font-weight: 700;
   font-size: 1.05rem;
 
   padding: 0.75rem;
-  width: 100%;
-  margin-top: 0.5rem;
+  flex: 1;
   text-align: center;
   cursor: pointer;
   display: block;
@@ -892,6 +896,30 @@ body {
   background-color: #dbe0e6;
   color: #9aa4ae;
   box-shadow: none;
+  cursor: default;
+}
+.skip-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+
+  padding: 0.75rem 1rem;
+  flex: 0 0 auto;
+  text-align: center;
+  cursor: pointer;
+  box-sizing: border-box;
+
+  background-color: var(--surface-alt);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.skip-button:hover:not(:disabled) {
+  background-color: var(--border);
+}
+.skip-button:disabled {
+  opacity: 0.5;
   cursor: default;
 }
 

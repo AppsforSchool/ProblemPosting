@@ -39,6 +39,8 @@ let correctAnswersCount = 0;
 let currentBookId = "";
 
 let answerButton;
+let skipButton;
+let textAnswerInputEl;
 let answerModal;
 let answerResultText;
 let answerExplanationArea;
@@ -80,6 +82,8 @@ document.addEventListener("DOMContentLoaded", () => {
   drawerLogoutButton.addEventListener("click", handleLogout);
 
   answerButton = document.getElementById("answer-button");
+  skipButton = document.getElementById("skip-button");
+  textAnswerInputEl = document.getElementById("text-answer-input");
   answerModal = document.getElementById("answer-modal");
   answerResultText = document.getElementById("answer-result-text");
   answerExplanationArea = document.getElementById("answer-explanation-area");
@@ -88,6 +92,8 @@ document.addEventListener("DOMContentLoaded", () => {
   answerModalNextButton = document.getElementById("answer-modal-next-button");
 
   answerButton.addEventListener("click", handleAnswerSubmit);
+  skipButton.addEventListener("click", handleSkip);
+  textAnswerInputEl.addEventListener("input", updateAnswerButtonState);
   answerModalNextButton.addEventListener("click", handleAnswerModalNext);
 
   homeButton = document.getElementById("home-button");
@@ -300,6 +306,7 @@ function nextProblem(problemCount) {
   choicesArea.innerHTML = "";
   textAnswerInput.value = "";
   textAnswerInput.disabled = false;
+  skipButton.disabled = false;
   
   const answerType = problemsData[problemCount][5];
   const isSingle = answerType === "single";
@@ -354,16 +361,29 @@ function nextProblem(problemCount) {
             choice.classList.remove("active");
           });
           button.classList.add("active");
+          updateAnswerButtonState();
         });
       } else {
         button.addEventListener("click", () => {
           button.classList.toggle("active");
+          updateAnswerButtonState();
         });
       }
     });
   }
   
-  answerButton.disabled = false;
+  updateAnswerButtonState();
+}
+
+function updateAnswerButtonState() {
+  const answerType = problemsData[currentProblemIndex][5];
+  if (answerType === "text") {
+    answerButton.disabled = textAnswerInputEl.value.trim() === "";
+  } else {
+    const choicesArea = document.getElementById("choices-area");
+    const hasActive = choicesArea.querySelector("button.active") !== null;
+    answerButton.disabled = !hasActive;
+  }
 }
 
 
@@ -424,6 +444,33 @@ function handleAnswerSubmit() {
   showAnswerModal(isCorrect);
 }
 
+function handleSkip() {
+  const answerType = problemsData[currentProblemIndex][5];
+
+  if (answerType === "text") {
+    textAnswerInputEl.disabled = true;
+  } else {
+    const choicesArea = document.getElementById("choices-area");
+    const buttons = Array.from(choicesArea.querySelectorAll("button"));
+    const correctIndices = problemsData[currentProblemIndex][2];
+
+    buttons.forEach(button => {
+      const index = Number(button.dataset.index);
+      button.classList.remove("active");
+      if (correctIndices.includes(index)) {
+        button.classList.add("correct");
+      }
+      button.disabled = true;
+    });
+  }
+
+  answerButton.disabled = true;
+  skipButton.disabled = true;
+
+  // スキップした問題は不正解扱い（correctAnswersCountは増やさない）
+  showAnswerModal(null);
+}
+
 function isSameIndexSet(a, b) {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort((x, y) => x - y);
@@ -432,9 +479,14 @@ function isSameIndexSet(a, b) {
 }
 
 function showAnswerModal(isCorrect) {
-  answerResultText.textContent = isCorrect ? "正解！" : "不正解...";
-  answerResultText.classList.toggle("correct-text", isCorrect);
-  answerResultText.classList.toggle("incorrect-text", !isCorrect);
+  if (isCorrect === null) {
+    answerResultText.classList.add("hidden");
+  } else {
+    answerResultText.classList.remove("hidden");
+    answerResultText.textContent = isCorrect ? "正解！" : "不正解...";
+    answerResultText.classList.toggle("correct-text", isCorrect);
+    answerResultText.classList.toggle("incorrect-text", !isCorrect);
+  }
 
   const answerType = problemsData[currentProblemIndex][5];
   answerCorrectList.innerHTML = "";
