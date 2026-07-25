@@ -618,6 +618,7 @@ let profileNameInput;
 let profileText;
 let profileTextEdit;
 let profileEditButton;
+let profileCancelButton;
 let isProfileEditing = false;
 let currentProfileUserId = "";
 let canEditCurrentProfile = false;
@@ -637,6 +638,7 @@ document.addEventListener("DOMContentLoaded", () => {
   profileText = document.getElementById("profile-text");
   profileTextEdit = document.getElementById("profile-text-edit");
   profileEditButton = document.getElementById("profile-edit-button");
+  profileCancelButton = document.getElementById("profile-cancel-button");
 
   profileModalClose.addEventListener("click", () => {
     profileModal.classList.add("hidden");
@@ -644,6 +646,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   profileEditButton.addEventListener("click", handleProfileEditOrSave);
+  profileCancelButton.addEventListener("click", () => {
+    resetProfileEditMode();
+  });
 
   // アイコンをタップ（編集モード中のみ有効）→ ファイル選択を開く
   profileAvatarHolder.addEventListener("click", () => {
@@ -691,6 +696,7 @@ function resetProfileEditMode() {
     profileEditButton.textContent = "プロフィールを編集";
     profileEditButton.disabled = false;
   }
+  if (profileCancelButton) profileCancelButton.classList.add("hidden");
   if (profileName) profileName.classList.remove("hidden");
   if (profileNameInput) profileNameInput.classList.add("hidden");
   if (profileText) profileText.classList.remove("hidden");
@@ -711,16 +717,11 @@ async function handleProfileEditOrSave() {
   if (!isProfileEditing) {
     isProfileEditing = true;
     profileEditButton.textContent = "プロフィールを保存";
+    if (profileCancelButton) profileCancelButton.classList.toggle("hidden", !canEditCurrentProfile);
 
-    let currentName = profileName.textContent;
-    let currentText = profileText.textContent;
-
-    if (currentText === "ステータスメッセージはありません。" || currentText === "取得中...") {
-      currentText = "";
-    }
-    if (currentName === "取得中..." || currentName === "不明なユーザー") {
-      currentName = "";
-    }
+    const cached = getUserCache(currentProfileUserId) || {};
+    const currentName = cached.name || "";
+    const currentText = cached.profileText || "";
 
     profileName.classList.add("hidden");
     profileNameInput.classList.remove("hidden");

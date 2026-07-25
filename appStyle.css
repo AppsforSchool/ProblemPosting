@@ -1120,12 +1120,38 @@ body {
 #profile-text-edit.hidden {
   display: none;
 }
+.profile-edit-button-row {
+  display: flex;
+  gap: 0.6rem;
+  width: 100%;
+}
+#profile-cancel-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0.7rem;
+  flex: 1;
+  text-align: center;
+  cursor: pointer;
+  box-sizing: border-box;
+  background-color: var(--surface-alt);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+#profile-cancel-button:hover {
+  background-color: var(--border);
+}
+#profile-cancel-button.hidden {
+  display: none;
+}
 #profile-edit-button {
   font-family: "BIZ UDGothic", sans-serif;
   font-weight: 700;
   font-size: 0.95rem;
   padding: 0.7rem;
-  width: 100%;
+  flex: 1;
   text-align: center;
   cursor: pointer;
   display: block;
