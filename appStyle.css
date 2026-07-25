@@ -830,10 +830,16 @@ body {
   white-space: pre-line;
 }
 .card-madeBy {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.75rem;
   color: var(--text-muted);
 
   font-weight: bold;
+}
+.card-madeBy-avatar {
+  margin-left: 0.1rem;
 }
 .clickable-user {
   cursor: pointer;
