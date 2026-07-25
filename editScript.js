@@ -13,6 +13,8 @@ const db = firebase.firestore();
 
 const MIN_CHOICES = 2;
 const MAX_CHOICES = 6;
+const MIN_TEXT_ANSWERS = 1;
+const MAX_TEXT_ANSWERS = 6;
 
 let myUserId = "";
 let meIsAdmin = false;
@@ -59,6 +61,7 @@ let submitButton;
 let deleteBookButton;
 let problemTemplate;
 let choiceTemplate;
+let textAnswerTemplate;
 let bookTitleInput;
 let bookDescriptionInput;
 let bookSubjectSelect;
@@ -76,6 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
   deleteBookButton = document.getElementById("delete-book-button");
   problemTemplate = document.getElementById("problem-template");
   choiceTemplate = document.getElementById("choice-template");
+  textAnswerTemplate = document.getElementById("text-answer-template");
   bookTitleInput = document.getElementById("book-title-input");
   bookDescriptionInput = document.getElementById("book-description-input");
   bookSubjectSelect = document.getElementById("book-subject-select");
@@ -184,6 +188,8 @@ function addProblemBlock(prefill) {
   const removeProblemButton = card.querySelector(".remove-problem-button");
   const problemTextInput = card.querySelector(".problem-text-input");
   const explanationInput = card.querySelector(".explanation-input");
+  const textAnswersListEl = card.querySelector(".text-answers-list");
+  const addTextAnswerButton = card.querySelector(".add-text-answer-button");
 
   card.dataset.uid = String(problemUidCounter++);
 
@@ -195,6 +201,10 @@ function addProblemBlock(prefill) {
     addChoiceRow(choicesListEl);
     updateChoiceButtonsState(card);
   });
+  addTextAnswerButton.addEventListener("click", () => {
+    addTextAnswerRow(textAnswersListEl);
+    updateTextAnswerButtonsState(card);
+  });
 
   setupImageControls(card, prefill ? prefill.imageUrl : "");
   setupAnswerTypeControls(card);
@@ -205,24 +215,55 @@ function addProblemBlock(prefill) {
     problemTextInput.value = prefill.problem || "";
     explanationInput.value = prefill.explanation || "";
 
+    const answerTypeValue = ["single", "multiple", "text"].includes(prefill.answerType)
+      ? prefill.answerType
+      : "single";
     const answerTypeRadio = card.querySelector(
-      `.answer-type-radio[value="${prefill.answerType === "multiple" ? "multiple" : "single"}"]`
+      `.answer-type-radio[value="${answerTypeValue}"]`
     );
     if (answerTypeRadio) answerTypeRadio.checked = true;
 
-    const choices = prefill.choices && prefill.choices.length ? prefill.choices : ["", ""];
-    const answer = prefill.answer || [];
-    choices.forEach((choiceText, index) => {
-      addChoiceRow(choicesListEl, choiceText, answer.includes(index));
-    });
+    if (answerTypeValue === "text") {
+      const textAnswers = prefill.answer && prefill.answer.length ? prefill.answer : [""];
+      textAnswers.forEach(text => {
+        addTextAnswerRow(textAnswersListEl, text);
+      });
+      // 選択肢欄も念のため最低数だけ用意しておく（後で選択式に切り替えても壊れないように）
+      addChoiceRow(choicesListEl);
+      addChoiceRow(choicesListEl);
+    } else {
+      const choices = prefill.choices && prefill.choices.length ? prefill.choices : ["", ""];
+      const answer = prefill.answer || [];
+      choices.forEach((choiceText, index) => {
+        addChoiceRow(choicesListEl, choiceText, answer.includes(index));
+      });
+      addTextAnswerRow(textAnswersListEl);
+    }
   } else {
     // 新規追加時は選択肢を最初から2つ用意しておく
     addChoiceRow(choicesListEl);
     addChoiceRow(choicesListEl);
+    addTextAnswerRow(textAnswersListEl);
   }
 
   updateChoiceButtonsState(card);
+  updateTextAnswerButtonsState(card);
+  updateAnswerTypeUI(card);
   renumberProblems();
+}
+
+function updateAnswerTypeUI(card) {
+  const answerType = getAnswerType(card);
+  const choicesAreaWrap = card.querySelector(".choices-area-wrap");
+  const textAnswersArea = card.querySelector(".text-answers-area");
+
+  if (answerType === "text") {
+    choicesAreaWrap.classList.add("hidden");
+    textAnswersArea.classList.remove("hidden");
+  } else {
+    choicesAreaWrap.classList.remove("hidden");
+    textAnswersArea.classList.add("hidden");
+  }
 }
 
 function setupAnswerTypeControls(card) {
@@ -230,8 +271,11 @@ function setupAnswerTypeControls(card) {
   radios.forEach(radio => {
     radio.name = `answer-type-${card.dataset.uid}`;
     radio.addEventListener("change", () => {
-      if (radio.checked && radio.value === "single") {
-        enforceSingleCorrectChoice(card);
+      if (radio.checked) {
+        if (radio.value === "single") {
+          enforceSingleCorrectChoice(card);
+        }
+        updateAnswerTypeUI(card);
       }
     });
   });
@@ -341,6 +385,38 @@ function updateChoiceButtonsState(card) {
   });
 }
 
+function addTextAnswerRow(textAnswersListEl, prefillText) {
+  if (textAnswersListEl.children.length >= MAX_TEXT_ANSWERS) return;
+
+  const fragment = textAnswerTemplate.content.cloneNode(true);
+  const row = fragment.querySelector(".text-answer-row");
+  const input = row.querySelector(".text-answer-input");
+  const removeButton = row.querySelector(".remove-text-answer-button");
+
+  if (prefillText !== undefined) input.value = prefillText;
+
+  removeButton.addEventListener("click", () => {
+    row.remove();
+    const card = textAnswersListEl.closest(".problem-card");
+    updateTextAnswerButtonsState(card);
+  });
+
+  textAnswersListEl.appendChild(row);
+}
+
+function updateTextAnswerButtonsState(card) {
+  const textAnswersListEl = card.querySelector(".text-answers-list");
+  const addTextAnswerButton = card.querySelector(".add-text-answer-button");
+  const removeTextAnswerButtons = card.querySelectorAll(".remove-text-answer-button");
+
+  const count = textAnswersListEl.children.length;
+
+  addTextAnswerButton.disabled = count >= MAX_TEXT_ANSWERS;
+  removeTextAnswerButtons.forEach(button => {
+    button.disabled = count <= MIN_TEXT_ANSWERS;
+  });
+}
+
 function renumberProblems() {
   const cards = problemsListEl.querySelectorAll(".problem-card");
   cards.forEach((card, index) => {
@@ -387,35 +463,52 @@ function validateAndCollectPayload() {
       return null;
     }
 
-    const choiceRows = Array.from(card.querySelectorAll(".choice-row"));
-    if (choiceRows.length < MIN_CHOICES) {
-      alert(`${problemNumber}問目の選択肢は${MIN_CHOICES}個以上入力してください。`);
-      return null;
-    }
-
     const answerType = getAnswerType(card);
 
-    const choices = [];
-    const answer = [];
-    for (let c = 0; c < choiceRows.length; c++) {
-      const choiceText = choiceRows[c].querySelector(".choice-text-input").value.trim();
-      if (!choiceText) {
-        alert(`${problemNumber}問目の選択肢${c + 1}を入力してください。`);
+    let choices = [];
+    let answer = [];
+
+    if (answerType === "text") {
+      const textAnswerInputs = Array.from(card.querySelectorAll(".text-answer-input"));
+      if (textAnswerInputs.length < MIN_TEXT_ANSWERS) {
+        alert(`${problemNumber}問目の正解を${MIN_TEXT_ANSWERS}つ以上入力してください。`);
         return null;
       }
-      choices.push(choiceText);
-      if (choiceRows[c].querySelector(".choice-correct-checkbox").checked) {
-        answer.push(c);
+      for (let a = 0; a < textAnswerInputs.length; a++) {
+        const text = textAnswerInputs[a].value.trim();
+        if (!text) {
+          alert(`${problemNumber}問目の正解${a + 1}を入力してください。`);
+          return null;
+        }
+        answer.push(text);
       }
-    }
+    } else {
+      const choiceRows = Array.from(card.querySelectorAll(".choice-row"));
+      if (choiceRows.length < MIN_CHOICES) {
+        alert(`${problemNumber}問目の選択肢は${MIN_CHOICES}個以上入力してください。`);
+        return null;
+      }
 
-    if (answer.length === 0) {
-      alert(`${problemNumber}問目の正解を1つ以上チェックしてください。`);
-      return null;
-    }
-    if (answerType === "single" && answer.length !== 1) {
-      alert(`${problemNumber}問目は単数選択なので、正解は1つだけチェックしてください。`);
-      return null;
+      for (let c = 0; c < choiceRows.length; c++) {
+        const choiceText = choiceRows[c].querySelector(".choice-text-input").value.trim();
+        if (!choiceText) {
+          alert(`${problemNumber}問目の選択肢${c + 1}を入力してください。`);
+          return null;
+        }
+        choices.push(choiceText);
+        if (choiceRows[c].querySelector(".choice-correct-checkbox").checked) {
+          answer.push(c);
+        }
+      }
+
+      if (answer.length === 0) {
+        alert(`${problemNumber}問目の正解を1つ以上チェックしてください。`);
+        return null;
+      }
+      if (answerType === "single" && answer.length !== 1) {
+        alert(`${problemNumber}問目は単数選択なので、正解は1つだけチェックしてください。`);
+        return null;
+      }
     }
 
     const explanation = card.querySelector(".explanation-input").value.trim();

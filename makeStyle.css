@@ -389,7 +389,8 @@ body {
 }
 
 .add-button,
-.add-choice-button {
+.add-choice-button,
+.add-text-answer-button {
   font-family: "BIZ UDGothic", sans-serif;
   font-weight: 700;
   font-size: 0.9rem;
@@ -406,17 +407,61 @@ body {
   transition: background-color 0.2s var(--ease), border-color 0.2s var(--ease);
 }
 .add-button:hover,
-.add-choice-button:hover {
+.add-choice-button:hover,
+.add-text-answer-button:hover {
   background-color: var(--primary-soft);
   border-color: var(--primary);
 }
 .add-choice-button {
   margin-bottom: 1rem;
 }
-.add-choice-button:disabled {
+.add-choice-button:disabled,
+.add-text-answer-button:disabled {
   opacity: 0.4;
   cursor: default;
   background-color: var(--surface-alt);
+}
+
+.text-answers-area {
+  margin-bottom: 1rem;
+}
+.text-answers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+.text-answer-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+.text-answer-row input.text-answer-input {
+  margin-bottom: 0;
+  flex: 1;
+}
+.text-answer-row .remove-text-answer-button {
+  width: 2.6rem;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+.remove-text-answer-button {
+  background-color: var(--surface);
+  border: 1.5px solid var(--border);
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #d64545;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.2s var(--ease);
+}
+.remove-text-answer-button:hover {
+  background-color: #fdecec;
+  border-color: #f3c8c8;
+}
+.remove-text-answer-button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .submit-button {

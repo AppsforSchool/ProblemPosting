@@ -114,11 +114,23 @@
           <input type="radio" class="answer-type-radio" value="multiple">
           <span>複数選択</span>
         </label>
+        <label class="answer-type-option">
+          <input type="radio" class="answer-type-radio" value="text">
+          <span>単語記述</span>
+        </label>
       </div>
 
-      <label class="make-label">選択肢（正解にはチェックを入れてください）</label>
-      <div class="choices-list"></div>
-      <button type="button" class="add-choice-button">＋ 選択肢を追加</button>
+      <div class="choices-area-wrap">
+        <label class="make-label">選択肢（正解にはチェックを入れてください）</label>
+        <div class="choices-list"></div>
+        <button type="button" class="add-choice-button">＋ 選択肢を追加</button>
+      </div>
+
+      <div class="text-answers-area hidden">
+        <label class="make-label">正解となる文字列（表記ゆれ・ひらがな/カタカナなど複数設定できます）</label>
+        <div class="text-answers-list"></div>
+        <button type="button" class="add-text-answer-button">＋ 正解を追加</button>
+      </div>
 
       <label class="make-label">解説（任意）</label>
       <textarea class="explanation-input" placeholder="正解の理由などを書きましょう（省略可）"></textarea>
@@ -133,6 +145,13 @@
       </label>
       <input type="text" class="choice-text-input" placeholder="選択肢を入力">
       <button type="button" class="remove-choice-button" aria-label="この選択肢を削除">&times;</button>
+    </div>
+  </template>
+
+  <template id="text-answer-template">
+    <div class="text-answer-row">
+      <input type="text" class="text-answer-input" placeholder="正解の文字列を入力">
+      <button type="button" class="remove-text-answer-button" aria-label="この正解を削除">&times;</button>
     </div>
   </template>
 

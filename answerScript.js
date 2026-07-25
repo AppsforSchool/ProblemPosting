@@ -283,12 +283,25 @@ function nextProblem(problemCount) {
   const nowProblemCount = document.getElementById("now-problem-count");
   const problemText = document.getElementById("problem-text");
   const choicesArea = document.getElementById("choices-area");
+  const textAnswerInput = document.getElementById("text-answer-input");
   const answerTypeText = document.getElementById("answer-type-text");
   
   choicesArea.innerHTML = "";
+  textAnswerInput.value = "";
   
-  const isSingle = problemsData[problemCount][5] === "single";
-  answerTypeText.textContent = isSingle ? "単数選択" : "複数選択";
+  const answerType = problemsData[problemCount][5];
+  const isSingle = answerType === "single";
+  const isText = answerType === "text";
+
+  if (isText) {
+    answerTypeText.textContent = "単語記述";
+    choicesArea.classList.add("hidden");
+    textAnswerInput.classList.remove("hidden");
+  } else {
+    answerTypeText.textContent = isSingle ? "単数選択" : "複数選択";
+    choicesArea.classList.remove("hidden");
+    textAnswerInput.classList.add("hidden");
+  }
   
   gaugeBar.style.width = `${((problemCount + 1) / problemsData.length) * 100}%`;
   nowProblemCount.textContent = problemCount + 1;
@@ -304,36 +317,60 @@ function nextProblem(problemCount) {
     problemImage.classList.add("hidden");
   }
   
-  let choiceButtons = [];
-  problemsData[problemCount][1].forEach((choice, index) => {
-    const button = document.createElement("button");
-    button.textContent = choice;
-    button.dataset.index = index;
-    choiceButtons.push(button);
-    
-    choicesArea.appendChild(button);
-  });
-  // console.log(choiceButtons);
-  choiceButtons.forEach(button => {
-    if (isSingle) {
-      button.addEventListener("click", () => {
-        choiceButtons.forEach(choice => {
-          choice.classList.remove("active");
+  if (!isText) {
+    let choiceButtons = [];
+    problemsData[problemCount][1].forEach((choice, index) => {
+      const button = document.createElement("button");
+      button.textContent = choice;
+      button.dataset.index = index;
+      choiceButtons.push(button);
+      
+      choicesArea.appendChild(button);
+    });
+    choiceButtons.forEach(button => {
+      if (isSingle) {
+        button.addEventListener("click", () => {
+          choiceButtons.forEach(choice => {
+            choice.classList.remove("active");
+          });
+          button.classList.add("active");
         });
-        button.classList.add("active");
-      });
-    } else {
-      button.addEventListener("click", () => {
-        button.classList.toggle("active");
-      });
-    }
-  });
+      } else {
+        button.addEventListener("click", () => {
+          button.classList.toggle("active");
+        });
+      }
+    });
+  }
   
   answerButton.disabled = false;
 }
 
 
 function handleAnswerSubmit() {
+  const answerType = problemsData[currentProblemIndex][5];
+
+  if (answerType === "text") {
+    const textAnswerInput = document.getElementById("text-answer-input");
+    const submittedText = textAnswerInput.value.trim();
+
+    if (!submittedText) {
+      alert("答えを入力してください。");
+      return;
+    }
+
+    const correctAnswers = problemsData[currentProblemIndex][2];
+    const isCorrect = correctAnswers.includes(submittedText);
+
+    if (isCorrect) correctAnswersCount++;
+
+    textAnswerInput.disabled = true;
+    answerButton.disabled = true;
+
+    showAnswerModal(isCorrect);
+    return;
+  }
+
   const choicesArea = document.getElementById("choices-area");
   const buttons = Array.from(choicesArea.querySelectorAll("button"));
 
@@ -379,15 +416,26 @@ function showAnswerModal(isCorrect) {
   answerResultText.classList.toggle("correct-text", isCorrect);
   answerResultText.classList.toggle("incorrect-text", !isCorrect);
 
-  const choices = problemsData[currentProblemIndex][1];
-  const correctIndices = problemsData[currentProblemIndex][2];
+  const answerType = problemsData[currentProblemIndex][5];
   answerCorrectList.innerHTML = "";
-  correctIndices.forEach(index => {
-    const li = document.createElement("li");
-    li.textContent = choices[index];
-    answerCorrectList.appendChild(li);
-  });
 
+  if (answerType === "text") {
+    const correctAnswers = problemsData[currentProblemIndex][2];
+    correctAnswers.forEach(text => {
+      const li = document.createElement("li");
+      li.textContent = text;
+      answerCorrectList.appendChild(li);
+    });
+  } else {
+    const choices = problemsData[currentProblemIndex][1];
+    const correctIndices = problemsData[currentProblemIndex][2];
+    correctIndices.forEach(index => {
+      const li = document.createElement("li");
+      li.textContent = choices[index];
+      answerCorrectList.appendChild(li);
+    });
+  }
+  
   const explanation = problemsData[currentProblemIndex][3];
   if (explanation) {
     answerExplanationText.textContent = explanation;
