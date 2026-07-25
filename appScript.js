@@ -316,18 +316,6 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
     cardMadeBy.classList.add("card-madeBy");
       
     const makerCached = getUserCache(book[5]) || {};
-
-    const madeByTextContent = document.createTextNode('作成者: ');
-    cardMadeBy.appendChild(madeByTextContent);
-
-    const makerAvatar = createAvatar(makerCached.name, "small", makerCached.imageUrl);
-    makerAvatar.classList.add("clickable-user", "card-madeBy-avatar");
-    makerAvatar.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openProfileModal(book[5]);
-    });
-    cardMadeBy.appendChild(makerAvatar);
-
     const nameSpan = document.createElement("span");
     nameSpan.textContent = makerCached.name;
     nameSpan.classList.add("clickable-user");
@@ -336,6 +324,8 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
       e.stopPropagation();
       openProfileModal(book[5]);
     });
+    const madeByTextContent = document.createTextNode('作成者: ');
+    cardMadeBy.appendChild(madeByTextContent);
     cardMadeBy.appendChild(nameSpan);
       
     const solvedBy = book[6] || [];

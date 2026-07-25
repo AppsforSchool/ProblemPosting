@@ -365,12 +365,15 @@ async function handleSubmit() {
     }
 
     const explanation = card.querySelector(".explanation-input").value.trim();
+    const shuffleChoicesCheckbox = card.querySelector(".shuffle-choices-checkbox");
+    const shuffleChoices = answerType !== "text" && !!shuffleChoicesCheckbox && shuffleChoicesCheckbox.checked;
 
     problemsPayload.push({
       problem: problemText,
       choices,
       answer,
       answerType,
+      shuffleChoices,
       explanation,
       imageFile: card._selectedImageFile || null
     });
@@ -427,6 +430,7 @@ async function handleSubmit() {
         choices: p.choices,
         answer: p.answer,
         answerType: p.answerType,
+        shuffleChoices: p.shuffleChoices,
         explanation: p.explanation,
         imageUrl: p.imageUrl
       });

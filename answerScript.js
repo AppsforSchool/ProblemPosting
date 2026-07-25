@@ -230,6 +230,16 @@ function getParmFromUrl(parm) {
   return params.get(parm);
 }
 
+// ★ Fisher-Yatesシャッフル（元の配列は変更せず、シャッフル済みの新しい配列を返す）
+function shuffleArray(array) {
+  const result = array.slice();
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 async function loadProblemBook(bookId) {
   try {
     const titleAreaTitle = document.getElementById("title-area-title");
@@ -263,10 +273,11 @@ async function loadProblemBook(bookId) {
       if (!data.answer) throw new Error("解答がありません");
       const answer = data.answer;
       const answerType = data.answerType || (answer.length === 1 ? "single" : "multiple");
+      const shuffleChoices = data.shuffleChoices || false;
       const explanation = data.explanation || "";
       const imageUrl = data.imageUrl || "";
       
-      problemsData.push([problem, choices, answer, explanation, imageUrl, answerType]);
+      problemsData.push([problem, choices, answer, explanation, imageUrl, answerType, shuffleChoices]);
     }
   } catch (error) {
     console.log(error);
@@ -318,10 +329,18 @@ function nextProblem(problemCount) {
   }
   
   if (!isText) {
+    const choices = problemsData[problemCount][1];
+    const shuffleChoices = problemsData[problemCount][6];
+
+    let displayOrder = choices.map((_, index) => index);
+    if (shuffleChoices) {
+      displayOrder = shuffleArray(displayOrder);
+    }
+
     let choiceButtons = [];
-    problemsData[problemCount][1].forEach((choice, index) => {
+    displayOrder.forEach(index => {
       const button = document.createElement("button");
-      button.textContent = choice;
+      button.textContent = choices[index];
       button.dataset.index = index;
       choiceButtons.push(button);
       

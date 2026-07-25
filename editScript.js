@@ -163,6 +163,7 @@ async function loadBookData(bookId) {
         choices: data.choices || [],
         answer,
         answerType: data.answerType || inferredAnswerType,
+        shuffleChoices: data.shuffleChoices || false,
         explanation: data.explanation || "",
         imageUrl: data.imageUrl || ""
       });
@@ -214,6 +215,9 @@ function addProblemBlock(prefill) {
   if (prefill) {
     problemTextInput.value = prefill.problem || "";
     explanationInput.value = prefill.explanation || "";
+
+    const shuffleChoicesCheckbox = card.querySelector(".shuffle-choices-checkbox");
+    if (shuffleChoicesCheckbox) shuffleChoicesCheckbox.checked = !!prefill.shuffleChoices;
 
     const answerTypeValue = ["single", "multiple", "text"].includes(prefill.answerType)
       ? prefill.answerType
@@ -512,12 +516,15 @@ function validateAndCollectPayload() {
     }
 
     const explanation = card.querySelector(".explanation-input").value.trim();
+    const shuffleChoicesCheckbox = card.querySelector(".shuffle-choices-checkbox");
+    const shuffleChoices = answerType !== "text" && !!shuffleChoicesCheckbox && shuffleChoicesCheckbox.checked;
 
     problemsPayload.push({
       problem: problemText,
       choices,
       answer,
       answerType,
+      shuffleChoices,
       explanation,
       imageFile: card._selectedImageFile || null,
       imageRemoved: !!card._imageRemoved,
@@ -595,6 +602,7 @@ async function handleUpdate() {
         choices: p.choices,
         answer: p.answer,
         answerType: p.answerType,
+        shuffleChoices: p.shuffleChoices,
         explanation: p.explanation,
         imageUrl: p.imageUrl
       });
