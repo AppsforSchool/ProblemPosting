@@ -299,6 +299,7 @@ function nextProblem(problemCount) {
   
   choicesArea.innerHTML = "";
   textAnswerInput.value = "";
+  textAnswerInput.disabled = false;
   
   const answerType = problemsData[problemCount][5];
   const isSingle = answerType === "single";
