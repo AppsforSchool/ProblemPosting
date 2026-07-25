@@ -1036,11 +1036,16 @@ body {
   display: none;
 }
 #profile-name {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text);
   word-break: break-all;
   text-align: center;
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
 }
 #profile-name.admin {
   background: linear-gradient(
@@ -1063,6 +1068,7 @@ body {
   border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   background-color: var(--surface-alt);
+  box-sizing: border-box;
   text-align: center;
   transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), background-color 0.2s var(--ease);
 }
