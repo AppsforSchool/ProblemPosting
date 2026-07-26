@@ -924,6 +924,17 @@ async function openImpressionsModal(bookId) {
       });
       header.appendChild(nameSpan);
 
+      if (userId === myUserId) {
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.classList.add("impression-card-edit-button");
+        editButton.textContent = "編集";
+        editButton.addEventListener("click", () => {
+          openImpressionEditModal(bookId, text);
+        });
+        header.appendChild(editButton);
+      }
+
       const textP = document.createElement("p");
       textP.classList.add("impression-card-text");
       textP.textContent = text;
@@ -935,5 +946,55 @@ async function openImpressionsModal(bookId) {
   } catch (error) {
     console.error("感想の取得エラー:", error);
     impressionsArea.innerHTML = "<p>感想の取得に失敗しました。</p>";
+  }
+}
+
+let impressionEditModal;
+let impressionEditModalClose;
+let impressionEditInput;
+let impressionEditSaveButton;
+let impressionEditBookId = "";
+document.addEventListener("DOMContentLoaded", () => {
+  impressionEditModal = document.getElementById("impression-edit-modal");
+  impressionEditModalClose = document.getElementById("impression-edit-modal-close");
+  impressionEditInput = document.getElementById("impression-edit-input");
+  impressionEditSaveButton = document.getElementById("impression-edit-save-button");
+
+  impressionEditModalClose.addEventListener("click", () => {
+    impressionEditModal.classList.add("hidden");
+  });
+  impressionEditSaveButton.addEventListener("click", saveImpressionEdit);
+});
+
+function openImpressionEditModal(bookId, existingText) {
+  impressionEditBookId = bookId;
+  impressionEditInput.value = existingText || "";
+  impressionEditModal.classList.remove("hidden");
+}
+
+async function saveImpressionEdit() {
+  const text = impressionEditInput.value.trim();
+
+  impressionEditSaveButton.disabled = true;
+  impressionEditSaveButton.textContent = "保存中...";
+
+  try {
+    await db
+      .collection("ProblemPosting")
+      .doc("books")
+      .collection("data")
+      .doc(impressionEditBookId)
+      .update({
+        [`impressions.${myUserId}`]: text
+      });
+
+    impressionEditModal.classList.add("hidden");
+    await openImpressionsModal(impressionEditBookId);
+  } catch (error) {
+    console.error("感想の保存エラー:", error);
+    alert("感想の保存に失敗しました。\n" + error);
+  } finally {
+    impressionEditSaveButton.disabled = false;
+    impressionEditSaveButton.textContent = "保存する";
   }
 }
