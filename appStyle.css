@@ -48,6 +48,37 @@ body {
   display: none;
 }
 
+#loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(15, 20, 26, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  gap: 0.5rem;
+
+  padding: 1rem;
+}
+#loading-overlay h1 {
+  font-size: 2.6rem;
+  color: white;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+#loading-overlay p {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+#loading-overlay.hidden {
+  display: none;
+}
+
 .mini {
   font-size: 70%;
 }

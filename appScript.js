@@ -31,6 +31,7 @@ const subjectIdList = [
 ];
 const gradeIdList = ["不明", "1年", "2年", "3年", "総合"];
 
+let loadingOverlay;
 let myUid = "";
 let myUserId = "";
 let meIsAdmin = false;
@@ -174,6 +175,8 @@ function closeDrawer() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  loadingOverlay = document.getElementById("loading-overlay");
+
   auth.onAuthStateChanged(async (user) => {
     if (user) {
       myUserId = user.email.split("@")[0];
@@ -200,6 +203,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await loadProblemBooks();
       makeDisplayBooks("all", "all", "created", "all");
       openSettingModalFromHash();
+      loadingOverlay.classList.add("hidden");
     } else {
       console.log("logout");
       window.location.href = "./index.html";
