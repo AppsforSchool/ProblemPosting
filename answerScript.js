@@ -47,6 +47,10 @@ let answerExplanationArea;
 let answerExplanationText;
 let answerCorrectList;
 let answerModalNextButton;
+let showProblemButton;
+let viewExplanationButton;
+let answerActionsRow;
+let lastAnswerResult = null;
 
 let homeButton;
 let resultModal;
@@ -90,11 +94,22 @@ document.addEventListener("DOMContentLoaded", () => {
   answerExplanationText = document.getElementById("answer-explanation-text");
   answerCorrectList = document.getElementById("answer-correct-list");
   answerModalNextButton = document.getElementById("answer-modal-next-button");
+  showProblemButton = document.getElementById("show-problem-button");
+  viewExplanationButton = document.getElementById("view-explanation-button");
+  answerActionsRow = document.querySelector(".answer-actions");
 
   answerButton.addEventListener("click", handleAnswerSubmit);
   skipButton.addEventListener("click", handleSkip);
   textAnswerInputEl.addEventListener("input", updateAnswerButtonState);
   answerModalNextButton.addEventListener("click", handleAnswerModalNext);
+  showProblemButton.addEventListener("click", () => {
+    answerModal.classList.add("hidden");
+    answerActionsRow.classList.add("hidden");
+    viewExplanationButton.classList.remove("hidden");
+  });
+  viewExplanationButton.addEventListener("click", () => {
+    showAnswerModal(lastAnswerResult);
+  });
 
   homeButton = document.getElementById("home-button");
   resultModal = document.getElementById("result-modal");
@@ -313,6 +328,8 @@ function nextProblem(problemCount) {
   textAnswerInput.value = "";
   textAnswerInput.disabled = false;
   skipButton.disabled = false;
+  answerActionsRow.classList.remove("hidden");
+  viewExplanationButton.classList.add("hidden");
   
   const answerType = problemsData[problemCount][5];
   const isSingle = answerType === "single";
@@ -485,6 +502,8 @@ function isSameIndexSet(a, b) {
 }
 
 function showAnswerModal(isCorrect) {
+  lastAnswerResult = isCorrect;
+
   if (isCorrect === null) {
     answerResultText.classList.add("hidden");
   } else {

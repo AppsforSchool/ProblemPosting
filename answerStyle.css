@@ -529,6 +529,9 @@ body {
   background-color: var(--primary-dark);
   box-shadow: var(--shadow-md);
 }
+.answer-next-button.hidden {
+  display: none;
+}
 .answer-next-button:active:not(:disabled) {
   transform: scale(0.98);
 }
@@ -555,6 +558,17 @@ body {
 .secondary-next-button:hover:not(:disabled) {
   background-color: var(--primary-soft);
   border-color: var(--primary);
+}
+
+.answer-modal-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+.answer-modal-actions .secondary-next-button,
+.answer-modal-actions .answer-next-button {
+  width: auto;
+  flex: 1;
+  margin-bottom: 0;
 }
 
 /* --- 上からスライドして出るモーダル（感想の記入・閲覧用） --- */
@@ -865,6 +879,9 @@ body {
   display: flex;
   gap: 0.6rem;
   margin-top: 0.5rem;
+}
+.answer-actions.hidden {
+  display: none;
 }
 #answer-button {
   font-family: "BIZ UDGothic", sans-serif;
