@@ -291,6 +291,15 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
     
     const card = document.createElement("div");
     card.classList.add("card");
+
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+    const createdAtMillis = book[7] || 0;
+    if (createdAtMillis && Date.now() - createdAtMillis <= THREE_DAYS_MS) {
+      const newBadge = document.createElement("span");
+      newBadge.classList.add("new-badge");
+      newBadge.textContent = "NEW";
+      card.appendChild(newBadge);
+    }
       
     const cardTop = document.createElement("div");
     cardTop.classList.add("card-top");
