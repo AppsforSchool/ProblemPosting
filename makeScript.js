@@ -56,6 +56,7 @@ let bookTitleInput;
 let bookDescriptionInput;
 let bookSubjectSelect;
 let bookGradeSelect;
+let bookShuffleProblemsCheckbox;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
@@ -69,6 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bookDescriptionInput = document.getElementById("book-description-input");
   bookSubjectSelect = document.getElementById("book-subject-select");
   bookGradeSelect = document.getElementById("book-grade-select");
+  bookShuffleProblemsCheckbox = document.getElementById("book-shuffle-problems-checkbox");
 
   addProblemButton.addEventListener("click", () => addProblemBlock());
   submitButton.addEventListener("click", handleSubmit);
@@ -297,6 +299,7 @@ async function handleSubmit() {
   const description = bookDescriptionInput.value.trim();
   const subjectId = Number(bookSubjectSelect.value);
   const gradeId = Number(bookGradeSelect.value);
+  const shuffleProblems = bookShuffleProblemsCheckbox.checked;
 
   const problemCards = Array.from(problemsListEl.querySelectorAll(".problem-card"));
   if (problemCards.length === 0) {
@@ -417,6 +420,7 @@ async function handleSubmit() {
         gradeId,
         madeBy: myUserId,
         problemCount: problemsPayload.length,
+        shuffleProblems,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });

@@ -460,6 +460,34 @@ body {
 
   animation: wave 2s linear infinite;
 }
+.shuffle-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.8rem 0;
+  padding: 0.65rem 0.9rem;
+  background-color: var(--surface-alt);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.shuffle-toggle-row input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.shuffle-toggle-row:has(input:disabled) {
+  opacity: 0.5;
+}
+.shuffle-toggle-row input[type="checkbox"]:disabled {
+  cursor: default;
+}
+
 .buttons-area {
   display: flex;
   align-items: center;

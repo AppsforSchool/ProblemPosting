@@ -243,6 +243,7 @@ async function loadProblemBooks() {
       const problemCount = data.problemCount || 0;
       const makerUserId = data.madeBy || "";
       const solvedBy = data.solvedBy || [];
+      const shuffleProblems = !!data.shuffleProblems;
       const createdAtMillis = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0;
       const updatedAtMillis = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : createdAtMillis;
 
@@ -255,7 +256,8 @@ async function loadProblemBooks() {
         makerUserId,
         solvedBy,
         createdAtMillis,
-        updatedAtMillis
+        updatedAtMillis,
+        shuffleProblems
       ];
 
       await ensureUserCached(makerUserId);
@@ -440,6 +442,7 @@ let settingModalSubject,
   settingModalCountText;
 let settingModalTitle, settingModalDescription, settingModalMadeByName;
 let settingModalEditButton, settingModalStartButton, viewImpressionsButton;
+let shuffleProblemsToggle;
 document.addEventListener("DOMContentLoaded", () => {
   settingModal = document.getElementById("setting-modal");
   settingModalClose = document.getElementById("setting-modal-close");
@@ -453,6 +456,7 @@ document.addEventListener("DOMContentLoaded", () => {
   settingModalStartButton = document.getElementById("start-button");
   settingModalEditButton = document.getElementById("edit-button");
   viewImpressionsButton = document.getElementById("view-impressions-button");
+  shuffleProblemsToggle = document.getElementById("shuffle-problems-toggle");
 
   settingModalClose.addEventListener("click", () => {
     settingModal.classList.add("hidden");
@@ -477,7 +481,8 @@ document.addEventListener("DOMContentLoaded", () => {
     settingModalEditButton.classList.add("hidden");
   });
   settingModalStartButton.addEventListener("click", () => {
-    window.location.href = `./answer.html?id=${settingModalBookId}`;
+    const shuffleParam = shuffleProblemsToggle.checked && !shuffleProblemsToggle.disabled ? "&shuffle=1" : "";
+    window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}`;
   });
   settingModalEditButton.addEventListener("click", () => {
     window.location.href = `./edit.html?id=${settingModalBookId}`;
@@ -510,6 +515,10 @@ function openSettingModal(id) {
   settingModalMadeByName.classList.toggle("admin", !!makerCached.isAdmin);
 
   if (bookCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.classList.remove("hidden");
+
+  const allowShuffle = !!bookCache[id][9];
+  shuffleProblemsToggle.checked = false;
+  shuffleProblemsToggle.disabled = !allowShuffle;
 }
 
 // ★ URLのハッシュ(#問題集ID)を使った出題設定モーダルの直リンク対応
@@ -924,13 +933,13 @@ async function openImpressionsModal(bookId) {
       });
       header.appendChild(nameSpan);
 
-      if (userId === myUserId) {
+      if (userId === myUserId || meIsAdmin) {
         const editButton = document.createElement("button");
         editButton.type = "button";
         editButton.classList.add("impression-card-edit-button");
         editButton.textContent = "編集";
         editButton.addEventListener("click", () => {
-          openImpressionEditModal(bookId, text);
+          openImpressionEditModal(bookId, userId, text);
         });
         header.appendChild(editButton);
       }
@@ -954,6 +963,7 @@ let impressionEditModalClose;
 let impressionEditInput;
 let impressionEditSaveButton;
 let impressionEditBookId = "";
+let impressionEditTargetUserId = "";
 document.addEventListener("DOMContentLoaded", () => {
   impressionEditModal = document.getElementById("impression-edit-modal");
   impressionEditModalClose = document.getElementById("impression-edit-modal-close");
@@ -966,8 +976,9 @@ document.addEventListener("DOMContentLoaded", () => {
   impressionEditSaveButton.addEventListener("click", saveImpressionEdit);
 });
 
-function openImpressionEditModal(bookId, existingText) {
+function openImpressionEditModal(bookId, userId, existingText) {
   impressionEditBookId = bookId;
+  impressionEditTargetUserId = userId;
   impressionEditInput.value = existingText || "";
   impressionEditModal.classList.remove("hidden");
 }
@@ -985,7 +996,7 @@ async function saveImpressionEdit() {
       .collection("data")
       .doc(impressionEditBookId)
       .update({
-        [`impressions.${myUserId}`]: text
+        [`impressions.${impressionEditTargetUserId}`]: text
       });
 
     impressionEditModal.classList.add("hidden");

@@ -66,6 +66,7 @@ let bookTitleInput;
 let bookDescriptionInput;
 let bookSubjectSelect;
 let bookGradeSelect;
+let bookShuffleProblemsCheckbox;
 let madeByArea;
 let bookMadeByInput;
 
@@ -84,6 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bookDescriptionInput = document.getElementById("book-description-input");
   bookSubjectSelect = document.getElementById("book-subject-select");
   bookGradeSelect = document.getElementById("book-grade-select");
+  bookShuffleProblemsCheckbox = document.getElementById("book-shuffle-problems-checkbox");
   madeByArea = document.getElementById("made-by-area");
   bookMadeByInput = document.getElementById("book-madeBy-input");
 
@@ -145,6 +147,7 @@ async function loadBookData(bookId) {
     bookDescriptionInput.value = bookData.description || "";
     bookSubjectSelect.value = String(bookData.subjectId || 0);
     bookGradeSelect.value = String(bookData.gradeId || 0);
+    bookShuffleProblemsCheckbox.checked = !!bookData.shuffleProblems;
 
     if (meIsAdmin) {
       madeByArea.classList.remove("hidden");
@@ -439,6 +442,7 @@ function validateAndCollectPayload() {
   const description = bookDescriptionInput.value.trim();
   const subjectId = Number(bookSubjectSelect.value);
   const gradeId = Number(bookGradeSelect.value);
+  const shuffleProblems = bookShuffleProblemsCheckbox.checked;
 
   let madeBy = null;
   if (meIsAdmin) {
@@ -532,13 +536,13 @@ function validateAndCollectPayload() {
     });
   }
 
-  return { title, description, subjectId, gradeId, madeBy, problemsPayload };
+  return { title, description, subjectId, gradeId, shuffleProblems, madeBy, problemsPayload };
 }
 
 async function handleUpdate() {
   const collected = validateAndCollectPayload();
   if (!collected) return;
-  const { title, description, subjectId, gradeId, madeBy, problemsPayload } = collected;
+  const { title, description, subjectId, gradeId, shuffleProblems, madeBy, problemsPayload } = collected;
 
   if (!myUserId) {
     alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
@@ -587,6 +591,7 @@ async function handleUpdate() {
       subjectId,
       gradeId,
       problemCount: problemsPayload.length,
+      shuffleProblems,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if (meIsAdmin && madeBy) {

@@ -285,6 +285,12 @@ async function loadProblemBook(bookId) {
       
       problemsData.push([problem, choices, answer, explanation, imageUrl, answerType, shuffleChoices]);
     }
+
+    const shuffleRequested = getParmFromUrl("shuffle") === "1";
+    const shuffleAllowed = !!bookData.get("shuffleProblems");
+    if (shuffleRequested && shuffleAllowed) {
+      problemsData = shuffleArray(problemsData);
+    }
   } catch (error) {
     console.log(error);
     alert(error);
