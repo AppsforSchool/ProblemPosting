@@ -859,6 +859,7 @@ body {
   font-family: "BIZ UDGothic", sans-serif;
   color: var(--text);
 
+  position: relative;
   display: flex;
   flex-direction: column;
   background-color: var(--surface-alt);
@@ -877,6 +878,22 @@ body {
   box-shadow: var(--shadow-md);
   border-color: rgba(var(--primary-rgb), 0.35);
   transform: translateY(-1px);
+}
+.new-badge {
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  z-index: 1;
+
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: var(--primary);
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
 }
 .card-area .card.make-card {
   background-color: var(--surface-alt);
