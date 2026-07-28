@@ -88,6 +88,8 @@ function createAvatar(name, size, imageUrl) {
     if (size === "large") img.classList.add("large");
     img.src = imageUrl;
     img.alt = name || "";
+    img.loading = "lazy"; // ★軽量化: 画面外のアバターは遅延読み込みにする
+    img.decoding = "async";
     return img;
   }
   const avatar = document.createElement("div");
@@ -114,6 +116,56 @@ async function ensureUserCached(userId) {
   } else {
     setUserCache(userId, { name: "不明なユーザー", isAdmin: false, imageUrl: "", profileText: "" });
   }
+}
+
+// ★軽量化ポイント★
+// 以前は「作成者1人 → 解答者1人 → 作成者1人 → …」のように1人ずつ順番に
+// await していたため、ユーザー数が多いとその分だけ通信の往復が増え、
+// 読み込みがどんどん遅くなっていた（N人いれば通信N回、しかも直列）。
+//
+// この関数はまだキャッシュに無いユーザーIDだけをまとめて、
+// Firestoreの `in` 検索（1回につき最大30件）で取得する。
+// 複数チャンクがある場合もPromise.allで並列に投げるため、
+// 「何人分の情報が必要でも、通信は基本1〜数回で済む」ようになる。
+async function ensureUsersCachedBulk(userIds) {
+  const uniqueIds = Array.from(new Set(userIds)).filter(id => id);
+  const idsToFetch = uniqueIds.filter(id => !getUserCache(id));
+  if (idsToFetch.length === 0) return;
+
+  const CHUNK_SIZE = 30; // Firestoreの `in` 演算子は一度に30件まで指定できる
+  const chunks = [];
+  for (let i = 0; i < idsToFetch.length; i += CHUNK_SIZE) {
+    chunks.push(idsToFetch.slice(i, i + CHUNK_SIZE));
+  }
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const snapshot = await db
+        .collection("users_random")
+        .where(firebase.firestore.FieldPath.documentId(), "in", chunk)
+        .get();
+
+      const foundIds = new Set();
+      snapshot.forEach(userSnapshot => {
+        const userData = userSnapshot.data();
+        setUserCache(userSnapshot.id, {
+          name: userData.name || "名前未設定",
+          isAdmin: userData.isAdmin || false,
+          imageUrl: userData.imageUrl || "",
+          profileText: userData.profileText || ""
+        });
+        foundIds.add(userSnapshot.id);
+      });
+
+      // ドキュメントが存在しなかったユーザーIDにも「不明なユーザー」として
+      // キャッシュしておくことで、同じIDに対して二度と問い合わせが飛ばないようにする
+      chunk.forEach(id => {
+        if (!foundIds.has(id)) {
+          setUserCache(id, { name: "不明なユーザー", isAdmin: false, imageUrl: "", profileText: "" });
+        }
+      });
+    })
+  );
 }
 
 let drawerOverlay;
@@ -235,6 +287,11 @@ async function loadProblemBooks() {
       .orderBy("createdAt", "desc")
       .get();
 
+    // ★軽量化: 必要なユーザーIDを先にすべて集めておき、後でまとめて1回の処理で取得する
+    // （以前は本を1冊読むたびに作成者→解答者と1人ずつ順番に問い合わせていたため、
+    //   問題集や解答者の数が増えるほど直列に通信が積み重なり、非常に重くなっていた）
+    const neededUserIds = new Set();
+
     for (const doc of querySnapshot.docs) {
       const data = doc.data();
       const bookId = doc.id;
@@ -264,11 +321,12 @@ async function loadProblemBooks() {
         shuffleProblems
       ];
 
-      await ensureUserCached(makerUserId);
-      for (const solverId of solvedBy) {
-        await ensureUserCached(solverId);
-      }
+      if (makerUserId) neededUserIds.add(makerUserId);
+      solvedBy.forEach(solverId => neededUserIds.add(solverId));
     }
+
+    // ここで初めてまとめて（並列・バッチ）取得する
+    await ensureUsersCachedBulk(Array.from(neededUserIds));
   } catch (error) {
     console.log(error);
     alert(error);
@@ -921,9 +979,8 @@ async function openImpressionsModal(bookId) {
       return;
     }
 
-    for (const [userId] of entries) {
-      await ensureUserCached(userId);
-    }
+    // ★軽量化: ここも1人ずつではなく、まとめて並列取得する
+    await ensureUsersCachedBulk(entries.map(([userId]) => userId));
 
     entries.forEach(([userId, text]) => {
       const cached = getUserCache(userId) || {};
