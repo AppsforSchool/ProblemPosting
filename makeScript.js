@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function updateLastChecked() {
   db.collection("users_random")
     .doc(myUserId)
-    .set({ lastChecked: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+    .set({ lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
