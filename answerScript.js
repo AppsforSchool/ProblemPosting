@@ -104,8 +104,6 @@ document.addEventListener("DOMContentLoaded", () => {
   answerModalNextButton.addEventListener("click", handleAnswerModalNext);
   showProblemButton.addEventListener("click", () => {
     answerModal.classList.add("hidden");
-    answerActionsRow.classList.add("hidden");
-    viewExplanationButton.classList.remove("hidden");
   });
   viewExplanationButton.addEventListener("click", () => {
     showAnswerModal(lastAnswerResult);
@@ -503,6 +501,8 @@ function isSameIndexSet(a, b) {
 
 function showAnswerModal(isCorrect) {
   lastAnswerResult = isCorrect;
+  answerActionsRow.classList.add("hidden");
+  viewExplanationButton.classList.remove("hidden");
 
   if (isCorrect === null) {
     answerResultText.classList.add("hidden");
