@@ -83,12 +83,21 @@ document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged((user) => {
     if (user) {
       myUserId = user.email.split("@")[0];
+      updateLastChecked();
     } else {
       console.log("logout");
       window.location.href = "./index.html";
     }
   });
 });
+
+// ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
+function updateLastChecked() {
+  db.collection("users_random")
+    .doc(myUserId)
+    .set({ lastChecked: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+    .catch(error => console.error("最終アクセス日時の更新エラー:", error));
+}
 
 
 function addProblemBlock() {
