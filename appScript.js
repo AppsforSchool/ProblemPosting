@@ -257,8 +257,12 @@ async function loadProblemBooks() {
       const makerUserId = data.madeBy || "";
       const solvedBy = data.solvedBy || [];
       const shuffleProblems = !!data.shuffleProblems;
+      const isPrivate = !!data.isPrivate;
       const createdAtMillis = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0;
       const updatedAtMillis = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : createdAtMillis;
+
+      // ★ 非公開の問題集は作成者本人にのみ表示する
+      if (isPrivate && makerUserId !== myUserId) continue;
 
       bookCache[bookId] = [
         title,
@@ -270,7 +274,8 @@ async function loadProblemBooks() {
         solvedBy,
         createdAtMillis,
         updatedAtMillis,
-        shuffleProblems
+        shuffleProblems,
+        isPrivate
       ];
 
       await ensureUserCached(makerUserId);
@@ -308,6 +313,14 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
       newBadge.classList.add("new-badge");
       newBadge.textContent = "NEW";
       card.appendChild(newBadge);
+    }
+
+    const isPrivate = !!book[10];
+    if (isPrivate) {
+      const privateBadge = document.createElement("span");
+      privateBadge.classList.add("private-badge");
+      privateBadge.textContent = "非公開";
+      card.appendChild(privateBadge);
     }
       
     const cardTop = document.createElement("div");

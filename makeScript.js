@@ -309,6 +309,8 @@ async function handleSubmit() {
   const subjectId = Number(bookSubjectSelect.value);
   const gradeId = Number(bookGradeSelect.value);
   const shuffleProblems = bookShuffleProblemsCheckbox.checked;
+  const visibilityRadio = document.querySelector(".book-visibility-radio:checked");
+  const isPrivate = !!visibilityRadio && visibilityRadio.value === "private";
 
   const problemCards = Array.from(problemsListEl.querySelectorAll(".problem-card"));
   if (problemCards.length === 0) {
@@ -430,6 +432,7 @@ async function handleSubmit() {
         madeBy: myUserId,
         problemCount: problemsPayload.length,
         shuffleProblems,
+        isPrivate,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });

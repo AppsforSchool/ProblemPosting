@@ -895,6 +895,22 @@ body {
   box-shadow: var(--shadow-sm);
   pointer-events: none;
 }
+.private-badge {
+  position: absolute;
+  top: -0.5rem;
+  left: -0.5rem;
+  z-index: 1;
+
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: var(--text-muted);
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
 .card-area .card.make-card {
   background-color: var(--surface-alt);
   border: 1.5px dashed rgba(var(--primary-rgb), 0.4);

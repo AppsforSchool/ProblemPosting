@@ -237,6 +237,24 @@ function updateLastChecked() {
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
+// ★ 月ごとの解答済み問題数を加算する（key: "YYYYMM", value: 問題数）
+function incrementMonthlyProblemCount() {
+  const now = new Date();
+  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  db.collection("users_random")
+    .doc(myUserId)
+    .set(
+      {
+        monthlyProblemCounts: {
+          [yearMonth]: firebase.firestore.FieldValue.increment(1)
+        }
+      },
+      { merge: true }
+    )
+    .catch(error => console.error("月間解答数の更新エラー:", error));
+}
+
 const handleLogout = async () => {
   const isConfirmed = confirm("ログアウトしますか？");
   if (isConfirmed) {
@@ -437,6 +455,7 @@ function handleAnswerSubmit() {
     textAnswerInput.disabled = true;
     answerButton.disabled = true;
 
+    incrementMonthlyProblemCount();
     showAnswerModal(isCorrect);
     return;
   }
@@ -471,6 +490,7 @@ function handleAnswerSubmit() {
 
   answerButton.disabled = true;
 
+  incrementMonthlyProblemCount();
   showAnswerModal(isCorrect);
 }
 
@@ -497,7 +517,7 @@ function handleSkip() {
   answerButton.disabled = true;
   skipButton.disabled = true;
 
-  // スキップした問題は不正解扱い（correctAnswersCountは増やさない）
+  // スキップした問題は不正解扱い（correctAnswersCountは増やさない）かつカウント対象外
   showAnswerModal(null);
 }
 

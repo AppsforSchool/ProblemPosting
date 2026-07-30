@@ -19,6 +19,7 @@ const MAX_TEXT_ANSWERS = 6;
 let myUserId = "";
 let meIsAdmin = false;
 let currentBookId = "";
+let wasAlreadyPublic = false;
 let imgbbApiKeyCache = null;
 let problemUidCounter = 0;
 
@@ -157,6 +158,16 @@ async function loadBookData(bookId) {
     bookSubjectSelect.value = String(bookData.subjectId || 0);
     bookGradeSelect.value = String(bookData.gradeId || 0);
     bookShuffleProblemsCheckbox.checked = !!bookData.shuffleProblems;
+
+    wasAlreadyPublic = !bookData.isPrivate;
+    const visibilityRadios = document.querySelectorAll(".book-visibility-radio");
+    visibilityRadios.forEach(radio => {
+      radio.checked = bookData.isPrivate ? radio.value === "private" : radio.value === "public";
+      // 一度公開された問題集は、非公開に戻せないようにする
+      if (wasAlreadyPublic) {
+        radio.disabled = radio.value === "private";
+      }
+    });
 
     if (meIsAdmin) {
       madeByArea.classList.remove("hidden");
@@ -453,6 +464,10 @@ function validateAndCollectPayload() {
   const gradeId = Number(bookGradeSelect.value);
   const shuffleProblems = bookShuffleProblemsCheckbox.checked;
 
+  const visibilityRadio = document.querySelector(".book-visibility-radio:checked");
+  // 一度公開された問題集は、UIを迂回されても非公開に戻せないようにする
+  const isPrivate = wasAlreadyPublic ? false : (!!visibilityRadio && visibilityRadio.value === "private");
+
   let madeBy = null;
   if (meIsAdmin) {
     madeBy = bookMadeByInput.value.trim();
@@ -545,13 +560,13 @@ function validateAndCollectPayload() {
     });
   }
 
-  return { title, description, subjectId, gradeId, shuffleProblems, madeBy, problemsPayload };
+  return { title, description, subjectId, gradeId, shuffleProblems, isPrivate, madeBy, problemsPayload };
 }
 
 async function handleUpdate() {
   const collected = validateAndCollectPayload();
   if (!collected) return;
-  const { title, description, subjectId, gradeId, shuffleProblems, madeBy, problemsPayload } = collected;
+  const { title, description, subjectId, gradeId, shuffleProblems, isPrivate, madeBy, problemsPayload } = collected;
 
   if (!myUserId) {
     alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
@@ -601,6 +616,7 @@ async function handleUpdate() {
       gradeId,
       problemCount: problemsPayload.length,
       shuffleProblems,
+      isPrivate,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if (meIsAdmin && madeBy) {
