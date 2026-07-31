@@ -514,9 +514,10 @@ body {
 }
 .shuffle-toggle-row:has(input:disabled) {
   opacity: 0.5;
+  cursor: not-allowed;
 }
 .shuffle-toggle-row input[type="checkbox"]:disabled {
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .buttons-area {
@@ -745,7 +746,7 @@ body {
   background-color: #dbe0e6;
   color: #9aa4ae;
   box-shadow: none;
-  cursor: default;
+  cursor: not-allowed;
 }
 
 

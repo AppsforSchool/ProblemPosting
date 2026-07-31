@@ -309,7 +309,7 @@ body {
 }
 .remove-choice-button:disabled {
   opacity: 0.35;
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .answer-type-selector {
@@ -340,11 +340,19 @@ body {
   background-color: var(--primary-soft);
   color: var(--primary-dark);
 }
+.answer-type-option:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--surface-alt);
+}
 .answer-type-option input[type="radio"] {
   accent-color: var(--primary);
   width: 1rem;
   height: 1rem;
   cursor: pointer;
+}
+.answer-type-option input[type="radio"]:disabled {
+  cursor: not-allowed;
 }
 
 .choices-list {
@@ -421,7 +429,7 @@ body {
 .add-choice-button:disabled,
 .add-text-answer-button:disabled {
   opacity: 0.4;
-  cursor: default;
+  cursor: not-allowed;
   background-color: var(--surface-alt);
 }
 
@@ -442,6 +450,11 @@ body {
   height: 1.1rem;
   accent-color: var(--primary);
   cursor: pointer;
+}
+.visibility-locked-message {
+  font-size: 0.78rem;
+  color: #d64545;
+  margin-top: 0.4rem;
 }
 
 .text-answers-area {
@@ -483,7 +496,7 @@ body {
 }
 .remove-text-answer-button:disabled {
   opacity: 0.35;
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .submit-button {
@@ -514,7 +527,7 @@ body {
   background-color: #dbe0e6;
   color: #9aa4ae;
   box-shadow: none;
-  cursor: default;
+  cursor: not-allowed;
 }
 
 #no-permission-overlay {
@@ -575,7 +588,7 @@ body {
 .delete-button:disabled {
   color: #9aa4ae;
   border-color: var(--border);
-  cursor: default;
+  cursor: not-allowed;
   background-color: var(--surface);
 }
 
