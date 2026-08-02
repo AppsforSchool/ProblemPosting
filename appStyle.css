@@ -810,6 +810,7 @@ body {
   border-right: 1px solid var(--border);
   margin-right: 4px;
 }
+#content-type-select,
 #sort-order-select,
 #subject-select,
 #grade-select,
@@ -826,12 +827,14 @@ body {
   cursor: pointer;
   transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), background-color 0.2s var(--ease);
 }
+#content-type-select:hover,
 #sort-order-select:hover,
 #subject-select:hover,
 #grade-select:hover,
 #solved-filter-select:hover {
   border-color: #c7ccd2;
 }
+#content-type-select:focus,
 #sort-order-select:focus,
 #subject-select:focus,
 #grade-select:focus,

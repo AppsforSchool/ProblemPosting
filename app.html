@@ -8,12 +8,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes"> 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=Signika+Negative:wght@300..700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Signika+Negative:wght@300..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="appStyle.css">
   
-  <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 </head>
   
 <body>
@@ -28,7 +31,7 @@
         <p class="title">シェア</p>
         <span id="share-modal-close" class="close-button">&times;</span>
       </div>
-      <img src="qrcode.png" alt="QR Code" loading="lazy">
+      <img src="qrcode.png" alt="QR Code">
     </div>
   </div>
   <div id="setting-modal" class="modal-overlay hidden">
@@ -57,6 +60,10 @@
       <label class="shuffle-toggle-row" id="shuffle-toggle-row">
         <span>出題順をシャッフル</span>
         <input type="checkbox" id="shuffle-problems-toggle">
+      </label>
+      <label class="shuffle-toggle-row hidden" id="flip-toggle-row">
+        <span>表と裏を逆転する</span>
+        <input type="checkbox" id="flip-cards-toggle">
       </label>
       <div class="buttons-area">
         <button id="edit-button" class="hidden">編集</button>
@@ -173,6 +180,12 @@
     <div class="books-container">
       <p class="title">問題集一覧</p>
       <div class="narrow-down-area">
+        <div class="sort-order-area">
+          <select id="content-type-select">
+            <option value="books">問題集</option>
+            <option value="cards">暗記カード</option>
+          </select>
+        </div>
         <div class="sort-order-area">
           <select id="sort-order-select">
             <option value="created">作成順</option>

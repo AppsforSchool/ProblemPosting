@@ -46,6 +46,7 @@ function setUserCache(userId, data) {
 }
 
 let bookCache = {};
+let deckCache = {};
 let imgbbApiKeyCache = null;
 
 // ★ ImgBBへの画像アップロード（チャットサイトと同じ仕様：system_keys/imgbb からAPIキーを取得してアップロードし、URLを保存する）
@@ -129,6 +130,7 @@ let subjectSelect;
 let gradeSelect;
 let sortOrderSelect;
 let solvedFilterSelect;
+let contentTypeSelect;
 
 document.addEventListener("DOMContentLoaded", () => {
   drawerOverlay = document.getElementById("drawerOverlay");
@@ -154,15 +156,23 @@ document.addEventListener("DOMContentLoaded", () => {
   gradeSelect = document.getElementById("grade-select");
   sortOrderSelect = document.getElementById("sort-order-select");
   solvedFilterSelect = document.getElementById("solved-filter-select");
+  contentTypeSelect = document.getElementById("content-type-select");
 
   subjectSelect.addEventListener("change", handleFilterChange);
   gradeSelect.addEventListener("change", handleFilterChange);
   sortOrderSelect.addEventListener("change", handleFilterChange);
   solvedFilterSelect.addEventListener("change", handleFilterChange);
+  contentTypeSelect.addEventListener("change", handleFilterChange);
 });
 
 function handleFilterChange() {
-  makeDisplayBooks(subjectSelect.value, gradeSelect.value, sortOrderSelect.value, solvedFilterSelect.value);
+  const isCardMode = contentTypeSelect.value === "cards";
+
+  if (isCardMode) {
+    makeDisplayCards(subjectSelect.value, gradeSelect.value, sortOrderSelect.value, solvedFilterSelect.value);
+  } else {
+    makeDisplayBooks(subjectSelect.value, gradeSelect.value, sortOrderSelect.value, solvedFilterSelect.value);
+  }
 }
 
 function openDrawer() {
@@ -201,6 +211,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       //displayVocabularyBooks();
       await loadProblemBooks();
+      await loadCardDecks();
       makeDisplayBooks("all", "all", "created", "all");
       openSettingModalFromHash();
       loadingOverlay.classList.add("hidden");
@@ -261,8 +272,8 @@ async function loadProblemBooks() {
       const createdAtMillis = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0;
       const updatedAtMillis = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : createdAtMillis;
 
-      // ★ 非公開の問題集は作成者本人にのみ表示する
-      if (isPrivate && makerUserId !== myUserId) continue;
+      // ★ 非公開の問題集は作成者本人と管理者にのみ表示する
+      if (isPrivate && makerUserId !== myUserId && !meIsAdmin) continue;
 
       bookCache[bookId] = [
         title,
@@ -275,6 +286,60 @@ async function loadProblemBooks() {
         createdAtMillis,
         updatedAtMillis,
         shuffleProblems,
+        isPrivate
+      ];
+
+      await ensureUserCached(makerUserId);
+      for (const solverId of solvedBy) {
+        await ensureUserCached(solverId);
+      }
+    }
+  } catch (error) {
+    console.log(error);
+    alert(error);
+  }
+}
+
+async function loadCardDecks() {
+  try {
+    const querySnapshot = await db
+      .collection("ProblemPosting")
+      .doc("cards")
+      .collection("data")
+      .orderBy("createdAt", "desc")
+      .get();
+
+    for (const doc of querySnapshot.docs) {
+      const data = doc.data();
+      const deckId = doc.id;
+      const title = data.title || "タイトルがありません";
+      const description = data.description || "説明文がありません";
+      let subjectId = data.subjectId || 0;
+      if (9 < subjectId) subjectId = 0;
+      let gradeId = data.gradeId || 0;
+      if (4 < gradeId) gradeId = 0;
+      const cardCount = data.cardCount || 0;
+      const makerUserId = data.madeBy || "";
+      const allowFlip = !!data.allowFlip;
+      const isPrivate = !!data.isPrivate;
+      const solvedBy = data.solvedBy || [];
+      const createdAtMillis = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0;
+      const updatedAtMillis = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : createdAtMillis;
+
+      // ★ 非公開の暗記カードは作成者本人と管理者にのみ表示する
+      if (isPrivate && makerUserId !== myUserId && !meIsAdmin) continue;
+
+      deckCache[deckId] = [
+        title,
+        description,
+        subjectId,
+        gradeId,
+        cardCount,
+        makerUserId,
+        solvedBy,
+        createdAtMillis,
+        updatedAtMillis,
+        allowFlip,
         isPrivate
       ];
 
@@ -443,6 +508,157 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
     listElement.appendChild(fragment);
 }
 
+function makeDisplayCards(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
+  const listElement = document.getElementById("card-area");
+  const loadingText = document.getElementById("loading-text");
+
+  listElement.innerHTML = "";
+  const fragment = document.createDocumentFragment();
+
+  const sortIndex = sortOrder === "updated" ? 8 : 7;
+  const sortedEntries = Object.entries(deckCache).sort(
+    ([, deckA], [, deckB]) => (deckB[sortIndex] || 0) - (deckA[sortIndex] || 0)
+  );
+
+  sortedEntries.forEach(([deckId, deck]) => {
+    const card = document.createElement("div");
+    card.classList.add("card");
+
+    const isPrivate = !!deck[10];
+    if (isPrivate) {
+      const privateBadge = document.createElement("span");
+      privateBadge.classList.add("private-badge");
+      privateBadge.textContent = "非公開";
+      card.appendChild(privateBadge);
+    }
+
+    const cardTop = document.createElement("div");
+    cardTop.classList.add("card-top");
+    const subjectBadge = document.createElement("span");
+    subjectBadge.classList.add("badge");
+    subjectBadge.classList.add(`t${deck[2]}`);
+    subjectBadge.textContent = subjectIdList[deck[2]];
+    const gradeBadge = document.createElement("span");
+    gradeBadge.classList.add("badge");
+    gradeBadge.classList.add(`t${deck[2]}`);
+    gradeBadge.textContent = gradeIdList[deck[3]];
+    const cardCountBadge = document.createElement("span");
+    cardCountBadge.classList.add("badge");
+    cardCountBadge.classList.add(`t${deck[2]}`);
+    cardCountBadge.innerHTML = `${STACK_ICON_SVG}${deck[4]}枚`;
+    cardTop.appendChild(subjectBadge);
+    cardTop.appendChild(gradeBadge);
+    cardTop.appendChild(cardCountBadge);
+
+    const cardTitle = document.createElement("p");
+    cardTitle.classList.add("card-title");
+    cardTitle.textContent = deck[0];
+
+    const cardDescription = document.createElement("p");
+    cardDescription.classList.add("card-description");
+    cardDescription.textContent = deck[1];
+
+    const cardMadeBy = document.createElement("span");
+    cardMadeBy.classList.add("card-madeBy");
+
+    const makerCached = getUserCache(deck[5]) || {};
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = makerCached.name;
+    nameSpan.classList.add("clickable-user");
+    if (makerCached.isAdmin) nameSpan.classList.add("admin");
+    nameSpan.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openProfileModal(deck[5]);
+    });
+    const madeByTextContent = document.createTextNode('作成者: ');
+    cardMadeBy.appendChild(madeByTextContent);
+    cardMadeBy.appendChild(nameSpan);
+
+    const solvedBy = deck[6] || [];
+    const solvedByArea = document.createElement("div");
+    solvedByArea.classList.add("solved-by-area");
+
+    const solvedByLabel = document.createElement("span");
+    solvedByLabel.classList.add("solved-by-label");
+    solvedByLabel.textContent = "解いた人:";
+    solvedByArea.appendChild(solvedByLabel);
+
+    if (solvedBy.length > 0) {
+      const stack = document.createElement("div");
+      stack.classList.add("solved-by-stack");
+
+      const MAX_SHOWN = 4;
+      solvedBy.slice(0, MAX_SHOWN).forEach(userId => {
+        const cached = getUserCache(userId) || {};
+        const avatar = createAvatar(cached.name, "small", cached.imageUrl);
+        avatar.classList.add("solved-by-avatar");
+        stack.appendChild(avatar);
+      });
+      if (solvedBy.length > MAX_SHOWN) {
+        const overflow = document.createElement("div");
+        overflow.classList.add("avatar-circle", "small", "solved-by-avatar", "solved-by-overflow");
+        overflow.textContent = "…";
+        stack.appendChild(overflow);
+      }
+
+      solvedByArea.appendChild(stack);
+      solvedByArea.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSolvedModal(deckId, "card");
+      });
+    } else {
+      const emptyText = document.createElement("span");
+      emptyText.classList.add("solved-by-empty-text");
+      emptyText.textContent = "解いた人はまだいません";
+      solvedByArea.appendChild(emptyText);
+    }
+
+    card.addEventListener("click", () => {
+      openCardSettingModal(deckId);
+    });
+
+    card.appendChild(cardTop);
+    card.appendChild(cardTitle);
+    card.appendChild(cardDescription);
+    card.appendChild(cardMadeBy);
+    card.appendChild(solvedByArea);
+
+    const subjectMatches = subjectFilter === "all" || deck[2] === Number(subjectFilter);
+    const gradeMatches = gradeFilter === "all" || deck[3] === Number(gradeFilter);
+    const hasSolved = solvedBy.includes(myUserId);
+    const solvedMatches =
+      !solvedFilter ||
+      solvedFilter === "all" ||
+      (solvedFilter === "solved" && hasSolved) ||
+      (solvedFilter === "unsolved" && !hasSolved);
+    if (subjectMatches && gradeMatches && solvedMatches) {
+      fragment.appendChild(card);
+    }
+  });
+
+  const makeCardDeckButton = document.createElement("button");
+  makeCardDeckButton.classList.add("card");
+  makeCardDeckButton.classList.add("make-card");
+  makeCardDeckButton.innerHTML = `
+  <svg xmlns="http://w3.org" viewBox="0 0 24 24" width="24" height="24">
+    <circle cx="12" cy="12" r="10" fill="currentColor"/>
+    <path d="M 12,8 L 12,16 M 8,12 L 16,12" 
+      fill="none" 
+      stroke="white" 
+      stroke-width="2" 
+      stroke-linecap="round"/>
+  </svg>
+  <p class="card-title">暗記カードを作成</p>`;
+  makeCardDeckButton.addEventListener("click", () => {
+    window.location.href = "./makeCard.html";
+  });
+
+  loadingText.classList.add("hidden");
+  listElement.classList.remove("hidden");
+  listElement.appendChild(makeCardDeckButton);
+  listElement.appendChild(fragment);
+}
+
 let shareModalBtn;
 let shareModal;
 let shareModalClose;
@@ -469,6 +685,8 @@ let settingModalSubject,
 let settingModalTitle, settingModalDescription, settingModalMadeByName;
 let settingModalEditButton, settingModalStartButton, viewImpressionsButton;
 let shuffleProblemsToggle;
+let shuffleToggleRow, flipToggleRow, flipCardsToggle;
+let settingModalType = "book";
 document.addEventListener("DOMContentLoaded", () => {
   settingModal = document.getElementById("setting-modal");
   settingModalClose = document.getElementById("setting-modal-close");
@@ -483,6 +701,9 @@ document.addEventListener("DOMContentLoaded", () => {
   settingModalEditButton = document.getElementById("edit-button");
   viewImpressionsButton = document.getElementById("view-impressions-button");
   shuffleProblemsToggle = document.getElementById("shuffle-problems-toggle");
+  shuffleToggleRow = document.getElementById("shuffle-toggle-row");
+  flipToggleRow = document.getElementById("flip-toggle-row");
+  flipCardsToggle = document.getElementById("flip-cards-toggle");
 
   settingModalClose.addEventListener("click", () => {
     settingModal.classList.add("hidden");
@@ -505,23 +726,45 @@ document.addEventListener("DOMContentLoaded", () => {
     settingModalMadeByName.classList.remove("admin");
 
     settingModalEditButton.classList.add("hidden");
+    flipCardsToggle.checked = false;
   });
   settingModalStartButton.addEventListener("click", () => {
-    const shuffleParam = shuffleProblemsToggle.checked && !shuffleProblemsToggle.disabled ? "&shuffle=1" : "";
-    window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}`;
+    if (settingModalType === "card") {
+      const flipParam = flipCardsToggle.checked && !flipCardsToggle.disabled ? "&flip=1" : "";
+      window.location.href = `./answerCard.html?id=${settingModalBookId}${flipParam}`;
+    } else {
+      const shuffleParam = shuffleProblemsToggle.checked && !shuffleProblemsToggle.disabled ? "&shuffle=1" : "";
+      window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}`;
+    }
   });
   settingModalEditButton.addEventListener("click", () => {
-    window.location.href = `./edit.html?id=${settingModalBookId}`;
+    const editPage = settingModalType === "card" ? "editCard.html" : "edit.html";
+    window.location.href = `./${editPage}?id=${settingModalBookId}`;
   });
   settingModalMadeByName.addEventListener("click", () => {
-    openProfileModal(bookCache[settingModalBookId][5]);
+    const cache = settingModalType === "card" ? deckCache : bookCache;
+    openProfileModal(cache[settingModalBookId][5]);
   });
   viewImpressionsButton.addEventListener("click", () => {
-    openImpressionsModal(settingModalBookId);
+    openImpressionsModal(settingModalBookId, settingModalType);
   });
 });
 
+// ★ 出題設定モーダルの表示内容を「問題集」「暗記カード」で切り替える
+function setSettingModalMode(mode) {
+  settingModalType = mode;
+  const isCard = mode === "card";
+
+  shuffleToggleRow.classList.toggle("hidden", isCard);
+  flipToggleRow.classList.toggle("hidden", !isCard);
+
+  settingModalEditButton.classList.add("hidden");
+  viewImpressionsButton.classList.remove("hidden");
+  settingModalShareButton.classList.remove("hidden");
+}
+
 function openSettingModal(id) {
+  setSettingModalMode("book");
   settingModalBookId = id;
   settingModal.classList.remove("hidden");
   setBookHash(id);
@@ -547,6 +790,33 @@ function openSettingModal(id) {
   shuffleProblemsToggle.disabled = !allowShuffle;
 }
 
+function openCardSettingModal(id) {
+  setSettingModalMode("card");
+  settingModalBookId = id;
+  settingModal.classList.remove("hidden");
+  setBookHash(id);
+  settingModalTitle.textContent = deckCache[id][0];
+  settingModalDescription.textContent = deckCache[id][1];
+  settingModalSubject.classList.remove("t0");
+  settingModalGrade.classList.remove("t0");
+  settingModalCount.classList.remove("t0");
+  settingModalSubject.classList.add(`t${deckCache[id][2]}`);
+  settingModalGrade.classList.add(`t${deckCache[id][2]}`);
+  settingModalCount.classList.add(`t${deckCache[id][2]}`);
+  settingModalSubject.textContent = subjectIdList[deckCache[id][2]];
+  settingModalGrade.textContent = gradeIdList[deckCache[id][3]];
+  settingModalCountText.textContent = `${deckCache[id][4]}枚`;
+  const makerCached = getUserCache(deckCache[id][5]) || {};
+  settingModalMadeByName.textContent = makerCached.name;
+  settingModalMadeByName.classList.toggle("admin", !!makerCached.isAdmin);
+
+  if (deckCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.classList.remove("hidden");
+
+  const allowFlip = !!deckCache[id][9];
+  flipCardsToggle.checked = false;
+  flipCardsToggle.disabled = !allowFlip;
+}
+
 // ★ URLのハッシュ(#問題集ID)を使った出題設定モーダルの直リンク対応
 function setBookHash(bookId) {
   if (window.location.hash === `#${bookId}`) return;
@@ -560,8 +830,15 @@ function clearBookHash() {
 }
 function openSettingModalFromHash() {
   const id = window.location.hash.replace("#", "");
-  if (id && bookCache[id]) {
+  if (!id) return;
+  if (bookCache[id]) {
+    contentTypeSelect.value = "books";
+    handleFilterChange();
     openSettingModal(id);
+  } else if (deckCache[id]) {
+    contentTypeSelect.value = "cards";
+    handleFilterChange();
+    openCardSettingModal(id);
   }
 }
 
@@ -605,8 +882,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-function openSolvedModal(bookId) {
-  const solvedBy = (bookCache[bookId] && bookCache[bookId][6]) || [];
+function openSolvedModal(id, type) {
+  const cache = type === "card" ? deckCache : bookCache;
+  const solvedBy = (cache[id] && cache[id][6]) || [];
   solvedArea.innerHTML = "";
 
   if (solvedBy.length === 0) {
@@ -911,17 +1189,17 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-async function openImpressionsModal(bookId) {
+function getContentDocRef(id, type) {
+  const topDoc = type === "card" ? "cards" : "books";
+  return db.collection("ProblemPosting").doc(topDoc).collection("data").doc(id);
+}
+
+async function openImpressionsModal(bookId, type) {
   impressionsArea.innerHTML = "<p>読み込み中...</p>";
   impressionsModal.classList.remove("hidden");
 
   try {
-    const bookSnap = await db
-      .collection("ProblemPosting")
-      .doc("books")
-      .collection("data")
-      .doc(bookId)
-      .get();
+    const bookSnap = await getContentDocRef(bookId, type).get();
     const impressions = (bookSnap.exists && bookSnap.data().impressions) || {};
     const entries = Object.entries(impressions).filter(([, text]) => text && text.trim() !== "");
 
@@ -965,7 +1243,7 @@ async function openImpressionsModal(bookId) {
         editButton.classList.add("impression-card-edit-button");
         editButton.textContent = "編集";
         editButton.addEventListener("click", () => {
-          openImpressionEditModal(bookId, userId, text);
+          openImpressionEditModal(bookId, type, userId, text);
         });
         header.appendChild(editButton);
       }
@@ -989,6 +1267,7 @@ let impressionEditModalClose;
 let impressionEditInput;
 let impressionEditSaveButton;
 let impressionEditBookId = "";
+let impressionEditType = "book";
 let impressionEditTargetUserId = "";
 document.addEventListener("DOMContentLoaded", () => {
   impressionEditModal = document.getElementById("impression-edit-modal");
@@ -1002,8 +1281,9 @@ document.addEventListener("DOMContentLoaded", () => {
   impressionEditSaveButton.addEventListener("click", saveImpressionEdit);
 });
 
-function openImpressionEditModal(bookId, userId, existingText) {
+function openImpressionEditModal(bookId, type, userId, existingText) {
   impressionEditBookId = bookId;
+  impressionEditType = type;
   impressionEditTargetUserId = userId;
   impressionEditInput.value = existingText || "";
   impressionEditModal.classList.remove("hidden");
@@ -1016,17 +1296,12 @@ async function saveImpressionEdit() {
   impressionEditSaveButton.textContent = "保存中...";
 
   try {
-    await db
-      .collection("ProblemPosting")
-      .doc("books")
-      .collection("data")
-      .doc(impressionEditBookId)
-      .update({
-        [`impressions.${impressionEditTargetUserId}`]: text
-      });
+    await getContentDocRef(impressionEditBookId, impressionEditType).update({
+      [`impressions.${impressionEditTargetUserId}`]: text
+    });
 
     impressionEditModal.classList.add("hidden");
-    await openImpressionsModal(impressionEditBookId);
+    await openImpressionsModal(impressionEditBookId, impressionEditType);
   } catch (error) {
     console.error("感想の保存エラー:", error);
     alert("感想の保存に失敗しました。\n" + error);

@@ -168,6 +168,8 @@ async function loadBookData(bookId) {
         radio.disabled = radio.value === "private";
       }
     });
+    const visibilityLockedMessage = document.getElementById("visibility-locked-message");
+    if (visibilityLockedMessage) visibilityLockedMessage.classList.toggle("hidden", !wasAlreadyPublic);
 
     if (meIsAdmin) {
       madeByArea.classList.remove("hidden");
