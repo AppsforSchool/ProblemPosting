@@ -74,11 +74,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   homeButton.addEventListener("click", () => {
     if (confirm("本当にやめますか？")) {
-      window.location.href = "./app.html";
+      window.location.href = "./app.html?type=cards";
     }
   });
   finishedHomeButton.addEventListener("click", () => {
-    window.location.href = "./app.html";
+    window.location.href = "./app.html?type=cards";
   });
 
   showBackButton.addEventListener("click", () => {

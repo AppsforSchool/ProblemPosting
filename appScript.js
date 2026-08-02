@@ -46,6 +46,11 @@ function setUserCache(userId, data) {
 }
 
 let bookCache = {};
+
+function getParmFromUrl(parm) {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(parm);
+}
 let deckCache = {};
 let imgbbApiKeyCache = null;
 
@@ -212,7 +217,13 @@ document.addEventListener("DOMContentLoaded", () => {
       //displayVocabularyBooks();
       await loadProblemBooks();
       await loadCardDecks();
-      makeDisplayBooks("all", "all", "created", "all");
+
+      if (getParmFromUrl("type") === "cards") {
+        contentTypeSelect.value = "cards";
+        makeDisplayCards("all", "all", "created", "all");
+      } else {
+        makeDisplayBooks("all", "all", "created", "all");
+      }
       openSettingModalFromHash();
       loadingOverlay.classList.add("hidden");
       updateLastChecked();
