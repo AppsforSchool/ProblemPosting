@@ -1106,6 +1106,7 @@ footer p {
   align-items: center;
   gap: 0.6rem;
   padding: 2rem 0;
+  width: 100%;
 }
 .card-finished-area.hidden {
   display: none;
@@ -1120,7 +1121,4 @@ footer p {
   color: var(--text-muted);
   margin-bottom: 1rem;
 }
-.card-finished-area .answer-next-button {
-  width: auto;
-  padding: 0.75rem 2rem;
-}
+

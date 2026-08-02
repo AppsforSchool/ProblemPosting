@@ -292,17 +292,15 @@ function handleNextCard() {
 
   const nextIndex = currentCardIndex + 1;
   if (nextIndex < cardsData.length) {
+    flipCard(false);
     setTimeout(() => {
       showCard(nextIndex);
     }, 300);
   } else {
-    setTimeout(() => {
-      cardContainer.classList.add("hidden");
-      cardFinishedArea.classList.remove("hidden");
-    }, 300);
+    cardContainer.classList.add("hidden");
+    cardFinishedArea.classList.remove("hidden");
     recordDeckSolved();
   }
-  flipCard(false);
 }
 
 function recordDeckSolved() {
