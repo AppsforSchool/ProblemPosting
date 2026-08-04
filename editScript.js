@@ -70,6 +70,9 @@ let bookGradeSelect;
 let bookShuffleProblemsCheckbox;
 let madeByArea;
 let bookMadeByInput;
+let importJsonButton;
+let importJsonFileInput;
+let exportJsonButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
@@ -89,6 +92,9 @@ document.addEventListener("DOMContentLoaded", () => {
   bookShuffleProblemsCheckbox = document.getElementById("book-shuffle-problems-checkbox");
   madeByArea = document.getElementById("made-by-area");
   bookMadeByInput = document.getElementById("book-madeBy-input");
+  importJsonButton = document.getElementById("import-json-button");
+  importJsonFileInput = document.getElementById("import-json-file-input");
+  exportJsonButton = document.getElementById("export-json-button");
 
   addProblemButton.addEventListener("click", () => addProblemBlock());
   submitButton.addEventListener("click", handleUpdate);
@@ -96,6 +102,9 @@ document.addEventListener("DOMContentLoaded", () => {
   noPermissionHomeButton.addEventListener("click", () => {
     window.location.href = "./app.html";
   });
+  importJsonButton.addEventListener("click", () => importJsonFileInput.click());
+  importJsonFileInput.addEventListener("change", handleImportJsonFile);
+  exportJsonButton.addEventListener("click", handleExportJson);
 });
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -451,6 +460,118 @@ function renumberProblems() {
   cards.forEach((card, index) => {
     card.querySelector(".problem-card-title").textContent = `問題 ${index + 1}`;
   });
+}
+
+
+// ★ JSONエクスポート・インポート（AIで作った問題を取り込めるようにする機能）
+
+function downloadJsonFile(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function safeFileName(name) {
+  const base = (name || "problem-book").trim() || "problem-book";
+  return base.replace(/[\\/:*?"<>|]/g, "_") + ".json";
+}
+
+function collectProblemForExport(card) {
+  const answerType = getAnswerType(card);
+  let choices = [];
+  let answer = [];
+
+  if (answerType === "text") {
+    answer = Array.from(card.querySelectorAll(".text-answer-input")).map(input => input.value.trim());
+  } else {
+    const choiceRows = Array.from(card.querySelectorAll(".choice-row"));
+    choiceRows.forEach((row, index) => {
+      choices.push(row.querySelector(".choice-text-input").value.trim());
+      if (row.querySelector(".choice-correct-checkbox").checked) answer.push(index);
+    });
+  }
+
+  const shuffleChoicesCheckbox = card.querySelector(".shuffle-choices-checkbox");
+
+  return {
+    problem: card.querySelector(".problem-text-input").value.trim(),
+    answerType,
+    choices,
+    answer,
+    shuffleChoices: answerType !== "text" && !!shuffleChoicesCheckbox && shuffleChoicesCheckbox.checked,
+    explanation: card.querySelector(".explanation-input").value.trim()
+  };
+}
+
+function handleExportJson() {
+  const problemCards = Array.from(problemsListEl.querySelectorAll(".problem-card"));
+  const problems = problemCards.map(collectProblemForExport);
+
+  const data = {
+    title: bookTitleInput.value.trim(),
+    description: bookDescriptionInput.value.trim(),
+    subjectId: Number(bookSubjectSelect.value) || 0,
+    gradeId: Number(bookGradeSelect.value) || 0,
+    shuffleProblems: bookShuffleProblemsCheckbox.checked,
+    problems
+  };
+
+  downloadJsonFile(data, safeFileName(data.title));
+}
+
+function handleImportJsonFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      applyImportedBookJson(data);
+    } catch (error) {
+      console.error(error);
+      alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
+    }
+  };
+  reader.readAsText(file);
+
+  // 同じファイルを連続で選択してもchangeイベントが発火するようにリセット
+  event.target.value = "";
+}
+
+function applyImportedBookJson(data) {
+  if (!data || typeof data !== "object") {
+    alert("JSONの形式が正しくありません。");
+    return;
+  }
+
+  const problems = Array.isArray(data.problems) ? data.problems : [];
+  if (problems.length === 0) {
+    alert("problems配列が見つからないか、中身が空です。");
+    return;
+  }
+
+  const isConfirmed = confirm(`${problems.length}問を読み込みます。現在の問題はすべて置き換えられますがよろしいですか？（画像は引き継がれません）`);
+  if (!isConfirmed) return;
+
+  if (typeof data.title === "string") bookTitleInput.value = data.title;
+  if (typeof data.description === "string") bookDescriptionInput.value = data.description;
+  if (data.subjectId !== undefined) bookSubjectSelect.value = String(Number(data.subjectId) || 0);
+  if (data.gradeId !== undefined) bookGradeSelect.value = String(Number(data.gradeId) || 0);
+  if (data.shuffleProblems !== undefined) bookShuffleProblemsCheckbox.checked = !!data.shuffleProblems;
+
+  problemsListEl.innerHTML = "";
+  problems.forEach(p => addProblemBlock(p));
+
+  if (problemsListEl.children.length === 0) {
+    addProblemBlock();
+  }
 }
 
 

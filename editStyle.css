@@ -613,3 +613,36 @@ body {
   background-color: var(--primary-dark);
   box-shadow: var(--shadow-md);
 }
+
+.make-section-header {
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.import-export-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+.io-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+
+  background-color: var(--surface-alt);
+  color: var(--primary-dark);
+  border: 1.5px solid rgba(var(--primary-rgb), 0.4);
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.io-button:hover {
+  background-color: var(--primary-soft);
+  border-color: var(--primary);
+}
+.io-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: -0.6rem 0 0.8rem;
+}

@@ -102,7 +102,13 @@
       <section class="make-section">
         <div class="make-section-header">
           <p class="make-section-title">カード</p>
+          <div class="import-export-buttons">
+            <button id="import-json-button" type="button" class="io-button">JSON読込</button>
+            <button id="export-json-button" type="button" class="io-button">JSON書出</button>
+          </div>
         </div>
+        <p class="io-hint">AIで作ったカードをJSON形式で読み込んだり、現在の内容をJSONとして書き出せます。読み込むと現在のカードリストは置き換わります。</p>
+        <input type="file" id="import-json-file-input" accept="application/json,.json" class="hidden">
 
         <div id="cards-list"></div>
 

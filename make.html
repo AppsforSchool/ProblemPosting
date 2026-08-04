@@ -90,7 +90,13 @@
       <section class="make-section">
         <div class="make-section-header">
           <p class="make-section-title">問題</p>
+          <div class="import-export-buttons">
+            <button id="import-json-button" type="button" class="io-button">JSON読込</button>
+            <button id="export-json-button" type="button" class="io-button">JSON書出</button>
+          </div>
         </div>
+        <p class="io-hint">AIで作った問題をJSON形式で読み込んだり、入力中の内容をJSONとして書き出せます。</p>
+        <input type="file" id="import-json-file-input" accept="application/json,.json" class="hidden">
 
         <div id="problems-list"></div>
 

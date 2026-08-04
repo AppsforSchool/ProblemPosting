@@ -57,6 +57,9 @@ let bookDescriptionInput;
 let bookSubjectSelect;
 let bookGradeSelect;
 let bookShuffleProblemsCheckbox;
+let importJsonButton;
+let importJsonFileInput;
+let exportJsonButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
@@ -71,9 +74,15 @@ document.addEventListener("DOMContentLoaded", () => {
   bookSubjectSelect = document.getElementById("book-subject-select");
   bookGradeSelect = document.getElementById("book-grade-select");
   bookShuffleProblemsCheckbox = document.getElementById("book-shuffle-problems-checkbox");
+  importJsonButton = document.getElementById("import-json-button");
+  importJsonFileInput = document.getElementById("import-json-file-input");
+  exportJsonButton = document.getElementById("export-json-button");
 
   addProblemButton.addEventListener("click", () => addProblemBlock());
   submitButton.addEventListener("click", handleSubmit);
+  importJsonButton.addEventListener("click", () => importJsonFileInput.click());
+  importJsonFileInput.addEventListener("change", handleImportJsonFile);
+  exportJsonButton.addEventListener("click", handleExportJson);
 
   // 最初は1問分の入力欄を用意しておく
   addProblemBlock();
@@ -100,12 +109,14 @@ function updateLastChecked() {
 }
 
 
-function addProblemBlock() {
+function addProblemBlock(prefill) {
   const fragment = problemTemplate.content.cloneNode(true);
   const card = fragment.querySelector(".problem-card");
   const choicesListEl = card.querySelector(".choices-list");
   const addChoiceButton = card.querySelector(".add-choice-button");
   const removeProblemButton = card.querySelector(".remove-problem-button");
+  const problemTextInput = card.querySelector(".problem-text-input");
+  const explanationInput = card.querySelector(".explanation-input");
   const textAnswersListEl = card.querySelector(".text-answers-list");
   const addTextAnswerButton = card.querySelector(".add-text-answer-button");
 
@@ -129,15 +140,49 @@ function addProblemBlock() {
 
   problemsListEl.appendChild(card);
 
-  // 選択肢を最初から2つ用意しておく
-  addChoiceRow(choicesListEl);
-  addChoiceRow(choicesListEl);
+  if (prefill) {
+    // JSONインポートなどからの復元
+    problemTextInput.value = prefill.problem || "";
+    explanationInput.value = prefill.explanation || "";
+
+    const shuffleChoicesCheckbox = card.querySelector(".shuffle-choices-checkbox");
+    if (shuffleChoicesCheckbox) shuffleChoicesCheckbox.checked = !!prefill.shuffleChoices;
+
+    const answerTypeValue = ["single", "multiple", "text"].includes(prefill.answerType)
+      ? prefill.answerType
+      : "single";
+    const answerTypeRadio = card.querySelector(
+      `.answer-type-radio[value="${answerTypeValue}"]`
+    );
+    if (answerTypeRadio) answerTypeRadio.checked = true;
+
+    if (answerTypeValue === "text") {
+      const textAnswers = prefill.answer && prefill.answer.length ? prefill.answer : [""];
+      textAnswers.forEach(text => {
+        addTextAnswerRow(textAnswersListEl, text);
+      });
+      // 選択肢欄も念のため最低数だけ用意しておく（後で選択式に切り替えても壊れないように）
+      addChoiceRow(choicesListEl);
+      addChoiceRow(choicesListEl);
+    } else {
+      const choices = prefill.choices && prefill.choices.length ? prefill.choices : ["", ""];
+      const answer = prefill.answer || [];
+      choices.forEach((choiceText, index) => {
+        addChoiceRow(choicesListEl, choiceText, answer.includes(index));
+      });
+      addTextAnswerRow(textAnswersListEl);
+    }
+  } else {
+    // 選択肢を最初から2つ用意しておく
+    addChoiceRow(choicesListEl);
+    addChoiceRow(choicesListEl);
+
+    // 単語記述用の正解欄も最初から1つ用意しておく
+    addTextAnswerRow(textAnswersListEl);
+  }
+
   updateChoiceButtonsState(card);
-
-  // 単語記述用の正解欄も最初から1つ用意しておく
-  addTextAnswerRow(textAnswersListEl);
   updateTextAnswerButtonsState(card);
-
   updateAnswerTypeUI(card);
   renumberProblems();
 }
@@ -224,13 +269,17 @@ function setupImageControls(card) {
   });
 }
 
-function addChoiceRow(choicesListEl) {
+function addChoiceRow(choicesListEl, prefillText, prefillChecked) {
   if (choicesListEl.children.length >= MAX_CHOICES) return;
 
   const fragment = choiceTemplate.content.cloneNode(true);
   const row = fragment.querySelector(".choice-row");
   const removeChoiceButton = row.querySelector(".remove-choice-button");
+  const textInput = row.querySelector(".choice-text-input");
   const correctCheckbox = row.querySelector(".choice-correct-checkbox");
+
+  if (prefillText !== undefined) textInput.value = prefillText;
+  if (prefillChecked) correctCheckbox.checked = true;
 
   removeChoiceButton.addEventListener("click", () => {
     row.remove();
@@ -261,12 +310,15 @@ function updateChoiceButtonsState(card) {
   });
 }
 
-function addTextAnswerRow(textAnswersListEl) {
+function addTextAnswerRow(textAnswersListEl, prefillText) {
   if (textAnswersListEl.children.length >= MAX_TEXT_ANSWERS) return;
 
   const fragment = textAnswerTemplate.content.cloneNode(true);
   const row = fragment.querySelector(".text-answer-row");
+  const input = row.querySelector(".text-answer-input");
   const removeButton = row.querySelector(".remove-text-answer-button");
+
+  if (prefillText !== undefined) input.value = prefillText;
 
   removeButton.addEventListener("click", () => {
     row.remove();
@@ -295,6 +347,118 @@ function renumberProblems() {
   cards.forEach((card, index) => {
     card.querySelector(".problem-card-title").textContent = `問題 ${index + 1}`;
   });
+}
+
+
+// ★ JSONエクスポート・インポート（AIで作った問題を取り込めるようにする機能）
+
+function downloadJsonFile(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function safeFileName(name) {
+  const base = (name || "problem-book").trim() || "problem-book";
+  return base.replace(/[\\/:*?"<>|]/g, "_") + ".json";
+}
+
+function collectProblemForExport(card) {
+  const answerType = getAnswerType(card);
+  let choices = [];
+  let answer = [];
+
+  if (answerType === "text") {
+    answer = Array.from(card.querySelectorAll(".text-answer-input")).map(input => input.value.trim());
+  } else {
+    const choiceRows = Array.from(card.querySelectorAll(".choice-row"));
+    choiceRows.forEach((row, index) => {
+      choices.push(row.querySelector(".choice-text-input").value.trim());
+      if (row.querySelector(".choice-correct-checkbox").checked) answer.push(index);
+    });
+  }
+
+  const shuffleChoicesCheckbox = card.querySelector(".shuffle-choices-checkbox");
+
+  return {
+    problem: card.querySelector(".problem-text-input").value.trim(),
+    answerType,
+    choices,
+    answer,
+    shuffleChoices: answerType !== "text" && !!shuffleChoicesCheckbox && shuffleChoicesCheckbox.checked,
+    explanation: card.querySelector(".explanation-input").value.trim()
+  };
+}
+
+function handleExportJson() {
+  const problemCards = Array.from(problemsListEl.querySelectorAll(".problem-card"));
+  const problems = problemCards.map(collectProblemForExport);
+
+  const data = {
+    title: bookTitleInput.value.trim(),
+    description: bookDescriptionInput.value.trim(),
+    subjectId: Number(bookSubjectSelect.value) || 0,
+    gradeId: Number(bookGradeSelect.value) || 0,
+    shuffleProblems: bookShuffleProblemsCheckbox.checked,
+    problems
+  };
+
+  downloadJsonFile(data, safeFileName(data.title));
+}
+
+function handleImportJsonFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      applyImportedBookJson(data);
+    } catch (error) {
+      console.error(error);
+      alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
+    }
+  };
+  reader.readAsText(file);
+
+  // 同じファイルを連続で選択してもchangeイベントが発火するようにリセット
+  event.target.value = "";
+}
+
+function applyImportedBookJson(data) {
+  if (!data || typeof data !== "object") {
+    alert("JSONの形式が正しくありません。");
+    return;
+  }
+
+  const problems = Array.isArray(data.problems) ? data.problems : [];
+  if (problems.length === 0) {
+    alert("problems配列が見つからないか、中身が空です。");
+    return;
+  }
+
+  const isConfirmed = confirm(`${problems.length}問を読み込みます。現在入力中の問題はすべて置き換えられますがよろしいですか？`);
+  if (!isConfirmed) return;
+
+  if (typeof data.title === "string") bookTitleInput.value = data.title;
+  if (typeof data.description === "string") bookDescriptionInput.value = data.description;
+  if (data.subjectId !== undefined) bookSubjectSelect.value = String(Number(data.subjectId) || 0);
+  if (data.gradeId !== undefined) bookGradeSelect.value = String(Number(data.gradeId) || 0);
+  if (data.shuffleProblems !== undefined) bookShuffleProblemsCheckbox.checked = !!data.shuffleProblems;
+
+  problemsListEl.innerHTML = "";
+  problems.forEach(p => addProblemBlock(p));
+
+  if (problemsListEl.children.length === 0) {
+    addProblemBlock();
+  }
 }
 
 
