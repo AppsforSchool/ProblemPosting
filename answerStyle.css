@@ -485,6 +485,7 @@ body {
   border: 1.5px solid #2e9e5b;
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.8rem;
+  white-space: pre-line;
 }
 
 .answer-explanation-area {
@@ -500,7 +501,7 @@ body {
   color: var(--primary);
   margin-bottom: 0.3rem;
 }
-.answer-explanation-area p#answer-explanation-text {
+.answer-explanation-area p {
   font-size: 0.9rem;
   font-weight: 400;
   color: var(--text);
