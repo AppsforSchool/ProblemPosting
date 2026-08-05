@@ -208,6 +208,8 @@ async function loadBookData(bookId) {
         choices: data.choices || [],
         answer,
         answerType: data.answerType || inferredAnswerType,
+        modelAnswer: data.modelAnswer || "",
+        gradingCriteria: data.gradingCriteria || "",
         shuffleChoices: data.shuffleChoices || false,
         explanation: data.explanation || "",
         imageUrl: data.imageUrl || ""
