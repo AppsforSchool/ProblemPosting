@@ -253,7 +253,7 @@ function addProblemBlock(prefill) {
     const shuffleChoicesCheckbox = card.querySelector(".shuffle-choices-checkbox");
     if (shuffleChoicesCheckbox) shuffleChoicesCheckbox.checked = !!prefill.shuffleChoices;
 
-    const answerTypeValue = ["single", "multiple", "text"].includes(prefill.answerType)
+    const answerTypeValue = ["single", "multiple", "text", "descriptive"].includes(prefill.answerType)
       ? prefill.answerType
       : "single";
     const answerTypeRadio = card.querySelector(
@@ -269,6 +269,13 @@ function addProblemBlock(prefill) {
       // 選択肢欄も念のため最低数だけ用意しておく（後で選択式に切り替えても壊れないように）
       addChoiceRow(choicesListEl);
       addChoiceRow(choicesListEl);
+    } else if (answerTypeValue === "descriptive") {
+      card.querySelector(".model-answer-input").value = prefill.modelAnswer || "";
+      card.querySelector(".grading-criteria-input").value = prefill.gradingCriteria || "";
+      // 選択肢欄・単語記述欄も念のため最低限用意しておく（後で切り替えても壊れないように）
+      addChoiceRow(choicesListEl);
+      addChoiceRow(choicesListEl);
+      addTextAnswerRow(textAnswersListEl);
     } else {
       const choices = prefill.choices && prefill.choices.length ? prefill.choices : ["", ""];
       const answer = prefill.answer || [];
@@ -294,14 +301,11 @@ function updateAnswerTypeUI(card) {
   const answerType = getAnswerType(card);
   const choicesAreaWrap = card.querySelector(".choices-area-wrap");
   const textAnswersArea = card.querySelector(".text-answers-area");
+  const descriptiveAnswerArea = card.querySelector(".descriptive-answer-area");
 
-  if (answerType === "text") {
-    choicesAreaWrap.classList.add("hidden");
-    textAnswersArea.classList.remove("hidden");
-  } else {
-    choicesAreaWrap.classList.remove("hidden");
-    textAnswersArea.classList.add("hidden");
-  }
+  choicesAreaWrap.classList.toggle("hidden", answerType !== "single" && answerType !== "multiple");
+  textAnswersArea.classList.toggle("hidden", answerType !== "text");
+  descriptiveAnswerArea.classList.toggle("hidden", answerType !== "descriptive");
 }
 
 function setupAnswerTypeControls(card) {
@@ -486,9 +490,14 @@ function collectProblemForExport(card) {
   const answerType = getAnswerType(card);
   let choices = [];
   let answer = [];
+  let modelAnswer = "";
+  let gradingCriteria = "";
 
   if (answerType === "text") {
     answer = Array.from(card.querySelectorAll(".text-answer-input")).map(input => input.value.trim());
+  } else if (answerType === "descriptive") {
+    modelAnswer = card.querySelector(".model-answer-input").value.trim();
+    gradingCriteria = card.querySelector(".grading-criteria-input").value.trim();
   } else {
     const choiceRows = Array.from(card.querySelectorAll(".choice-row"));
     choiceRows.forEach((row, index) => {
@@ -504,7 +513,9 @@ function collectProblemForExport(card) {
     answerType,
     choices,
     answer,
-    shuffleChoices: answerType !== "text" && !!shuffleChoicesCheckbox && shuffleChoicesCheckbox.checked,
+    modelAnswer,
+    gradingCriteria,
+    shuffleChoices: (answerType === "single" || answerType === "multiple") && !!shuffleChoicesCheckbox && shuffleChoicesCheckbox.checked,
     explanation: card.querySelector(".explanation-input").value.trim()
   };
 }
@@ -622,6 +633,8 @@ function validateAndCollectPayload() {
 
     let choices = [];
     let answer = [];
+    let modelAnswer = "";
+    let gradingCriteria = "";
 
     if (answerType === "text") {
       const textAnswerInputs = Array.from(card.querySelectorAll(".text-answer-input"));
@@ -637,6 +650,13 @@ function validateAndCollectPayload() {
         }
         answer.push(text);
       }
+    } else if (answerType === "descriptive") {
+      modelAnswer = card.querySelector(".model-answer-input").value.trim();
+      if (!modelAnswer) {
+        alert(`${problemNumber}問目の模範解答を入力してください。`);
+        return null;
+      }
+      gradingCriteria = card.querySelector(".grading-criteria-input").value.trim();
     } else {
       const choiceRows = Array.from(card.querySelectorAll(".choice-row"));
       if (choiceRows.length < MIN_CHOICES) {
@@ -668,13 +688,15 @@ function validateAndCollectPayload() {
 
     const explanation = card.querySelector(".explanation-input").value.trim();
     const shuffleChoicesCheckbox = card.querySelector(".shuffle-choices-checkbox");
-    const shuffleChoices = answerType !== "text" && !!shuffleChoicesCheckbox && shuffleChoicesCheckbox.checked;
+    const shuffleChoices = (answerType === "single" || answerType === "multiple") && !!shuffleChoicesCheckbox && shuffleChoicesCheckbox.checked;
 
     problemsPayload.push({
       problem: problemText,
       choices,
       answer,
       answerType,
+      modelAnswer,
+      gradingCriteria,
       shuffleChoices,
       explanation,
       imageFile: card._selectedImageFile || null,
@@ -755,6 +777,8 @@ async function handleUpdate() {
         choices: p.choices,
         answer: p.answer,
         answerType: p.answerType,
+        modelAnswer: p.modelAnswer,
+        gradingCriteria: p.gradingCriteria,
         shuffleChoices: p.shuffleChoices,
         explanation: p.explanation,
         imageUrl: p.imageUrl

@@ -141,6 +141,10 @@
           <input type="radio" class="answer-type-radio" value="text">
           <span>単語記述</span>
         </label>
+        <label class="answer-type-option">
+          <input type="radio" class="answer-type-radio" value="descriptive">
+          <span>記述</span>
+        </label>
       </div>
 
       <div class="choices-area-wrap">
@@ -157,6 +161,14 @@
         <label class="make-label">正解となる文字列（表記ゆれ・ひらがな/カタカナなど複数設定できます）</label>
         <div class="text-answers-list"></div>
         <button type="button" class="add-text-answer-button">＋ 正解を追加</button>
+      </div>
+
+      <div class="descriptive-answer-area hidden">
+        <label class="make-label">模範解答</label>
+        <textarea class="model-answer-input" placeholder="模範解答を入力"></textarea>
+
+        <label class="make-label">採点基準（任意）</label>
+        <textarea class="grading-criteria-input" placeholder="AIが採点する際の基準を書きましょう（省略可）"></textarea>
       </div>
 
       <label class="make-label">解説（任意）</label>

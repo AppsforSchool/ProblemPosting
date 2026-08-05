@@ -571,6 +571,48 @@ body {
   margin-bottom: 0;
 }
 
+.grading-status-area {
+  padding: 2rem 0.5rem;
+  text-align: center;
+}
+.grading-status-text {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  position: relative;
+  padding-left: 1.8rem;
+}
+.grading-status-text::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: -0.55rem;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: grading-spin 0.8s linear infinite;
+}
+@keyframes grading-spin {
+  to { transform: rotate(360deg); }
+}
+
+.grading-error-area {
+  text-align: center;
+  padding: 0.5rem 0 0.5rem;
+}
+.grading-error-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #d9453d;
+  margin-bottom: 1rem;
+}
+.grading-error-area .answer-next-button {
+  margin-bottom: 0;
+}
+
 /* --- 上からスライドして出るモーダル（感想の記入・閲覧用） --- */
 .modal-overlay.top-sheet {
   align-items: flex-start;
@@ -838,6 +880,33 @@ body {
 }
 #text-answer-input:disabled {
   opacity: 0.7;
+}
+.descriptive-answer-input {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-size: 1rem;
+  color: var(--text);
+
+  width: 100%;
+  padding: 1rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-alt);
+  box-sizing: border-box;
+  resize: vertical;
+  line-height: 1.6;
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+.descriptive-answer-input:focus {
+  border-color: var(--primary);
+  background-color: var(--surface);
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.15);
+  outline: none;
+}
+.descriptive-answer-input:disabled {
+  opacity: 0.7;
+}
+.descriptive-answer-input.hidden {
+  display: none;
 }
 .choices-area button {
   font-family: "BIZ UDGothic", sans-serif;

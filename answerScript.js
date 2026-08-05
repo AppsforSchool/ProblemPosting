@@ -26,6 +26,11 @@ const subjectIdList = [
 ];
 const gradeIdList = ["不明", "1年", "2年", "3年", "総合"];
 
+// ★ 記述式の採点に使うGeminiモデル。廃止された場合はここを新しいモデルIDに差し替える
+const GEMINI_MODEL = "gemini-2.5-flash";
+let geminiApiKeyCache = null;
+let lastDescriptiveSubmission = null;
+
 let myUid = "";
 let myUserId = "";
 
@@ -41,16 +46,29 @@ let currentBookId = "";
 let answerButton;
 let skipButton;
 let textAnswerInputEl;
+let descriptiveAnswerInputEl;
 let answerModal;
 let answerResultText;
+let answerCorrectAreaEl;
+let answerCorrectLabelEl;
 let answerExplanationArea;
 let answerExplanationText;
 let answerCorrectList;
+let answerModalActionsRow;
 let answerModalNextButton;
 let showProblemButton;
 let viewExplanationButton;
 let answerActionsRow;
 let lastAnswerResult = null;
+
+let gradingStatusArea;
+let gradingErrorArea;
+let gradingErrorText;
+let gradingRetryButton;
+let gradingCriteriaArea;
+let gradingCriteriaText;
+let gradingReasonArea;
+let gradingReasonText;
 
 let homeButton;
 let resultModal;
@@ -88,25 +106,44 @@ document.addEventListener("DOMContentLoaded", () => {
   answerButton = document.getElementById("answer-button");
   skipButton = document.getElementById("skip-button");
   textAnswerInputEl = document.getElementById("text-answer-input");
+  descriptiveAnswerInputEl = document.getElementById("descriptive-answer-input");
   answerModal = document.getElementById("answer-modal");
   answerResultText = document.getElementById("answer-result-text");
+  answerCorrectAreaEl = document.getElementById("answer-correct-area");
+  answerCorrectLabelEl = document.getElementById("answer-correct-label");
   answerExplanationArea = document.getElementById("answer-explanation-area");
   answerExplanationText = document.getElementById("answer-explanation-text");
   answerCorrectList = document.getElementById("answer-correct-list");
+  answerModalActionsRow = document.getElementById("answer-modal-actions-row");
   answerModalNextButton = document.getElementById("answer-modal-next-button");
   showProblemButton = document.getElementById("show-problem-button");
   viewExplanationButton = document.getElementById("view-explanation-button");
   answerActionsRow = document.querySelector(".answer-actions");
 
+  gradingStatusArea = document.getElementById("grading-status-area");
+  gradingErrorArea = document.getElementById("grading-error-area");
+  gradingErrorText = document.getElementById("grading-error-text");
+  gradingRetryButton = document.getElementById("grading-retry-button");
+  gradingCriteriaArea = document.getElementById("grading-criteria-area");
+  gradingCriteriaText = document.getElementById("grading-criteria-text");
+  gradingReasonArea = document.getElementById("grading-reason-area");
+  gradingReasonText = document.getElementById("grading-reason-text");
+
   answerButton.addEventListener("click", handleAnswerSubmit);
   skipButton.addEventListener("click", handleSkip);
   textAnswerInputEl.addEventListener("input", updateAnswerButtonState);
+  descriptiveAnswerInputEl.addEventListener("input", updateAnswerButtonState);
   answerModalNextButton.addEventListener("click", handleAnswerModalNext);
   showProblemButton.addEventListener("click", () => {
     answerModal.classList.add("hidden");
   });
   viewExplanationButton.addEventListener("click", () => {
-    showAnswerModal(lastAnswerResult);
+    reopenAnswerModal();
+  });
+  gradingRetryButton.addEventListener("click", () => {
+    if (lastDescriptiveSubmission !== null) {
+      runDescriptiveGrading(lastDescriptiveSubmission);
+    }
   });
 
   homeButton = document.getElementById("home-button");
@@ -314,16 +351,29 @@ async function loadProblemBook(bookId) {
       const data = doc.data();
       if (!data.problem) throw new Error("問題文がありません");
       const problem = data.problem;
-      if (!data.choices) throw new Error("選択肢がありません");
-      const choices = data.choices;
-      if (!data.answer) throw new Error("解答がありません");
-      const answer = data.answer;
-      const answerType = data.answerType || (answer.length === 1 ? "single" : "multiple");
+
+      const answerType = data.answerType || (data.answer && data.answer.length === 1 ? "single" : "multiple");
       const shuffleChoices = data.shuffleChoices || false;
       const explanation = data.explanation || "";
       const imageUrl = data.imageUrl || "";
-      
-      problemsData.push([problem, choices, answer, explanation, imageUrl, answerType, shuffleChoices]);
+
+      let choices = [];
+      let answer = [];
+      let modelAnswer = "";
+      let gradingCriteria = "";
+
+      if (answerType === "descriptive") {
+        if (!data.modelAnswer) throw new Error("模範解答がありません");
+        modelAnswer = data.modelAnswer;
+        gradingCriteria = data.gradingCriteria || "";
+      } else {
+        if (!data.choices) throw new Error("選択肢がありません");
+        choices = data.choices;
+        if (!data.answer) throw new Error("解答がありません");
+        answer = data.answer;
+      }
+
+      problemsData.push([problem, choices, answer, explanation, imageUrl, answerType, shuffleChoices, modelAnswer, gradingCriteria]);
     }
 
     const shuffleRequested = getParmFromUrl("shuffle") === "1";
@@ -352,22 +402,42 @@ function nextProblem(problemCount) {
   choicesArea.innerHTML = "";
   textAnswerInput.value = "";
   textAnswerInput.disabled = false;
+  descriptiveAnswerInputEl.value = "";
+  descriptiveAnswerInputEl.disabled = false;
   skipButton.disabled = false;
   answerActionsRow.classList.remove("hidden");
   viewExplanationButton.classList.add("hidden");
-  
+
+  // 前の問題の採点関連の表示状態をリセットしておく
+  answerCorrectLabelEl.textContent = "正解";
+  answerCorrectAreaEl.classList.remove("hidden");
+  gradingStatusArea.classList.add("hidden");
+  gradingErrorArea.classList.add("hidden");
+  gradingCriteriaArea.classList.add("hidden");
+  gradingReasonArea.classList.add("hidden");
+  answerModalActionsRow.classList.remove("hidden");
+  lastDescriptiveSubmission = null;
+
   const answerType = problemsData[problemCount][5];
   const isSingle = answerType === "single";
   const isText = answerType === "text";
+  const isDescriptive = answerType === "descriptive";
 
   if (isText) {
     answerTypeText.textContent = "単語記述";
     choicesArea.classList.add("hidden");
     textAnswerInput.classList.remove("hidden");
+    descriptiveAnswerInputEl.classList.add("hidden");
+  } else if (isDescriptive) {
+    answerTypeText.textContent = "記述";
+    choicesArea.classList.add("hidden");
+    textAnswerInput.classList.add("hidden");
+    descriptiveAnswerInputEl.classList.remove("hidden");
   } else {
     answerTypeText.textContent = isSingle ? "単数選択" : "複数選択";
     choicesArea.classList.remove("hidden");
     textAnswerInput.classList.add("hidden");
+    descriptiveAnswerInputEl.classList.add("hidden");
   }
   
   gaugeBar.style.width = `${((problemCount + 1) / problemsData.length) * 100}%`;
@@ -384,7 +454,7 @@ function nextProblem(problemCount) {
     problemImage.classList.add("hidden");
   }
   
-  if (!isText) {
+  if (!isText && !isDescriptive) {
     const choices = problemsData[problemCount][1];
     const shuffleChoices = problemsData[problemCount][6];
 
@@ -427,6 +497,8 @@ function updateAnswerButtonState() {
   const answerType = problemsData[currentProblemIndex][5];
   if (answerType === "text") {
     answerButton.disabled = textAnswerInputEl.value.trim() === "";
+  } else if (answerType === "descriptive") {
+    answerButton.disabled = descriptiveAnswerInputEl.value.trim() === "";
   } else {
     const choicesArea = document.getElementById("choices-area");
     const hasActive = choicesArea.querySelector("button.active") !== null;
@@ -437,6 +509,22 @@ function updateAnswerButtonState() {
 
 function handleAnswerSubmit() {
   const answerType = problemsData[currentProblemIndex][5];
+
+  if (answerType === "descriptive") {
+    const submittedText = descriptiveAnswerInputEl.value.trim();
+    if (!submittedText) {
+      alert("答えを入力してください。");
+      return;
+    }
+
+    descriptiveAnswerInputEl.disabled = true;
+    answerButton.disabled = true;
+    skipButton.disabled = true;
+
+    incrementMonthlyProblemCount();
+    runDescriptiveGrading(submittedText);
+    return;
+  }
 
   if (answerType === "text") {
     const textAnswerInput = document.getElementById("text-answer-input");
@@ -499,6 +587,8 @@ function handleSkip() {
 
   if (answerType === "text") {
     textAnswerInputEl.disabled = true;
+  } else if (answerType === "descriptive") {
+    descriptiveAnswerInputEl.disabled = true;
   } else {
     const choicesArea = document.getElementById("choices-area");
     const buttons = Array.from(choicesArea.querySelectorAll("button"));
@@ -518,7 +608,11 @@ function handleSkip() {
   skipButton.disabled = true;
 
   // スキップした問題は不正解扱い（correctAnswersCountは増やさない）かつカウント対象外
-  showAnswerModal(null);
+  if (answerType === "descriptive") {
+    showDescriptiveModal({ phase: "skipped" });
+  } else {
+    showAnswerModal(null);
+  }
 }
 
 function isSameIndexSet(a, b) {
@@ -574,6 +668,196 @@ function showAnswerModal(isCorrect) {
   answerModalNextButton.textContent = isLastProblem ? "結果を見る" : "次へ";
 
   answerModal.classList.remove("hidden");
+}
+
+// ★ モーダルを再度開くときに、問題タイプに応じた表示関数へ振り分ける
+function reopenAnswerModal() {
+  const answerType = problemsData[currentProblemIndex][5];
+  if (answerType === "descriptive") {
+    showDescriptiveModal(lastAnswerResult);
+  } else {
+    showAnswerModal(lastAnswerResult);
+  }
+}
+
+// ★ 記述式問題の解答モーダル表示。state.phase は "grading" | "result" | "skipped" | "error"
+function showDescriptiveModal(state) {
+  lastAnswerResult = state;
+
+  answerActionsRow.classList.add("hidden");
+  answerResultText.classList.add("hidden");
+  answerCorrectAreaEl.classList.add("hidden");
+  gradingCriteriaArea.classList.add("hidden");
+  gradingReasonArea.classList.add("hidden");
+  answerExplanationArea.classList.add("hidden");
+  gradingStatusArea.classList.add("hidden");
+  gradingErrorArea.classList.add("hidden");
+  answerModalActionsRow.classList.add("hidden");
+  viewExplanationButton.classList.add("hidden");
+
+  if (state.phase === "grading") {
+    gradingStatusArea.classList.remove("hidden");
+    answerModal.classList.remove("hidden");
+    return;
+  }
+
+  if (state.phase === "error") {
+    gradingErrorArea.classList.remove("hidden");
+    answerModal.classList.remove("hidden");
+    return;
+  }
+
+  // "result"（採点完了）または "skipped"（スキップ）の場合は模範解答などをまとめて表示する
+  const problemInfo = problemsData[currentProblemIndex];
+  const modelAnswer = problemInfo[7];
+  const gradingCriteria = problemInfo[8];
+  const explanation = problemInfo[3];
+
+  if (state.phase === "result") {
+    answerResultText.classList.remove("hidden");
+    answerResultText.textContent = `${state.score}/10点`;
+    answerResultText.classList.toggle("correct-text", state.score >= 6);
+    answerResultText.classList.toggle("incorrect-text", state.score < 6);
+  }
+
+  answerCorrectLabelEl.textContent = "模範解答";
+  answerCorrectList.innerHTML = "";
+  const li = document.createElement("li");
+  li.textContent = modelAnswer;
+  answerCorrectList.appendChild(li);
+  answerCorrectAreaEl.classList.remove("hidden");
+
+  if (gradingCriteria) {
+    gradingCriteriaText.textContent = gradingCriteria;
+    gradingCriteriaArea.classList.remove("hidden");
+  }
+
+  if (state.phase === "result" && state.reason) {
+    gradingReasonText.textContent = state.reason;
+    gradingReasonArea.classList.remove("hidden");
+  }
+
+  if (explanation) {
+    answerExplanationText.textContent = explanation;
+    answerExplanationArea.classList.remove("hidden");
+  }
+
+  viewExplanationButton.classList.remove("hidden");
+  answerModalActionsRow.classList.remove("hidden");
+
+  const isLastProblem = currentProblemIndex === problemsData.length - 1;
+  answerModalNextButton.textContent = isLastProblem ? "結果を見る" : "次へ";
+
+  answerModal.classList.remove("hidden");
+}
+
+// ★ Gemini採点の実行。採点中モーダル→結果 or エラーモーダルの順に表示を更新する
+async function runDescriptiveGrading(submittedText) {
+  lastDescriptiveSubmission = submittedText;
+  showDescriptiveModal({ phase: "grading" });
+
+  const problemInfo = problemsData[currentProblemIndex];
+  const problemText = problemInfo[0];
+  const modelAnswer = problemInfo[7];
+  const gradingCriteria = problemInfo[8];
+
+  try {
+    const result = await gradeDescriptiveAnswer({
+      problem: problemText,
+      modelAnswer,
+      gradingCriteria,
+      submittedText
+    });
+
+    // 6/10点以上を「正解」扱いとして結果画面の正解数にカウントする（あくまで目安の合格ライン）
+    if (result.score >= 6) correctAnswersCount++;
+
+    showDescriptiveModal({ phase: "result", score: result.score, reason: result.reason });
+  } catch (error) {
+    console.error("Gemini採点エラー:", error);
+    showDescriptiveModal({ phase: "error" });
+  }
+}
+
+// ★ imgbbのAPIキーと同じ system_keys コレクションに、Geminiのキー用ドキュメントとして保存する想定
+//   system_keys/gemini の apiKey フィールド
+async function getGeminiApiKey() {
+  if (geminiApiKeyCache) return geminiApiKeyCache;
+
+  const keyDoc = await db.collection("system_keys").doc("gemini").get();
+  const apiKey = keyDoc.exists ? keyDoc.data().apiKey : null;
+  if (!apiKey) {
+    throw new Error("Gemini APIキーが設定されていません。（system_keys/gemini の apiKey）");
+  }
+
+  geminiApiKeyCache = apiKey;
+  return geminiApiKeyCache;
+}
+
+async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, submittedText }) {
+  const apiKey = await getGeminiApiKey();
+
+  const promptLines = [
+    "あなたは採点者です。以下の問題・模範解答・採点基準をもとに、生徒の解答を10点満点で採点してください。",
+    "",
+    `【問題文】\n${problem}`,
+    "",
+    `【模範解答】\n${modelAnswer}`
+  ];
+  if (gradingCriteria) {
+    promptLines.push("", `【採点基準】\n${gradingCriteria}`);
+  }
+  promptLines.push(
+    "",
+    `【生徒の解答】\n${submittedText}`,
+    "",
+    "採点基準（採点基準が無い場合は模範解答との一致度や妥当性）をもとに、0〜10の整数のscoreと、生徒に向けた日本語の簡潔な評価理由reasonを返してください。"
+  );
+  const prompt = promptLines.join("\n");
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              score: { type: "INTEGER" },
+              reason: { type: "STRING" }
+            },
+            required: ["score", "reason"]
+          }
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Gemini APIエラー: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const resultText = data && data.candidates && data.candidates[0] && data.candidates[0].content &&
+    data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
+    data.candidates[0].content.parts[0].text;
+  if (!resultText) {
+    throw new Error("Gemini APIから採点結果が得られませんでした。");
+  }
+
+  const parsed = JSON.parse(resultText);
+  let score = Number(parsed.score);
+  if (!Number.isFinite(score)) score = 0;
+  score = Math.max(0, Math.min(10, Math.round(score)));
+
+  return { score, reason: String(parsed.reason || "") };
 }
 
 function handleAnswerModalNext() {
