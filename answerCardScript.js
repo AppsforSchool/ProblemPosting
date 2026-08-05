@@ -265,10 +265,7 @@ function showCard(index) {
   nowCardCount.textContent = index + 1;
 
   cardFrontText.textContent = cardsData[index].front;
-  // 裏面の内容はフリップアニメーション中に見えてしまわないよう少し遅らせて差し替える
-  setTimeout(() => {
-    cardBackText.textContent = cardsData[index].back;
-  }, 300);
+  cardBackText.textContent = cardsData[index].back;
 
   showBackButton.disabled = false;
   nextCardButton.disabled = false;
@@ -292,10 +289,38 @@ function handleNextCard() {
 
   const nextIndex = currentCardIndex + 1;
   if (nextIndex < cardsData.length) {
-    flipCard(false);
-    setTimeout(() => {
-      showCard(nextIndex);
-    }, 300);
+    // 今は裏面が見えている状態なので、ここで表面のテキストを次のカードの内容に差し替えても見た目には影響しない
+    cardFrontText.textContent = cardsData[nextIndex].front;
+
+    // 裏→表にめくる。裏面が完全に見えなくなってから（＝表に戻り切ってから）裏面の中身を差し替える
+    let finalized = false;
+    const finalizeNextCard = () => {
+      if (finalized) return;
+      finalized = true;
+      flipCardEl.removeEventListener("transitionend", onTransitionEnd);
+
+      currentCardIndex = nextIndex;
+
+      const gaugeBar = document.getElementById("gauge-bar");
+      const nowCardCount = document.getElementById("now-problem-count");
+      gaugeBar.style.width = `${((nextIndex + 1) / cardsData.length) * 100}%`;
+      nowCardCount.textContent = nextIndex + 1;
+
+      cardBackText.textContent = cardsData[nextIndex].back;
+
+      showBackButton.disabled = false;
+      nextCardButton.disabled = false;
+    };
+
+    const onTransitionEnd = (event) => {
+      if (event.target !== flipCardEl || event.propertyName !== "transform") return;
+      finalizeNextCard();
+    };
+    flipCardEl.addEventListener("transitionend", onTransitionEnd);
+    // transitionendが発火しない環境（reduced motion設定など）に備えたフォールバック
+    setTimeout(finalizeNextCard, 600);
+
+    flipCardEl.classList.remove("flipped");
   } else {
     cardContainer.classList.add("hidden");
     cardFinishedArea.classList.remove("hidden");

@@ -49,6 +49,7 @@ let textAnswerInputEl;
 let descriptiveAnswerInputEl;
 let answerModal;
 let answerResultText;
+let gradingDisclaimerText;
 let answerCorrectAreaEl;
 let answerCorrectLabelEl;
 let answerExplanationArea;
@@ -109,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
   descriptiveAnswerInputEl = document.getElementById("descriptive-answer-input");
   answerModal = document.getElementById("answer-modal");
   answerResultText = document.getElementById("answer-result-text");
+  gradingDisclaimerText = document.getElementById("grading-disclaimer-text");
   answerCorrectAreaEl = document.getElementById("answer-correct-area");
   answerCorrectLabelEl = document.getElementById("answer-correct-label");
   answerExplanationArea = document.getElementById("answer-explanation-area");
@@ -411,6 +413,7 @@ function nextProblem(problemCount) {
   // 前の問題の採点関連の表示状態をリセットしておく
   answerCorrectLabelEl.textContent = "正解";
   answerCorrectAreaEl.classList.remove("hidden");
+  gradingDisclaimerText.classList.add("hidden");
   gradingStatusArea.classList.add("hidden");
   gradingErrorArea.classList.add("hidden");
   gradingCriteriaArea.classList.add("hidden");
@@ -688,6 +691,7 @@ function showDescriptiveModal(state) {
 
   answerActionsRow.classList.add("hidden");
   answerResultText.classList.add("hidden");
+  gradingDisclaimerText.classList.add("hidden");
   answerCorrectAreaEl.classList.add("hidden");
   gradingCriteriaArea.classList.add("hidden");
   gradingReasonArea.classList.add("hidden");
@@ -728,6 +732,7 @@ function showDescriptiveModal(state) {
     answerResultText.textContent = `${state.score}/10点`;
     answerResultText.classList.toggle("correct-text", state.score >= 6);
     answerResultText.classList.toggle("incorrect-text", state.score < 6);
+    gradingDisclaimerText.classList.remove("hidden");
   }
 
   answerCorrectLabelEl.textContent = "模範解答";

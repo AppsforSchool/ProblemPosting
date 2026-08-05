@@ -461,6 +461,16 @@ body {
 .answer-result-text.incorrect-text {
   color: #d9453d;
 }
+.grading-disclaimer-text {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-top: -0.6rem;
+  margin-bottom: 1.2rem;
+}
+.grading-disclaimer-text.hidden {
+  display: none;
+}
 .answer-correct-area {
   text-align: left;
   margin-bottom: 1.2rem;
