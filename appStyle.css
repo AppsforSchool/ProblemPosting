@@ -519,6 +519,9 @@ body {
 .shuffle-toggle-row input[type="checkbox"]:disabled {
   cursor: not-allowed;
 }
+.shuffle-toggle-row.hidden {
+  display: none;
+}
 
 .buttons-area {
   display: flex;
@@ -858,6 +861,9 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 1rem 1.5rem 2.5rem;
+}
+.card-area.hidden {
+  display: none;
 }
 .card-area .card {
   font-family: "BIZ UDGothic", sans-serif;
