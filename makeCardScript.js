@@ -16,6 +16,9 @@ const MAX_CARDS = 100;
 
 let myUserId = "";
 
+// ★ ローカルストレージへのバックアップ（作成中は "create" 用の1枠のみ使用）
+const BACKUP_KEY = "cardDeckBackup_create";
+
 let loadingOverlay;
 let loadingStatusText;
 let cardsListEl;
@@ -56,6 +59,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // 最初は2枚分の入力欄を用意しておく
   addCardBlock();
   addCardBlock();
+
+  // ★ 前回の作業データが残っていれば復元するか確認する
+  checkForBackup();
+
+  // ★ 以降の入力変更を検知してバックアップを自動保存する（動的に追加されるカードもまとめて拾う）
+  const makeContainer = document.querySelector(".make-container");
+  makeContainer.addEventListener("input", scheduleBackupSave);
+  makeContainer.addEventListener("change", scheduleBackupSave);
 });
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -75,6 +86,92 @@ document.addEventListener("DOMContentLoaded", () => {
 // ★ ローディングオーバーレイ下部の小さいテキストを更新する
 function setLoadingStatus(text) {
   if (loadingStatusText) loadingStatusText.textContent = text;
+}
+
+// ★ ローカルストレージへのバックアップ機能
+
+function collectBackupSnapshot() {
+  const cardBlocks = Array.from(cardsListEl.querySelectorAll(".problem-card"));
+  const cards = cardBlocks.map(card => ({
+    front: card.querySelector(".card-front-input").value,
+    back: card.querySelector(".card-back-input").value
+  }));
+  const visibilityRadio = document.querySelector(".deck-visibility-radio:checked");
+
+  return {
+    title: deckTitleInput.value,
+    description: deckDescriptionInput.value,
+    subjectId: deckSubjectSelect.value,
+    gradeId: deckGradeSelect.value,
+    allowFlip: deckAllowFlipCheckbox.checked,
+    isPrivate: !!visibilityRadio && visibilityRadio.value === "private",
+    cards
+  };
+}
+
+function saveBackupNow() {
+  try {
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(collectBackupSnapshot()));
+  } catch (error) {
+    console.error("バックアップの保存に失敗しました:", error);
+  }
+}
+
+let backupSaveTimer = null;
+function scheduleBackupSave() {
+  clearTimeout(backupSaveTimer);
+  backupSaveTimer = setTimeout(saveBackupNow, 800);
+}
+
+function clearBackup() {
+  localStorage.removeItem(BACKUP_KEY);
+}
+
+function applyBackupSnapshot(data) {
+  if (!data) return;
+
+  if (typeof data.title === "string") deckTitleInput.value = data.title;
+  if (typeof data.description === "string") deckDescriptionInput.value = data.description;
+  if (data.subjectId !== undefined) deckSubjectSelect.value = String(data.subjectId);
+  if (data.gradeId !== undefined) deckGradeSelect.value = String(data.gradeId);
+  if (data.allowFlip !== undefined) deckAllowFlipCheckbox.checked = !!data.allowFlip;
+
+  const visibilityRadios = document.querySelectorAll(".deck-visibility-radio");
+  visibilityRadios.forEach(radio => {
+    radio.checked = data.isPrivate ? radio.value === "private" : radio.value === "public";
+  });
+
+  const cards = Array.isArray(data.cards) ? data.cards : [];
+  if (cards.length > 0) {
+    cardsListEl.innerHTML = "";
+    cards.forEach(c => addCardBlock(c));
+  }
+}
+
+function checkForBackup() {
+  let raw;
+  try {
+    raw = localStorage.getItem(BACKUP_KEY);
+  } catch (error) {
+    console.error("バックアップの読み込みに失敗しました:", error);
+    return;
+  }
+  if (!raw) return;
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    console.error("バックアップの解析に失敗しました:", error);
+    clearBackup();
+    return;
+  }
+
+  if (confirm("前回の作業データが残っています。復元しますか？")) {
+    applyBackupSnapshot(data);
+  } else {
+    clearBackup();
+  }
 }
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
@@ -199,6 +296,8 @@ function applyImportedDeckJson(data) {
   if (cardsListEl.children.length === 0) {
     addCardBlock();
   }
+
+  saveBackupNow();
 }
 
 
@@ -269,6 +368,7 @@ async function handleSubmit() {
       });
 
     alert("暗記カードを作成しました！");
+    clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);

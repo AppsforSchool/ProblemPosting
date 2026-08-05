@@ -74,6 +74,11 @@ document.addEventListener("DOMContentLoaded", () => {
   importJsonButton.addEventListener("click", () => importJsonFileInput.click());
   importJsonFileInput.addEventListener("change", handleImportJsonFile);
   exportJsonButton.addEventListener("click", handleExportJson);
+
+  // ★ 入力変更を検知してバックアップを自動保存する（動的に追加されるカードもまとめて拾う）
+  const makeContainer = document.querySelector(".make-container");
+  makeContainer.addEventListener("input", scheduleBackupSave);
+  makeContainer.addEventListener("change", scheduleBackupSave);
 });
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -112,6 +117,107 @@ function updateLastChecked() {
     .doc(myUserId)
     .set({ lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
+}
+
+// ★ ローカルストレージへのバックアップ機能（編集中の暗記カードごとに枠を分ける）
+
+function getBackupKey() {
+  return `cardDeckBackup_edit_${currentDeckId}`;
+}
+
+function collectBackupSnapshot() {
+  const cardBlocks = Array.from(cardsListEl.querySelectorAll(".problem-card"));
+  const cards = cardBlocks.map(card => ({
+    front: card.querySelector(".card-front-input").value,
+    back: card.querySelector(".card-back-input").value
+  }));
+  const visibilityRadio = document.querySelector(".deck-visibility-radio:checked");
+
+  const snapshot = {
+    title: deckTitleInput.value,
+    description: deckDescriptionInput.value,
+    subjectId: deckSubjectSelect.value,
+    gradeId: deckGradeSelect.value,
+    allowFlip: deckAllowFlipCheckbox.checked,
+    isPrivate: !!visibilityRadio && visibilityRadio.value === "private",
+    cards
+  };
+  if (meIsAdmin) {
+    snapshot.madeBy = deckMadeByInput.value;
+  }
+  return snapshot;
+}
+
+function saveBackupNow() {
+  try {
+    localStorage.setItem(getBackupKey(), JSON.stringify(collectBackupSnapshot()));
+  } catch (error) {
+    console.error("バックアップの保存に失敗しました:", error);
+  }
+}
+
+let backupSaveTimer = null;
+function scheduleBackupSave() {
+  clearTimeout(backupSaveTimer);
+  backupSaveTimer = setTimeout(saveBackupNow, 800);
+}
+
+function clearBackup() {
+  localStorage.removeItem(getBackupKey());
+}
+
+function applyBackupSnapshot(data) {
+  if (!data) return;
+
+  if (typeof data.title === "string") deckTitleInput.value = data.title;
+  if (typeof data.description === "string") deckDescriptionInput.value = data.description;
+  if (data.subjectId !== undefined) deckSubjectSelect.value = String(data.subjectId);
+  if (data.gradeId !== undefined) deckGradeSelect.value = String(data.gradeId);
+  if (data.allowFlip !== undefined) deckAllowFlipCheckbox.checked = !!data.allowFlip;
+
+  // 一度公開された暗記カードは非公開に戻せないため、その場合は復元時も公開設定を変更しない
+  if (!wasAlreadyPublic) {
+    const visibilityRadios = document.querySelectorAll(".deck-visibility-radio");
+    visibilityRadios.forEach(radio => {
+      radio.checked = data.isPrivate ? radio.value === "private" : radio.value === "public";
+    });
+  }
+
+  if (meIsAdmin && typeof data.madeBy === "string") {
+    deckMadeByInput.value = data.madeBy;
+  }
+
+  const cards = Array.isArray(data.cards) ? data.cards : [];
+  if (cards.length > 0) {
+    cardsListEl.innerHTML = "";
+    cards.forEach(c => addCardBlock(c));
+  }
+}
+
+function checkForBackup() {
+  let raw;
+  try {
+    raw = localStorage.getItem(getBackupKey());
+  } catch (error) {
+    console.error("バックアップの読み込みに失敗しました:", error);
+    return;
+  }
+  if (!raw) return;
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    console.error("バックアップの解析に失敗しました:", error);
+    clearBackup();
+    return;
+  }
+
+  if (confirm("前回の作業データが残っています。復元しますか？")) {
+    applyBackupSnapshot(data);
+  } else {
+    clearBackup();
+  }
 }
 
 async function loadDeckData(deckId) {
@@ -169,6 +275,9 @@ async function loadDeckData(deckId) {
     }
 
     loadingOverlay.classList.add("hidden");
+
+    // ★ 前回の作業データが残っていれば復元するか確認する（このdeckId専用のバックアップ枠）
+    checkForBackup();
   } catch (error) {
     console.error(error);
     alert("暗記カードの読み込みに失敗しました。\n" + error);
@@ -289,6 +398,8 @@ function applyImportedDeckJson(data) {
   if (cardsListEl.children.length === 0) {
     addCardBlock();
   }
+
+  saveBackupNow();
 }
 
 
@@ -380,6 +491,7 @@ async function handleUpdate() {
     await deckRef.update(updateData);
 
     alert("暗記カードを更新しました！");
+    clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);
@@ -404,6 +516,7 @@ async function handleDeleteDeck() {
     await deckRef.delete();
 
     alert("削除しました。");
+    clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);

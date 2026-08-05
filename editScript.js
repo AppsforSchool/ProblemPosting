@@ -107,6 +107,11 @@ document.addEventListener("DOMContentLoaded", () => {
   importJsonButton.addEventListener("click", () => importJsonFileInput.click());
   importJsonFileInput.addEventListener("change", handleImportJsonFile);
   exportJsonButton.addEventListener("click", handleExportJson);
+
+  // ★ 入力変更を検知してバックアップを自動保存する（動的に追加される問題カードもまとめて拾う）
+  const makeContainer = document.querySelector(".make-container");
+  makeContainer.addEventListener("input", scheduleBackupSave);
+  makeContainer.addEventListener("change", scheduleBackupSave);
 });
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -145,6 +150,104 @@ function updateLastChecked() {
     .doc(myUserId)
     .set({ lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
+}
+
+// ★ ローカルストレージへのバックアップ機能（編集中の問題集ごとに枠を分ける）
+
+function getBackupKey() {
+  return `problemBookBackup_edit_${currentBookId}`;
+}
+
+function collectBackupSnapshot() {
+  const problemCards = Array.from(problemsListEl.querySelectorAll(".problem-card"));
+  const problems = problemCards.map(collectProblemForExport);
+  const visibilityRadio = document.querySelector(".book-visibility-radio:checked");
+
+  const snapshot = {
+    title: bookTitleInput.value,
+    description: bookDescriptionInput.value,
+    subjectId: bookSubjectSelect.value,
+    gradeId: bookGradeSelect.value,
+    shuffleProblems: bookShuffleProblemsCheckbox.checked,
+    isPrivate: !!visibilityRadio && visibilityRadio.value === "private",
+    problems
+  };
+  if (meIsAdmin) {
+    snapshot.madeBy = bookMadeByInput.value;
+  }
+  return snapshot;
+}
+
+function saveBackupNow() {
+  try {
+    localStorage.setItem(getBackupKey(), JSON.stringify(collectBackupSnapshot()));
+  } catch (error) {
+    console.error("バックアップの保存に失敗しました:", error);
+  }
+}
+
+let backupSaveTimer = null;
+function scheduleBackupSave() {
+  clearTimeout(backupSaveTimer);
+  backupSaveTimer = setTimeout(saveBackupNow, 800);
+}
+
+function clearBackup() {
+  localStorage.removeItem(getBackupKey());
+}
+
+function applyBackupSnapshot(data) {
+  if (!data) return;
+
+  if (typeof data.title === "string") bookTitleInput.value = data.title;
+  if (typeof data.description === "string") bookDescriptionInput.value = data.description;
+  if (data.subjectId !== undefined) bookSubjectSelect.value = String(data.subjectId);
+  if (data.gradeId !== undefined) bookGradeSelect.value = String(data.gradeId);
+  if (data.shuffleProblems !== undefined) bookShuffleProblemsCheckbox.checked = !!data.shuffleProblems;
+
+  // 一度公開された問題集は非公開に戻せないため、その場合は復元時も公開設定を変更しない
+  if (!wasAlreadyPublic) {
+    const visibilityRadios = document.querySelectorAll(".book-visibility-radio");
+    visibilityRadios.forEach(radio => {
+      radio.checked = data.isPrivate ? radio.value === "private" : radio.value === "public";
+    });
+  }
+
+  if (meIsAdmin && typeof data.madeBy === "string") {
+    bookMadeByInput.value = data.madeBy;
+  }
+
+  const problems = Array.isArray(data.problems) ? data.problems : [];
+  if (problems.length > 0) {
+    problemsListEl.innerHTML = "";
+    problems.forEach(p => addProblemBlock(p));
+  }
+}
+
+function checkForBackup() {
+  let raw;
+  try {
+    raw = localStorage.getItem(getBackupKey());
+  } catch (error) {
+    console.error("バックアップの読み込みに失敗しました:", error);
+    return;
+  }
+  if (!raw) return;
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    console.error("バックアップの解析に失敗しました:", error);
+    clearBackup();
+    return;
+  }
+
+  if (confirm("前回の作業データが残っています。復元しますか？")) {
+    applyBackupSnapshot(data);
+  } else {
+    clearBackup();
+  }
 }
 
 async function loadBookData(bookId) {
@@ -221,6 +324,9 @@ async function loadBookData(bookId) {
     }
 
     loadingOverlay.classList.add("hidden");
+
+    // ★ 前回の作業データが残っていれば復元するか確認する（このbookId専用のバックアップ枠）
+    checkForBackup();
   } catch (error) {
     console.error(error);
     alert("問題集の読み込みに失敗しました。\n" + error);
@@ -596,6 +702,8 @@ function applyImportedBookJson(data) {
   if (problemsListEl.children.length === 0) {
     addProblemBlock();
   }
+
+  saveBackupNow();
 }
 
 
@@ -801,6 +909,7 @@ async function handleUpdate() {
     await batch.commit();
 
     alert("問題集を更新しました！");
+    clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);
@@ -835,6 +944,7 @@ async function handleDeleteBook() {
     await batch.commit();
 
     alert("削除しました。");
+    clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);
