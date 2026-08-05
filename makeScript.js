@@ -46,6 +46,7 @@ async function uploadImageToImgbb(file) {
 }
 
 let loadingOverlay;
+let loadingStatusText;
 let problemsListEl;
 let addProblemButton;
 let submitButton;
@@ -63,6 +64,7 @@ let exportJsonButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
+  loadingStatusText = document.getElementById("loading-status-text");
   problemsListEl = document.getElementById("problems-list");
   addProblemButton = document.getElementById("add-problem-button");
   submitButton = document.getElementById("submit-button");
@@ -91,14 +93,21 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged((user) => {
     if (user) {
+      setLoadingStatus("ユーザー情報を確認しています｡");
       myUserId = user.email.split("@")[0];
       updateLastChecked();
+      loadingOverlay.classList.add("hidden");
     } else {
       console.log("logout");
       window.location.href = "./index.html";
     }
   });
 });
+
+// ★ ローディングオーバーレイ下部の小さいテキストを更新する
+function setLoadingStatus(text) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
+}
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
@@ -586,7 +595,7 @@ async function handleSubmit() {
 
   submitButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
-  const loadingText = loadingOverlay.querySelector("p");
+  setLoadingStatus("問題集を保存しています｡");
 
   try {
     const imageCount = problemsPayload.filter(p => p.imageFile).length;
@@ -595,13 +604,13 @@ async function handleSubmit() {
       for (const p of problemsPayload) {
         if (p.imageFile) {
           uploadedCount++;
-          if (loadingText) loadingText.textContent = `画像をアップロードしています (${uploadedCount}/${imageCount})｡`;
+          setLoadingStatus(`画像をアップロードしています (${uploadedCount}/${imageCount})｡`);
           p.imageUrl = await uploadImageToImgbb(p.imageFile);
         } else {
           p.imageUrl = "";
         }
       }
-      if (loadingText) loadingText.textContent = "保存しています｡";
+      setLoadingStatus("問題集を保存しています｡");
     } else {
       problemsPayload.forEach(p => { p.imageUrl = ""; });
     }

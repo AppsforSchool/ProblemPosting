@@ -25,6 +25,7 @@ function getParmFromUrl(parm) {
 }
 
 let loadingOverlay;
+let loadingStatusText;
 let noPermissionOverlay;
 let noPermissionHomeButton;
 let cardsListEl;
@@ -45,6 +46,7 @@ let exportJsonButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
+  loadingStatusText = document.getElementById("loading-status-text");
   noPermissionOverlay = document.getElementById("no-permission-overlay");
   noPermissionHomeButton = document.getElementById("no-permission-home-button");
   cardsListEl = document.getElementById("cards-list");
@@ -77,6 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged(async (user) => {
     if (user) {
+      setLoadingStatus("ユーザー情報を確認しています｡");
       myUserId = user.email.split("@")[0];
 
       const mySnapshot = await db.collection("users_random").doc(myUserId).get();
@@ -98,6 +101,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+// ★ ローディングオーバーレイ下部の小さいテキストを更新する
+function setLoadingStatus(text) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
+}
+
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
   db.collection("users_random")
@@ -108,6 +116,8 @@ function updateLastChecked() {
 
 async function loadDeckData(deckId) {
   try {
+    setLoadingStatus("暗記カードの情報を読み込んでいます｡");
+
     const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(deckId);
     const deckSnap = await deckRef.get();
 
@@ -347,6 +357,7 @@ async function handleUpdate() {
   submitButton.disabled = true;
   deleteDeckButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
+  setLoadingStatus("暗記カードを更新しています｡");
 
   try {
     const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(currentDeckId);
@@ -386,6 +397,7 @@ async function handleDeleteDeck() {
   submitButton.disabled = true;
   deleteDeckButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
+  setLoadingStatus("暗記カードを削除しています｡");
 
   try {
     const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(currentDeckId);

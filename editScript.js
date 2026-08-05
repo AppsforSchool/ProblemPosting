@@ -54,6 +54,7 @@ function getParmFromUrl(parm) {
 }
 
 let loadingOverlay;
+let loadingStatusText;
 let noPermissionOverlay;
 let noPermissionHomeButton;
 let problemsListEl;
@@ -76,6 +77,7 @@ let exportJsonButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
+  loadingStatusText = document.getElementById("loading-status-text");
   noPermissionOverlay = document.getElementById("no-permission-overlay");
   noPermissionHomeButton = document.getElementById("no-permission-home-button");
   problemsListEl = document.getElementById("problems-list");
@@ -110,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged(async (user) => {
     if (user) {
+      setLoadingStatus("ユーザー情報を確認しています｡");
       myUserId = user.email.split("@")[0];
 
       const mySnapshot = await db.collection("users_random").doc(myUserId).get();
@@ -131,6 +134,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+// ★ ローディングオーバーレイ下部の小さいテキストを更新する
+function setLoadingStatus(text) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
+}
+
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
   db.collection("users_random")
@@ -141,6 +149,8 @@ function updateLastChecked() {
 
 async function loadBookData(bookId) {
   try {
+    setLoadingStatus("問題集の情報を読み込んでいます｡");
+
     const bookRef = db
       .collection("ProblemPosting")
       .doc("books")
@@ -187,6 +197,7 @@ async function loadBookData(bookId) {
 
     const problemsSnap = await bookRef.collection("problems").orderBy("no").get();
     problemsListEl.innerHTML = "";
+    setLoadingStatus("問題を読み込んでいます｡");
 
     problemsSnap.forEach(doc => {
       const data = doc.data();
@@ -722,6 +733,7 @@ async function handleUpdate() {
   deleteBookButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
   const loadingText = loadingOverlay.querySelector("p");
+  if (loadingText) loadingText.textContent = "問題集を更新しています｡";
 
   try {
     const imageCount = problemsPayload.filter(p => p.imageFile).length;

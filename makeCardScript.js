@@ -17,6 +17,7 @@ const MAX_CARDS = 100;
 let myUserId = "";
 
 let loadingOverlay;
+let loadingStatusText;
 let cardsListEl;
 let addCardButton;
 let submitButton;
@@ -32,6 +33,7 @@ let exportJsonButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
+  loadingStatusText = document.getElementById("loading-status-text");
   cardsListEl = document.getElementById("cards-list");
   addCardButton = document.getElementById("add-card-button");
   submitButton = document.getElementById("submit-button");
@@ -59,14 +61,21 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged((user) => {
     if (user) {
+      setLoadingStatus("ユーザー情報を確認しています｡");
       myUserId = user.email.split("@")[0];
       updateLastChecked();
+      loadingOverlay.classList.add("hidden");
     } else {
       console.log("logout");
       window.location.href = "./index.html";
     }
   });
 });
+
+// ★ ローディングオーバーレイ下部の小さいテキストを更新する
+function setLoadingStatus(text) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
+}
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
@@ -238,6 +247,7 @@ async function handleSubmit() {
 
   submitButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
+  setLoadingStatus("暗記カードを保存しています｡");
 
   try {
     await db

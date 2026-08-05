@@ -770,6 +770,7 @@ async function runDescriptiveGrading(submittedText) {
 
   const problemInfo = problemsData[currentProblemIndex];
   const problemText = problemInfo[0];
+  const imageUrl = problemInfo[4];
   const modelAnswer = problemInfo[7];
   const gradingCriteria = problemInfo[8];
 
@@ -778,7 +779,8 @@ async function runDescriptiveGrading(submittedText) {
       problem: problemText,
       modelAnswer,
       gradingCriteria,
-      submittedText
+      submittedText,
+      imageUrl
     });
 
     // 6/10点以上を「正解」扱いとして結果画面の正解数にカウントする（あくまで目安の合格ライン）
@@ -807,7 +809,24 @@ async function getGeminiApiKey() {
   return geminiApiKeyCache;
 }
 
-async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, submittedText }) {
+// ★ 問題画像のURLを取得し、Geminiに渡せるBase64データへ変換する
+async function fetchImageAsBase64(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`問題画像の取得に失敗しました: ${response.status}`);
+  }
+  const blob = await response.blob();
+  const mimeType = blob.type || "image/jpeg";
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(reader.error || new Error("画像の読み込みに失敗しました"));
+    reader.readAsDataURL(blob);
+  });
+  return { mimeType, base64 };
+}
+
+async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, submittedText, imageUrl }) {
   const apiKey = await getGeminiApiKey();
 
   const promptLines = [
@@ -820,6 +839,9 @@ async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, s
   if (gradingCriteria) {
     promptLines.push("", `【採点基準】\n${gradingCriteria}`);
   }
+  if (imageUrl) {
+    promptLines.push("", "※ 問題にはこのあとに続く画像が添付されています。採点の際は画像の内容も踏まえてください。");
+  }
   promptLines.push(
     "",
     `【生徒の解答】\n${submittedText}`,
@@ -827,6 +849,18 @@ async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, s
     "採点基準（採点基準が無い場合は模範解答との一致度や妥当性）をもとに、0〜10の整数のscoreと、生徒に向けた日本語の簡潔な評価理由reasonを返してください。"
   );
   const prompt = promptLines.join("\n");
+
+  const parts = [{ text: prompt }];
+
+  if (imageUrl) {
+    try {
+      const { mimeType, base64 } = await fetchImageAsBase64(imageUrl);
+      parts.push({ inlineData: { mimeType, data: base64 } });
+    } catch (error) {
+      // 画像が取得できなくても採点自体は続行する（テキストのみで採点）
+      console.error("問題画像の取得に失敗しました:", error);
+    }
+  }
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
@@ -837,7 +871,7 @@ async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, s
         "x-goog-api-key": apiKey
       },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        contents: [{ role: "user", parts }],
         generationConfig: {
           responseMimeType: "application/json",
           responseSchema: {
