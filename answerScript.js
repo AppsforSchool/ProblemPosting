@@ -788,6 +788,7 @@ async function getGeminiApiKey() {
   const apiKey = keyDoc.exists ? keyDoc.data().apiKey : null;
   if (!apiKey) {
     throw new Error("Gemini APIキーが設定されていません。（system_keys/gemini の apiKey）");
+    alert("Gemini APIキーが設定されていません。（system_keys/gemini の apiKey）");
   }
 
   geminiApiKeyCache = apiKey;
@@ -842,6 +843,7 @@ async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, s
 
   if (!response.ok) {
     throw new Error(`Gemini APIエラー: ${response.status}`);
+    alert(`Gemini APIエラー: ${response.status}`);
   }
 
   const data = await response.json();
@@ -850,6 +852,7 @@ async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, s
     data.candidates[0].content.parts[0].text;
   if (!resultText) {
     throw new Error("Gemini APIから採点結果が得られませんでした。");
+    alert("Gemini APIから採点結果が得られませんでした。");
   }
 
   const parsed = JSON.parse(resultText);
