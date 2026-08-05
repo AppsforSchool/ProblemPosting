@@ -415,6 +415,8 @@ function nextProblem(problemCount) {
   gradingErrorArea.classList.add("hidden");
   gradingCriteriaArea.classList.add("hidden");
   gradingReasonArea.classList.add("hidden");
+  showProblemButton.classList.remove("hidden");
+  answerModalNextButton.classList.remove("hidden");
   answerModalActionsRow.classList.remove("hidden");
   lastDescriptiveSubmission = null;
 
@@ -692,10 +694,11 @@ function showDescriptiveModal(state) {
   answerExplanationArea.classList.add("hidden");
   gradingStatusArea.classList.add("hidden");
   gradingErrorArea.classList.add("hidden");
-  answerModalActionsRow.classList.add("hidden");
-  viewExplanationButton.classList.add("hidden");
 
   if (state.phase === "grading") {
+    // 採点中は結果を確実に確認してもらうため、閉じる手段を出さない
+    answerModalActionsRow.classList.add("hidden");
+    viewExplanationButton.classList.add("hidden");
     gradingStatusArea.classList.remove("hidden");
     answerModal.classList.remove("hidden");
     return;
@@ -703,6 +706,13 @@ function showDescriptiveModal(state) {
 
   if (state.phase === "error") {
     gradingErrorArea.classList.remove("hidden");
+
+    // 採点に失敗しても行き詰まらないよう、問題に戻れるようにしておく（「次へ」は出さない）
+    showProblemButton.classList.remove("hidden");
+    answerModalNextButton.classList.add("hidden");
+    answerModalActionsRow.classList.remove("hidden");
+    viewExplanationButton.classList.remove("hidden");
+
     answerModal.classList.remove("hidden");
     return;
   }
@@ -742,6 +752,8 @@ function showDescriptiveModal(state) {
     answerExplanationArea.classList.remove("hidden");
   }
 
+  showProblemButton.classList.remove("hidden");
+  answerModalNextButton.classList.remove("hidden");
   viewExplanationButton.classList.remove("hidden");
   answerModalActionsRow.classList.remove("hidden");
 
@@ -775,6 +787,7 @@ async function runDescriptiveGrading(submittedText) {
     showDescriptiveModal({ phase: "result", score: result.score, reason: result.reason });
   } catch (error) {
     console.error("Gemini採点エラー:", error);
+    alert("採点でエラーが発生しました。\n" + (error && error.message ? error.message : error));
     showDescriptiveModal({ phase: "error" });
   }
 }

@@ -559,10 +559,16 @@ body {
   background-color: var(--primary-soft);
   border-color: var(--primary);
 }
+.secondary-next-button.hidden {
+  display: none;
+}
 
 .answer-modal-actions {
   display: flex;
   gap: 0.6rem;
+}
+.answer-modal-actions.hidden {
+  display: none;
 }
 .answer-modal-actions .secondary-next-button,
 .answer-modal-actions .answer-next-button {
@@ -830,6 +836,9 @@ body {
   gap: 1rem;
 
   text-align: left;
+}
+.problem-area.hidden {
+  display: none;
 }
 .problem-area p {
   font-weight: bold;
