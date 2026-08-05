@@ -27,7 +27,7 @@ const subjectIdList = [
 const gradeIdList = ["不明", "1年", "2年", "3年", "総合"];
 
 // ★ 記述式の採点に使うGeminiモデル。廃止された場合はここを新しいモデルIDに差し替える
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-3.6-flash";
 let geminiApiKeyCache = null;
 let lastDescriptiveSubmission = null;
 
