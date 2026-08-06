@@ -83,6 +83,7 @@ let impressionInput;
 let impressionSaveButton;
 
 let loadingOverlay;
+let loadingStatusText;
 let drawerOverlay;
 let accountSettingsDrawer;
 let drawerCloseButton;
@@ -91,6 +92,7 @@ let drawerUserId;
 let drawerLogoutButton;
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
+  loadingStatusText = document.getElementById("loading-status-text");
   drawerOverlay = document.getElementById("drawerOverlay");
   accountSettingsDrawer = document.getElementById("accountSettingsDrawer");
   drawerCloseButton = document.getElementById("drawerCloseButton");
@@ -256,6 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       currentBookId = bookId;
       await loadProblemBook(bookId);
+      await preloadAllProblemImages();
       loadingOverlay.classList.add("hidden");
       document.getElementById("problem-area").classList.remove("hidden");
       
@@ -387,6 +390,42 @@ async function loadProblemBook(bookId) {
     console.log(error);
     alert(error);
   }
+}
+
+// ★ ローディングオーバーレイ下部の小さいテキストを更新する
+function setLoadingStatus(text) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
+}
+
+// ★ 1枚の画像を読み込む。失敗しても他の画像の読み込みを止めないよう、常にresolveする
+function preloadImage(url) {
+  return new Promise(resolve => {
+    if (!url) {
+      resolve();
+      return;
+    }
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = url;
+  });
+}
+
+// ★ 問題集内の全ての画像を、ローディング中にまとめて読み込み切っておく
+//   （こうしておくと、解答中に問題を切り替えても画像は既にブラウザにキャッシュされているため即表示される）
+async function preloadAllProblemImages() {
+  const imageUrls = problemsData.map(p => p[4]).filter(url => !!url);
+  if (imageUrls.length === 0) return;
+
+  let loadedCount = 0;
+  setLoadingStatus(`画像を読み込んでいます (${loadedCount}/${imageUrls.length})｡`);
+
+  await Promise.all(imageUrls.map(url =>
+    preloadImage(url).then(() => {
+      loadedCount++;
+      setLoadingStatus(`画像を読み込んでいます (${loadedCount}/${imageUrls.length})｡`);
+    })
+  ));
 }
 
 

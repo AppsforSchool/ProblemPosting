@@ -116,6 +116,16 @@
     </div>
   </div>
 
+  <div id="user-list-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="title">ユーザー一覧</p>
+        <span id="user-list-modal-close" class="close-button">&times;</span>
+      </div>
+      <div id="user-list-area"></div>
+    </div>
+  </div>
+
   <div id="profile-modal" class="modal-overlay hidden">
     <div class="modal-content">
       <div class="modal-header">
@@ -157,6 +167,7 @@
         <p>ユーザーネーム: <strong id="drawerUsername">取得中...</strong></p>
 
         <button id="drawer-edit-profile-button" class="normal-button" style="margin-bottom: 1rem;">プロフィールを編集</button>
+        <button id="drawer-user-list-button" class="normal-button hidden" style="margin-bottom: 1rem;">ユーザー一覧</button>
         <button id="logout-button" class="logout-button normal-button">ログアウト</button>
       </div>
     </div>

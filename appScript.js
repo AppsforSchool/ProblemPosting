@@ -130,6 +130,7 @@ let drawerUserId;
 let drawerUsername;
 let drawerLogoutButton;
 let drawerEditProfileButton;
+let drawerUserListButton;
 
 let subjectSelect;
 let gradeSelect;
@@ -147,6 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
   drawerUsername = document.getElementById("drawerUsername");
   drawerLogoutButton = document.getElementById("logout-button");
   drawerEditProfileButton = document.getElementById("drawer-edit-profile-button");
+  drawerUserListButton = document.getElementById("drawer-user-list-button");
 
   accountSettingsButton.addEventListener("click", openDrawer);
   drawerCloseButton.addEventListener("click", closeDrawer);
@@ -155,6 +157,10 @@ document.addEventListener("DOMContentLoaded", () => {
   drawerEditProfileButton.addEventListener("click", () => {
     closeDrawer();
     openProfileModal(myUserId, true);
+  });
+  drawerUserListButton.addEventListener("click", () => {
+    closeDrawer();
+    openUserListModal();
   });
 
   subjectSelect = document.getElementById("subject-select");
@@ -211,6 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
       meIsAdmin = userData.isAdmin || false;
       drawerUsername.textContent = userData.name;
       if (meIsAdmin) drawerUsername.classList.add("admin");
+      drawerUserListButton.classList.toggle("hidden", !meIsAdmin);
 
       myUid = userData.uid;
 
@@ -929,6 +936,102 @@ function openSolvedModal(id, type) {
   }
 
   solvedModal.classList.remove("hidden");
+}
+
+// ★ 日時を「yyyy/mm/dd hh:mm」形式の文字列に整形するヘルパー
+function formatDateTime(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${yyyy}/${mm}/${dd} ${hh}:${min}`;
+}
+
+let userListModal;
+let userListModalClose;
+let userListArea;
+document.addEventListener("DOMContentLoaded", () => {
+  userListModal = document.getElementById("user-list-modal");
+  userListModalClose = document.getElementById("user-list-modal-close");
+  userListArea = document.getElementById("user-list-area");
+
+  userListModalClose.addEventListener("click", () => {
+    userListModal.classList.add("hidden");
+  });
+});
+
+// ★ 管理者向け：全ユーザーをno順に一覧表示し、右端に最終確認日時を表示する
+async function openUserListModal() {
+  userListArea.innerHTML = "";
+  const loadingMessage = document.createElement("p");
+  loadingMessage.textContent = "読み込み中...";
+  userListArea.appendChild(loadingMessage);
+  userListModal.classList.remove("hidden");
+
+  try {
+    const usersSnap = await db.collection("users_random").orderBy("no").get();
+    userListArea.innerHTML = "";
+
+    if (usersSnap.empty) {
+      const emptyMessage = document.createElement("p");
+      emptyMessage.textContent = "ユーザーが見つかりません";
+      userListArea.appendChild(emptyMessage);
+      return;
+    }
+
+    usersSnap.forEach(doc => {
+      const userId = doc.id;
+      const userData = doc.data();
+      const name = userData.name || "名前未設定";
+      const isAdmin = !!userData.isAdmin;
+      const imageUrl = userData.imageUrl || "";
+
+      // 他の画面のキャッシュとも整合するよう更新しておく
+      setUserCache(userId, {
+        name,
+        isAdmin,
+        imageUrl,
+        profileText: userData.profileText || ""
+      });
+
+      const item = document.createElement("div");
+      item.classList.add("member-item");
+
+      const left = document.createElement("div");
+      left.classList.add("member-left");
+
+      const avatar = createAvatar(name, "small", imageUrl);
+      left.appendChild(avatar);
+
+      const nameSpan = document.createElement("span");
+      nameSpan.classList.add("member-name");
+      nameSpan.textContent = name;
+      if (isAdmin) nameSpan.classList.add("admin");
+      left.appendChild(nameSpan);
+
+      item.appendChild(left);
+
+      const lastCheckedSpan = document.createElement("span");
+      lastCheckedSpan.classList.add("member-last-checked");
+      lastCheckedSpan.textContent = userData.lastOpenedAt
+        ? formatDateTime(userData.lastOpenedAt.toDate())
+        : "未確認";
+      item.appendChild(lastCheckedSpan);
+
+      item.addEventListener("click", () => {
+        openProfileModal(userId);
+      });
+
+      userListArea.appendChild(item);
+    });
+  } catch (error) {
+    console.error("ユーザー一覧の取得エラー:", error);
+    userListArea.innerHTML = "";
+    const errorMessage = document.createElement("p");
+    errorMessage.textContent = "ユーザー一覧の取得に失敗しました。\n" + error;
+    userListArea.appendChild(errorMessage);
+  }
 }
 
 let profileModal;
