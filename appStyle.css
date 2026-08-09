@@ -274,6 +274,11 @@ body {
   margin-top: 5px;
 }
 
+#drawer-user-list-button.hidden {
+  display: none;
+}
+
+
 
 
 #app-header {
