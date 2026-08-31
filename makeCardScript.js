@@ -148,7 +148,7 @@ function applyBackupSnapshot(data) {
   }
 }
 
-function checkForBackup() {
+async function checkForBackup() {
   let raw;
   try {
     raw = localStorage.getItem(BACKUP_KEY);
@@ -167,7 +167,7 @@ function checkForBackup() {
     return;
   }
 
-  if (confirm("前回の作業データが残っています。復元しますか？")) {
+  if (await AppDialog.confirm("前回の作業データが残っています。復元しますか？")) {
     applyBackupSnapshot(data);
   } else {
     clearBackup();
@@ -254,13 +254,13 @@ function handleImportJsonFile(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      applyImportedDeckJson(data);
+      await applyImportedDeckJson(data);
     } catch (error) {
       console.error(error);
-      alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
+      await AppDialog.alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
     }
   };
   reader.readAsText(file);
@@ -269,19 +269,19 @@ function handleImportJsonFile(event) {
   event.target.value = "";
 }
 
-function applyImportedDeckJson(data) {
+async function applyImportedDeckJson(data) {
   if (!data || typeof data !== "object") {
-    alert("JSONの形式が正しくありません。");
+    await AppDialog.alert("JSONの形式が正しくありません。");
     return;
   }
 
   const cards = Array.isArray(data.cards) ? data.cards : [];
   if (cards.length === 0) {
-    alert("cards配列が見つからないか、中身が空です。");
+    await AppDialog.alert("cards配列が見つからないか、中身が空です。");
     return;
   }
 
-  const isConfirmed = confirm(`${cards.length}枚を読み込みます。現在入力中のカードはすべて置き換えられますがよろしいですか？`);
+  const isConfirmed = await AppDialog.confirm(`${cards.length}枚を読み込みます。現在入力中のカードはすべて置き換えられますがよろしいですか？`);
   if (!isConfirmed) return;
 
   if (typeof data.title === "string") deckTitleInput.value = data.title;
@@ -304,7 +304,7 @@ function applyImportedDeckJson(data) {
 async function handleSubmit() {
   const title = deckTitleInput.value.trim();
   if (!title) {
-    alert("タイトルを入力してください。");
+    await AppDialog.alert("タイトルを入力してください。");
     return;
   }
 
@@ -317,7 +317,7 @@ async function handleSubmit() {
 
   const cardBlocks = Array.from(cardsListEl.querySelectorAll(".problem-card"));
   if (cardBlocks.length < MIN_CARDS) {
-    alert("カードを1枚以上追加してください。");
+    await AppDialog.alert("カードを1枚以上追加してください。");
     return;
   }
 
@@ -328,11 +328,11 @@ async function handleSubmit() {
     const back = cardBlocks[i].querySelector(".card-back-input").value.trim();
 
     if (!front) {
-      alert(`${cardNumber}枚目の表面を入力してください。`);
+      await AppDialog.alert(`${cardNumber}枚目の表面を入力してください。`);
       return;
     }
     if (!back) {
-      alert(`${cardNumber}枚目の裏面を入力してください。`);
+      await AppDialog.alert(`${cardNumber}枚目の裏面を入力してください。`);
       return;
     }
 
@@ -340,7 +340,7 @@ async function handleSubmit() {
   }
 
   if (!myUserId) {
-    alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
+    await AppDialog.alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
     return;
   }
 
@@ -367,12 +367,12 @@ async function handleSubmit() {
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-    alert("暗記カードを作成しました！");
+    await AppDialog.alert("暗記カードを作成しました！");
     clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);
-    alert("作成に失敗しました。\n" + error);
+    await AppDialog.alert("作成に失敗しました。\n" + error);
     submitButton.disabled = false;
     loadingOverlay.classList.add("hidden");
   }

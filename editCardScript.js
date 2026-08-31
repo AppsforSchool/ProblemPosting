@@ -92,7 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       currentDeckId = getParmFromUrl("id");
       if (!currentDeckId) {
-        alert("暗記カードが指定されていません。");
+        await AppDialog.alert("暗記カードが指定されていません。");
         window.location.href = "./app.html";
         return;
       }
@@ -194,7 +194,7 @@ function applyBackupSnapshot(data) {
   }
 }
 
-function checkForBackup() {
+async function checkForBackup() {
   let raw;
   try {
     raw = localStorage.getItem(getBackupKey());
@@ -213,7 +213,7 @@ function checkForBackup() {
     return;
   }
 
-  if (confirm("前回の作業データが残っています。復元しますか？")) {
+  if (await AppDialog.confirm("前回の作業データが残っています。復元しますか？")) {
     applyBackupSnapshot(data);
   } else {
     clearBackup();
@@ -228,7 +228,7 @@ async function loadDeckData(deckId) {
     const deckSnap = await deckRef.get();
 
     if (!deckSnap.exists) {
-      alert("暗記カードが見つかりません。");
+      await AppDialog.alert("暗記カードが見つかりません。");
       window.location.href = "./app.html";
       return;
     }
@@ -280,7 +280,7 @@ async function loadDeckData(deckId) {
     checkForBackup();
   } catch (error) {
     console.error(error);
-    alert("暗記カードの読み込みに失敗しました。\n" + error);
+    await AppDialog.alert("暗記カードの読み込みに失敗しました。\n" + error);
   }
 }
 
@@ -356,13 +356,13 @@ function handleImportJsonFile(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      applyImportedDeckJson(data);
+      await applyImportedDeckJson(data);
     } catch (error) {
       console.error(error);
-      alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
+      await AppDialog.alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
     }
   };
   reader.readAsText(file);
@@ -371,19 +371,19 @@ function handleImportJsonFile(event) {
   event.target.value = "";
 }
 
-function applyImportedDeckJson(data) {
+async function applyImportedDeckJson(data) {
   if (!data || typeof data !== "object") {
-    alert("JSONの形式が正しくありません。");
+    await AppDialog.alert("JSONの形式が正しくありません。");
     return;
   }
 
   const cards = Array.isArray(data.cards) ? data.cards : [];
   if (cards.length === 0) {
-    alert("cards配列が見つからないか、中身が空です。");
+    await AppDialog.alert("cards配列が見つからないか、中身が空です。");
     return;
   }
 
-  const isConfirmed = confirm(`${cards.length}枚を読み込みます。現在のカードはすべて置き換えられますがよろしいですか？`);
+  const isConfirmed = await AppDialog.confirm(`${cards.length}枚を読み込みます。現在のカードはすべて置き換えられますがよろしいですか？`);
   if (!isConfirmed) return;
 
   if (typeof data.title === "string") deckTitleInput.value = data.title;
@@ -403,10 +403,10 @@ function applyImportedDeckJson(data) {
 }
 
 
-function validateAndCollectPayload() {
+async function validateAndCollectPayload() {
   const title = deckTitleInput.value.trim();
   if (!title) {
-    alert("タイトルを入力してください。");
+    await AppDialog.alert("タイトルを入力してください。");
     return null;
   }
 
@@ -423,14 +423,14 @@ function validateAndCollectPayload() {
   if (meIsAdmin) {
     madeBy = deckMadeByInput.value.trim();
     if (!madeBy) {
-      alert("作成者のユーザーIDを入力してください。");
+      await AppDialog.alert("作成者のユーザーIDを入力してください。");
       return null;
     }
   }
 
   const cardBlocks = Array.from(cardsListEl.querySelectorAll(".problem-card"));
   if (cardBlocks.length < MIN_CARDS) {
-    alert("カードを1枚以上追加してください。");
+    await AppDialog.alert("カードを1枚以上追加してください。");
     return null;
   }
 
@@ -441,11 +441,11 @@ function validateAndCollectPayload() {
     const back = cardBlocks[i].querySelector(".card-back-input").value.trim();
 
     if (!front) {
-      alert(`${cardNumber}枚目の表面を入力してください。`);
+      await AppDialog.alert(`${cardNumber}枚目の表面を入力してください。`);
       return null;
     }
     if (!back) {
-      alert(`${cardNumber}枚目の裏面を入力してください。`);
+      await AppDialog.alert(`${cardNumber}枚目の裏面を入力してください。`);
       return null;
     }
 
@@ -456,12 +456,12 @@ function validateAndCollectPayload() {
 }
 
 async function handleUpdate() {
-  const collected = validateAndCollectPayload();
+  const collected = await validateAndCollectPayload();
   if (!collected) return;
   const { title, description, subjectId, gradeId, allowFlip, isPrivate, madeBy, cardsPayload } = collected;
 
   if (!myUserId) {
-    alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
+    await AppDialog.alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
     return;
   }
 
@@ -490,12 +490,12 @@ async function handleUpdate() {
 
     await deckRef.update(updateData);
 
-    alert("暗記カードを更新しました！");
+    await AppDialog.alert("暗記カードを更新しました！");
     clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);
-    alert("更新に失敗しました。\n" + error);
+    await AppDialog.alert("更新に失敗しました。\n" + error);
     submitButton.disabled = false;
     deleteDeckButton.disabled = false;
     loadingOverlay.classList.add("hidden");
@@ -503,7 +503,10 @@ async function handleUpdate() {
 }
 
 async function handleDeleteDeck() {
-  const isConfirmed = confirm("本当にこの暗記カードを削除しますか？この操作は取り消せません。");
+  const isConfirmed = await AppDialog.confirm("本当にこの暗記カードを削除しますか？この操作は取り消せません。", {
+    okText: "削除する",
+    danger: true
+  });
   if (!isConfirmed) return;
 
   submitButton.disabled = true;
@@ -515,12 +518,12 @@ async function handleDeleteDeck() {
     const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(currentDeckId);
     await deckRef.delete();
 
-    alert("削除しました。");
+    await AppDialog.alert("削除しました。");
     clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);
-    alert("削除に失敗しました。\n" + error);
+    await AppDialog.alert("削除に失敗しました。\n" + error);
     submitButton.disabled = false;
     deleteDeckButton.disabled = false;
     loadingOverlay.classList.add("hidden");

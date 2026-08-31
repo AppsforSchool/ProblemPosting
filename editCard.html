@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="editCardStyle.css">
+  <link rel="stylesheet" href="appDialogStyle.css">
 
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -120,6 +121,17 @@
     </div>
   </main>
 
+  <div id="app-dialog-modal" class="modal-overlay hidden">
+    <div class="modal-content app-dialog-content">
+      <p id="app-dialog-title" class="app-dialog-title hidden"></p>
+      <p id="app-dialog-message" class="app-dialog-message"></p>
+      <div class="app-dialog-actions">
+        <button id="app-dialog-ok-button">OK</button>
+        <button id="app-dialog-cancel-button" class="hidden">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
   <template id="card-template">
     <div class="problem-card">
       <div class="problem-card-header">
@@ -135,6 +147,7 @@
     </div>
   </template>
 
+  <script src="appDialog.js"></script>
   <script src="editCardScript.js"></script>
 </body>
 </html>

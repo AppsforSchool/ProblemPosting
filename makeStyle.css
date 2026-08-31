@@ -45,7 +45,7 @@ body {
 }
 
 .hidden {
-  display: none;
+  display: none !important; /* ★ 個別要素の display 指定に負けて hidden が効かなくなる事故を防ぐ */
 }
 
 #loading-overlay {

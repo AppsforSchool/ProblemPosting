@@ -17,19 +17,29 @@ let currentDeckId = "";
 
 let cardsData = [];
 let currentCardIndex = 0;
+let isTransitioning = false; // ★ カード切替アニメーション中は多重操作を防ぐ
 
 let loadingOverlay;
+let meIsAdmin = false;
 let drawerOverlay;
 let accountSettingsDrawer;
 let drawerCloseButton;
 let accountSettingsButton;
 let drawerUserId;
+let drawerUsername;
 let drawerLogoutButton;
+let drawerEditProfileButton;
+let drawerUserListButton;
 let homeButton;
 
 let cardContainer;
 let cardFinishedArea;
+let flipCardContainerEl;
+let flipCardSlideEl;
 let flipCardEl;
+let flipCardPeekEl;
+let peekCardText;
+let peekCardButton;
 let cardFrontText;
 let cardBackText;
 let showBackButton;
@@ -49,12 +59,20 @@ document.addEventListener("DOMContentLoaded", () => {
   drawerCloseButton = document.getElementById("drawerCloseButton");
   accountSettingsButton = document.getElementById("setting-button");
   drawerUserId = document.getElementById("drawerUserId");
+  drawerUsername = document.getElementById("drawerUsername");
   drawerLogoutButton = document.getElementById("logout-button");
+  drawerEditProfileButton = document.getElementById("drawer-edit-profile-button");
+  drawerUserListButton = document.getElementById("drawer-user-list-button");
   homeButton = document.getElementById("home-button");
 
   cardContainer = document.getElementById("card-container");
   cardFinishedArea = document.getElementById("card-finished-area");
+  flipCardContainerEl = document.getElementById("flip-card-container");
+  flipCardSlideEl = document.getElementById("flip-card-slide");
   flipCardEl = document.getElementById("flip-card");
+  flipCardPeekEl = document.getElementById("flip-card-peek");
+  peekCardText = document.getElementById("peek-card-text");
+  peekCardButton = document.getElementById("peek-card-button");
   cardFrontText = document.getElementById("card-front-text");
   cardBackText = document.getElementById("card-back-text");
   showBackButton = document.getElementById("show-back-button");
@@ -71,20 +89,27 @@ document.addEventListener("DOMContentLoaded", () => {
   drawerCloseButton.addEventListener("click", closeDrawer);
   drawerOverlay.addEventListener("click", closeDrawer);
   drawerLogoutButton.addEventListener("click", handleLogout);
+  drawerEditProfileButton.addEventListener("click", () => {
+    openProfileModal(myUserId);
+  });
+  drawerUserListButton.addEventListener("click", openUserListModal);
 
-  homeButton.addEventListener("click", () => {
-    if (confirm("本当にやめますか？")) {
-      window.location.href = "./app.html?type=cards";
+  homeButton.addEventListener("click", async () => {
+    if (await AppDialog.confirm("本当にやめますか？")) {
+      window.location.href = "./app.html#cards";
     }
   });
   finishedHomeButton.addEventListener("click", () => {
-    window.location.href = "./app.html?type=cards";
+    window.location.href = "./app.html#cards";
   });
 
   showBackButton.addEventListener("click", () => {
-    flipCard(true);
+    flipToBack();
   });
-  nextCardButton.addEventListener("click", handleNextCard);
+  nextCardButton.addEventListener("click", () => {
+    goToNextCard();
+  });
+  initSwipeHandlers();
 
   writeImpressionButton.addEventListener("click", openImpressionModal);
   impressionModalClose.addEventListener("click", () => {
@@ -129,11 +154,11 @@ async function saveImpression() {
       .update({
         [`impressions.${myUserId}`]: text
       });
-    alert("感想を保存しました。");
+    await AppDialog.alert("感想を保存しました。");
     impressionModal.classList.add("hidden");
   } catch (error) {
     console.error("感想の保存エラー:", error);
-    alert("感想の保存に失敗しました。\n" + error);
+    await AppDialog.alert("感想の保存に失敗しました。\n" + error);
   } finally {
     impressionSaveButton.disabled = false;
     impressionSaveButton.textContent = "保存する";
@@ -158,15 +183,35 @@ document.addEventListener("DOMContentLoaded", () => {
       const userSnapshot = await db.collection("users_random").doc(myUserId).get();
       const userData = userSnapshot.data();
       myUid = userData.uid;
+      meIsAdmin = !!userData.isAdmin;
+      setUserCache(myUserId, {
+        name: userData.name,
+        isAdmin: userData.isAdmin,
+        imageUrl: userData.imageUrl || "",
+        profileText: userData.profileText || "",
+        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
+      });
+      drawerUsername.textContent = userData.name;
+      if (meIsAdmin) {
+        drawerUsername.classList.add("admin");
+      } else if (hasActivePrize(getUserCache(myUserId))) {
+        drawerUsername.classList.add("prize");
+      }
+      drawerUserListButton.classList.toggle("hidden", !meIsAdmin);
 
       const deckId = getParmFromUrl("id");
       if (!deckId) {
-        alert("暗記カードが指定されていません。");
+        await AppDialog.alert("暗記カードが指定されていません。");
         return;
       }
       currentDeckId = deckId;
 
-      await loadDeck(deckId);
+      const ok = await loadDeck(deckId);
+      if (!ok) {
+        loadingOverlay.classList.add("hidden");
+        document.getElementById("no-permission-overlay").classList.remove("hidden");
+        return;
+      }
       loadingOverlay.classList.add("hidden");
       cardContainer.classList.remove("hidden");
 
@@ -180,15 +225,15 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 const handleLogout = async () => {
-  const isConfirmed = confirm("ログアウトしますか？");
+  const isConfirmed = await AppDialog.confirm("ログアウトしますか？", { okText: "ログアウトする", danger: true });
   if (isConfirmed) {
     try {
       await auth.signOut(auth);
-      alert("ログアウトしました。");
+      await AppDialog.alert("ログアウトしました。");
       window.location.href = "./index.html";
     } catch (error) {
       console.error("ログアウトエラー:", error);
-      alert("ログアウトに失敗しました。");
+      await AppDialog.alert("ログアウトに失敗しました。");
     }
   }
 };
@@ -225,11 +270,19 @@ async function loadDeck(deckId) {
     const deckSnap = await deckRef.get();
 
     if (!deckSnap.exists) {
-      alert("暗記カードが見つかりません。");
+      await AppDialog.alert("暗記カードが見つかりません。");
       return;
     }
 
     const deckData = deckSnap.data();
+
+    // ★ 非公開の暗記カードは、作成者本人か管理者以外はIDを知っていても解けないようにする
+    const isPrivate = !!deckData.isPrivate;
+    const madeBy = deckData.madeBy;
+    if (isPrivate && madeBy !== myUserId && !meIsAdmin) {
+      return false;
+    }
+
     titleAreaTitle.textContent = deckData.title || "";
 
     const rawCards = deckData.cards || [];
@@ -247,9 +300,11 @@ async function loadDeck(deckId) {
     cardsData = shuffleArray(cardsData);
 
     allCardsCount.textContent = cardsData.length;
+    return true;
   } catch (error) {
     console.error(error);
-    alert(error);
+    await AppDialog.alert(String(error));
+    return false;
   }
 }
 
@@ -260,6 +315,8 @@ function showCard(index) {
   const nowCardCount = document.getElementById("now-problem-count");
 
   flipCardEl.classList.remove("flipped");
+  flipCardSlideEl.classList.remove("card-exit-left", "card-exit-right", "card-enter");
+  hidePeek();
 
   gaugeBar.style.width = `${((index + 1) / cardsData.length) * 100}%`;
   nowCardCount.textContent = index + 1;
@@ -271,60 +328,207 @@ function showCard(index) {
   nextCardButton.disabled = false;
 }
 
-function flipCard(lock) {
-  if (lock) {
-    showBackButton.disabled = true;
-    nextCardButton.disabled = true;
-    setTimeout(() => {
-      showBackButton.disabled = false;
-      nextCardButton.disabled = false;
-    }, 550);
-  }
-  flipCardEl.classList.toggle("flipped");
+function isCardFlipped() {
+  return flipCardEl.classList.contains("flipped");
 }
 
-function handleNextCard() {
+// ★ 表→裏 のみ(カードの切り替えは伴わない、その場でのフリップ)
+function flipToBack() {
+  if (isTransitioning || isCardFlipped()) return;
+  flipInPlace(true);
+}
+// ★ 裏→表 のみ(カードの切り替えは伴わない、その場でのフリップ)
+function flipToFront() {
+  if (isTransitioning || !isCardFlipped()) return;
+  flipInPlace(false);
+}
+function flipInPlace(toBack) {
+  showBackButton.disabled = true;
+  nextCardButton.disabled = true;
+  setTimeout(() => {
+    showBackButton.disabled = false;
+    nextCardButton.disabled = false;
+  }, 550);
+  flipCardEl.classList.toggle("flipped", toBack);
+}
+
+// ★ 覗き見レイヤー(次/前のカードを、切替アニメーション中だけ後ろにうっすら見せる)
+//   ボタンも一緒に出しておくことで、「ボタンが無い/小さい」ように見えてしまうのを防ぐ(操作は不可のまま)
+function showPeek(text, faceClass) {
+  peekCardText.textContent = text;
+  peekCardButton.textContent = faceClass === "is-front" ? "答えをみる" : "次へ";
+  flipCardPeekEl.classList.remove("is-front", "is-back");
+  flipCardPeekEl.classList.add(faceClass);
+  flipCardPeekEl.classList.add("is-active");
+}
+function hidePeek() {
+  flipCardPeekEl.classList.remove("is-active", "is-growing");
+}
+
+// ★ 次のカードへ(現在のカードが左へスライドして抜けていくのと同時に、後ろの次のカードが等倍に育つ)
+function goToNextCard() {
+  if (isTransitioning) return;
+  const nextIndex = currentCardIndex + 1;
+
+  isTransitioning = true;
   showBackButton.disabled = true;
   nextCardButton.disabled = true;
 
-  const nextIndex = currentCardIndex + 1;
-  if (nextIndex < cardsData.length) {
-    // 今は裏面が見えている状態なので、ここで表面のテキストを次のカードの内容に差し替えても見た目には影響しない
-    cardFrontText.textContent = cardsData[nextIndex].front;
+  if (nextIndex >= cardsData.length) {
+    flipCardSlideEl.classList.add("card-exit-left");
+    setTimeout(() => {
+      cardContainer.classList.add("hidden");
+      cardFinishedArea.classList.remove("hidden");
+      recordDeckSolved();
+    }, 500);
+    return;
+  }
 
-    // 裏→表にめくる。裏面が完全に見えなくなってから（＝表に戻り切ってから）裏面の中身を差し替える
-    let finalized = false;
-    const finalizeNextCard = () => {
-      if (finalized) return;
-      finalized = true;
-      flipCardEl.removeEventListener("transitionend", onTransitionEnd);
+  showPeek(cardsData[nextIndex].front, "is-front");
+  // ★ 抜けていくアニメーションと、育つアニメーションを同時に開始する
+  flipCardSlideEl.classList.add("card-exit-left");
+  flipCardPeekEl.classList.add("is-growing");
+  runExitAndGrow(() => applyCardChange(nextIndex, false));
+}
 
-      currentCardIndex = nextIndex;
+// ★ 前のカードへ(現在のカードが右へスライドして抜けていくのと同時に、後ろの前のカードの裏面が等倍に育つ)
+function goToPreviousCard() {
+  if (isTransitioning) return;
+  const prevIndex = currentCardIndex - 1;
+  if (prevIndex < 0) return; // 最初のカードより前には戻れない
 
-      const gaugeBar = document.getElementById("gauge-bar");
-      const nowCardCount = document.getElementById("now-problem-count");
-      gaugeBar.style.width = `${((nextIndex + 1) / cardsData.length) * 100}%`;
-      nowCardCount.textContent = nextIndex + 1;
+  isTransitioning = true;
+  showBackButton.disabled = true;
+  nextCardButton.disabled = true;
 
-      cardBackText.textContent = cardsData[nextIndex].back;
+  showPeek(cardsData[prevIndex].back, "is-back");
+  // ★ 抜けていくアニメーションと、育つアニメーションを同時に開始する
+  flipCardSlideEl.classList.add("card-exit-right");
+  flipCardPeekEl.classList.add("is-growing");
+  runExitAndGrow(() => applyCardChange(prevIndex, true)); // 前のカードは「裏」の状態から再開する
+}
 
-      showBackButton.disabled = false;
-      nextCardButton.disabled = false;
-    };
+// ★ 「今のカードが抜けていく」と「後ろのカードが等倍まで育つ」を同時に走らせ、両方終わったらonDoneを呼ぶ
+function runExitAndGrow(onDone) {
+  let exitDone = false;
+  let growDone = false;
+  const tryFinish = () => {
+    if (exitDone && growDone) onDone();
+  };
 
-    const onTransitionEnd = (event) => {
-      if (event.target !== flipCardEl || event.propertyName !== "transform") return;
-      finalizeNextCard();
-    };
-    flipCardEl.addEventListener("transitionend", onTransitionEnd);
-    // transitionendが発火しない環境（reduced motion設定など）に備えたフォールバック
-    setTimeout(finalizeNextCard, 600);
+  let exitFinalized = false;
+  const finalizeExit = () => {
+    if (exitFinalized) return;
+    exitFinalized = true;
+    flipCardSlideEl.removeEventListener("transitionend", onExitTransitionEnd);
+    exitDone = true;
+    tryFinish();
+  };
+  const onExitTransitionEnd = (event) => {
+    if (event.target !== flipCardSlideEl || event.propertyName !== "transform") return;
+    finalizeExit();
+  };
+  flipCardSlideEl.addEventListener("transitionend", onExitTransitionEnd);
 
-    flipCardEl.classList.remove("flipped");
+  let growFinalized = false;
+  const finalizeGrow = () => {
+    if (growFinalized) return;
+    growFinalized = true;
+    flipCardPeekEl.removeEventListener("transitionend", onGrowTransitionEnd);
+    growDone = true;
+    tryFinish();
+  };
+  const onGrowTransitionEnd = (event) => {
+    if (event.target !== flipCardPeekEl || event.propertyName !== "transform") return;
+    finalizeGrow();
+  };
+  flipCardPeekEl.addEventListener("transitionend", onGrowTransitionEnd);
+
+  // transitionendが発火しない環境に備えたフォールバック(2つとも確実に呼ぶ)
+  setTimeout(() => {
+    finalizeExit();
+    finalizeGrow();
+  }, 600);
+}
+
+// ★ カード切替の完了処理。新しいカードの内容を反映し、位置/表裏のリセットはアニメーション無しで瞬時に行う
+//   (この時点で覗き見レイヤーは既に等倍まで育っているので、表側カードとサイズが一致しており入れ替えても違和感が無い)
+function applyCardChange(index, showBack) {
+  currentCardIndex = index;
+
+  const gaugeBar = document.getElementById("gauge-bar");
+  const nowCardCount = document.getElementById("now-problem-count");
+  gaugeBar.style.width = `${((index + 1) / cardsData.length) * 100}%`;
+  nowCardCount.textContent = index + 1;
+
+  cardFrontText.textContent = cardsData[index].front;
+  cardBackText.textContent = cardsData[index].back;
+
+  // ★ このタイミングだけtransitionを止め、位置リセットと表裏の切替を瞬時に行う(見た目には隠れているので違和感が無い)
+  flipCardSlideEl.classList.add("card-enter");
+  flipCardEl.classList.add("no-transition");
+
+  flipCardSlideEl.classList.remove("card-exit-left", "card-exit-right");
+  flipCardEl.classList.toggle("flipped", showBack);
+
+  hidePeek();
+
+  // 強制リフローを挟んでから、次のフレームでtransitionを復活させる
+  void flipCardSlideEl.offsetWidth;
+  requestAnimationFrame(() => {
+    flipCardSlideEl.classList.remove("card-enter");
+    flipCardEl.classList.remove("no-transition");
+  });
+
+  showBackButton.disabled = false;
+  nextCardButton.disabled = false;
+  isTransitioning = false;
+}
+
+// ★ スワイプ操作(ポインターイベントで統一し、タッチ/マウス両対応)
+let swipeStartX = null;
+let swipeStartY = null;
+let swipeActive = false;
+const SWIPE_DISTANCE_THRESHOLD = 60; // px
+
+function initSwipeHandlers() {
+  flipCardContainerEl.addEventListener("pointerdown", onSwipePointerDown);
+  flipCardContainerEl.addEventListener("pointerup", onSwipePointerUp);
+  flipCardContainerEl.addEventListener("pointercancel", onSwipePointerCancel);
+}
+function onSwipePointerDown(event) {
+  if (isTransitioning) return;
+  swipeStartX = event.clientX;
+  swipeStartY = event.clientY;
+  swipeActive = true;
+}
+function onSwipePointerCancel() {
+  swipeActive = false;
+}
+function onSwipePointerUp(event) {
+  if (!swipeActive) return;
+  swipeActive = false;
+  if (isTransitioning) return;
+
+  const dx = event.clientX - swipeStartX;
+  const dy = event.clientY - swipeStartY;
+  // 横方向優位で、かつ一定距離以上動いた場合だけスワイプとして扱う(タップやボタン操作と混同しないため)
+  if (Math.abs(dx) < SWIPE_DISTANCE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+
+  if (dx < 0) {
+    // 右から左へのスワイプ: 裏返す or 次のカードへ
+    if (isCardFlipped()) {
+      goToNextCard();
+    } else {
+      flipToBack();
+    }
   } else {
-    cardContainer.classList.add("hidden");
-    cardFinishedArea.classList.remove("hidden");
-    recordDeckSolved();
+    // 左から右へのスワイプ: 表に返す or 前のカードに戻る
+    if (isCardFlipped()) {
+      flipToFront();
+    } else {
+      goToPreviousCard();
+    }
   }
 }
 

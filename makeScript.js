@@ -185,7 +185,7 @@ function applyBackupSnapshot(data) {
   }
 }
 
-function checkForBackup() {
+async function checkForBackup() {
   let raw;
   try {
     raw = localStorage.getItem(BACKUP_KEY);
@@ -204,7 +204,7 @@ function checkForBackup() {
     return;
   }
 
-  if (confirm("前回の作業データが残っています。復元しますか？")) {
+  if (await AppDialog.confirm("前回の作業データが残っています。復元しますか？")) {
     applyBackupSnapshot(data);
   } else {
     clearBackup();
@@ -531,13 +531,13 @@ function handleImportJsonFile(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      applyImportedBookJson(data);
+      await applyImportedBookJson(data);
     } catch (error) {
       console.error(error);
-      alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
+      await AppDialog.alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
     }
   };
   reader.readAsText(file);
@@ -546,19 +546,19 @@ function handleImportJsonFile(event) {
   event.target.value = "";
 }
 
-function applyImportedBookJson(data) {
+async function applyImportedBookJson(data) {
   if (!data || typeof data !== "object") {
-    alert("JSONの形式が正しくありません。");
+    await AppDialog.alert("JSONの形式が正しくありません。");
     return;
   }
 
   const problems = Array.isArray(data.problems) ? data.problems : [];
   if (problems.length === 0) {
-    alert("problems配列が見つからないか、中身が空です。");
+    await AppDialog.alert("problems配列が見つからないか、中身が空です。");
     return;
   }
 
-  const isConfirmed = confirm(`${problems.length}問を読み込みます。現在入力中の問題はすべて置き換えられますがよろしいですか？`);
+  const isConfirmed = await AppDialog.confirm(`${problems.length}問を読み込みます。現在入力中の問題はすべて置き換えられますがよろしいですか？`);
   if (!isConfirmed) return;
 
   if (typeof data.title === "string") bookTitleInput.value = data.title;
@@ -581,7 +581,7 @@ function applyImportedBookJson(data) {
 async function handleSubmit() {
   const title = bookTitleInput.value.trim();
   if (!title) {
-    alert("タイトルを入力してください。");
+    await AppDialog.alert("タイトルを入力してください。");
     return;
   }
 
@@ -594,7 +594,7 @@ async function handleSubmit() {
 
   const problemCards = Array.from(problemsListEl.querySelectorAll(".problem-card"));
   if (problemCards.length === 0) {
-    alert("問題を1問以上追加してください。");
+    await AppDialog.alert("問題を1問以上追加してください。");
     return;
   }
 
@@ -606,7 +606,7 @@ async function handleSubmit() {
 
     const problemText = card.querySelector(".problem-text-input").value.trim();
     if (!problemText) {
-      alert(`${problemNumber}問目の問題文を入力してください。`);
+      await AppDialog.alert(`${problemNumber}問目の問題文を入力してください。`);
       return;
     }
 
@@ -620,13 +620,13 @@ async function handleSubmit() {
     if (answerType === "text") {
       const textAnswerInputs = Array.from(card.querySelectorAll(".text-answer-input"));
       if (textAnswerInputs.length < MIN_TEXT_ANSWERS) {
-        alert(`${problemNumber}問目の正解を${MIN_TEXT_ANSWERS}つ以上入力してください。`);
+        await AppDialog.alert(`${problemNumber}問目の正解を${MIN_TEXT_ANSWERS}つ以上入力してください。`);
         return;
       }
       for (let a = 0; a < textAnswerInputs.length; a++) {
         const text = textAnswerInputs[a].value.trim();
         if (!text) {
-          alert(`${problemNumber}問目の正解${a + 1}を入力してください。`);
+          await AppDialog.alert(`${problemNumber}問目の正解${a + 1}を入力してください。`);
           return;
         }
         answer.push(text);
@@ -634,21 +634,21 @@ async function handleSubmit() {
     } else if (answerType === "descriptive") {
       modelAnswer = card.querySelector(".model-answer-input").value.trim();
       if (!modelAnswer) {
-        alert(`${problemNumber}問目の模範解答を入力してください。`);
+        await AppDialog.alert(`${problemNumber}問目の模範解答を入力してください。`);
         return;
       }
       gradingCriteria = card.querySelector(".grading-criteria-input").value.trim();
     } else {
       const choiceRows = Array.from(card.querySelectorAll(".choice-row"));
       if (choiceRows.length < MIN_CHOICES) {
-        alert(`${problemNumber}問目の選択肢は${MIN_CHOICES}個以上入力してください。`);
+        await AppDialog.alert(`${problemNumber}問目の選択肢は${MIN_CHOICES}個以上入力してください。`);
         return;
       }
 
       for (let c = 0; c < choiceRows.length; c++) {
         const choiceText = choiceRows[c].querySelector(".choice-text-input").value.trim();
         if (!choiceText) {
-          alert(`${problemNumber}問目の選択肢${c + 1}を入力してください。`);
+          await AppDialog.alert(`${problemNumber}問目の選択肢${c + 1}を入力してください。`);
           return;
         }
         choices.push(choiceText);
@@ -658,11 +658,11 @@ async function handleSubmit() {
       }
 
       if (answer.length === 0) {
-        alert(`${problemNumber}問目の正解を1つ以上チェックしてください。`);
+        await AppDialog.alert(`${problemNumber}問目の正解を1つ以上チェックしてください。`);
         return;
       }
       if (answerType === "single" && answer.length !== 1) {
-        alert(`${problemNumber}問目は単数選択なので、正解は1つだけチェックしてください。`);
+        await AppDialog.alert(`${problemNumber}問目は単数選択なので、正解は1つだけチェックしてください。`);
         return;
       }
     }
@@ -685,7 +685,7 @@ async function handleSubmit() {
   }
 
   if (!myUserId) {
-    alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
+    await AppDialog.alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
     return;
   }
 
@@ -746,12 +746,12 @@ async function handleSubmit() {
     });
     await batch.commit();
 
-    alert("問題集を作成しました！");
+    await AppDialog.alert("問題集を作成しました！");
     clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);
-    alert("作成に失敗しました。\n" + error);
+    await AppDialog.alert("作成に失敗しました。\n" + error);
     submitButton.disabled = false;
     loadingOverlay.classList.add("hidden");
   }

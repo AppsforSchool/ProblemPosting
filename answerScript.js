@@ -33,9 +33,7 @@ let lastDescriptiveSubmission = null;
 
 let myUid = "";
 let myUserId = "";
-
-let userCache = {};
-let userAdminCache = {};
+let meIsAdmin = false;
 
 let problemsData = [];
 
@@ -89,7 +87,10 @@ let accountSettingsDrawer;
 let drawerCloseButton;
 let accountSettingsButton;
 let drawerUserId;
+let drawerUsername;
 let drawerLogoutButton;
+let drawerEditProfileButton;
+let drawerUserListButton;
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
@@ -99,12 +100,19 @@ document.addEventListener("DOMContentLoaded", () => {
   accountSettingsButton = document.getElementById("setting-button");
 
   drawerUserId = document.getElementById("drawerUserId");
+  drawerUsername = document.getElementById("drawerUsername");
   drawerLogoutButton = document.getElementById("logout-button");
+  drawerEditProfileButton = document.getElementById("drawer-edit-profile-button");
+  drawerUserListButton = document.getElementById("drawer-user-list-button");
 
   accountSettingsButton.addEventListener("click", openDrawer);
   drawerCloseButton.addEventListener("click", closeDrawer);
   drawerOverlay.addEventListener("click", closeDrawer);
   drawerLogoutButton.addEventListener("click", handleLogout);
+  drawerEditProfileButton.addEventListener("click", () => {
+    openProfileModal(myUserId);
+  });
+  drawerUserListButton.addEventListener("click", openUserListModal);
 
   answerButton = document.getElementById("answer-button");
   skipButton = document.getElementById("skip-button");
@@ -161,8 +169,8 @@ document.addEventListener("DOMContentLoaded", () => {
   impressionInput = document.getElementById("impression-input");
   impressionSaveButton = document.getElementById("impression-save-button");
 
-  homeButton.addEventListener("click", () => {
-    if (confirm("本当にやめますか？")) {
+  homeButton.addEventListener("click", async () => {
+    if (await AppDialog.confirm("本当にやめますか？")) {
       window.location.href = "./app.html";
     }
   });
@@ -213,11 +221,11 @@ async function saveImpression() {
       .update({
         [`impressions.${myUserId}`]: text
       });
-    alert("感想を保存しました。");
+    await AppDialog.alert("感想を保存しました。");
     impressionModal.classList.add("hidden");
   } catch (error) {
     console.error("感想の保存エラー:", error);
-    alert("感想の保存に失敗しました。\n" + error);
+    await AppDialog.alert("感想の保存に失敗しました。\n" + error);
   } finally {
     impressionSaveButton.disabled = false;
     impressionSaveButton.textContent = "保存する";
@@ -244,20 +252,36 @@ document.addEventListener("DOMContentLoaded", () => {
         .doc(myUserId)
         .get();
       const userData = userSnapshot.data();
-      userCache[myUserId] = userData.name;
-      userAdminCache[myUserId] = userData.isAdmin;
-      drawerUsername.textContent = userCache[myUserId];
-      if (userAdminCache[myUserId]) drawerUsername.classList.add("admin");
+      setUserCache(myUserId, {
+        name: userData.name,
+        isAdmin: userData.isAdmin,
+        imageUrl: userData.imageUrl || "",
+        profileText: userData.profileText || "",
+        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
+      });
+      meIsAdmin = userData.isAdmin || false;
+      drawerUsername.textContent = userData.name;
+      if (meIsAdmin) {
+        drawerUsername.classList.add("admin");
+      } else if (hasActivePrize(getUserCache(myUserId))) {
+        drawerUsername.classList.add("prize");
+      }
+      drawerUserListButton.classList.toggle("hidden", !meIsAdmin);
 
       myUid = userData.uid;
 
       const bookId = getParmFromUrl("id");
       if (!bookId) {
-        alert("問題集が指定されていません。");
+        await AppDialog.alert("問題集が指定されていません。");
         return;
       }
       currentBookId = bookId;
-      await loadProblemBook(bookId);
+      const ok = await loadProblemBook(bookId);
+      if (!ok) {
+        loadingOverlay.classList.add("hidden");
+        document.getElementById("no-permission-overlay").classList.remove("hidden");
+        return;
+      }
       await preloadAllProblemImages();
       loadingOverlay.classList.add("hidden");
       document.getElementById("problem-area").classList.remove("hidden");
@@ -298,16 +322,16 @@ function incrementMonthlyProblemCount() {
 }
 
 const handleLogout = async () => {
-  const isConfirmed = confirm("ログアウトしますか？");
+  const isConfirmed = await AppDialog.confirm("ログアウトしますか？", { okText: "ログアウトする", danger: true });
   if (isConfirmed) {
     try {
       await auth.signOut(auth);
       console.log("ログアウトしました！");
-      alert("ログアウトしました。");
+      await AppDialog.alert("ログアウトしました。");
       window.location.href = "./index.html";
     } catch (error) {
       console.error("ログアウトエラー:", error);
-      alert("ログアウトに失敗しました。");
+      await AppDialog.alert("ログアウトに失敗しました。");
     }
   }
 };
@@ -339,6 +363,16 @@ async function loadProblemBook(bookId) {
       .collection("data")
       .doc(bookId);
     const bookData = await bookDocRef.get();
+
+    if (!bookData.exists) return false;
+
+    // ★ 非公開の問題集は、作成者本人か管理者以外はIDを知っていても解けないようにする
+    const isPrivate = !!bookData.get("isPrivate");
+    const madeBy = bookData.get("madeBy");
+    if (isPrivate && madeBy !== myUserId && !meIsAdmin) {
+      return false;
+    }
+
     titleAreaTitle.textContent = bookData.get("title");
     
     const problemsSnapshot = await db
@@ -386,9 +420,11 @@ async function loadProblemBook(bookId) {
     if (shuffleRequested && shuffleAllowed) {
       problemsData = shuffleArray(problemsData);
     }
+    return true;
   } catch (error) {
     console.log(error);
-    alert(error);
+    await AppDialog.alert(String(error));
+    return false;
   }
 }
 
@@ -551,13 +587,13 @@ function updateAnswerButtonState() {
 }
 
 
-function handleAnswerSubmit() {
+async function handleAnswerSubmit() {
   const answerType = problemsData[currentProblemIndex][5];
 
   if (answerType === "descriptive") {
     const submittedText = descriptiveAnswerInputEl.value.trim();
     if (!submittedText) {
-      alert("答えを入力してください。");
+      await AppDialog.alert("答えを入力してください。");
       return;
     }
 
@@ -575,7 +611,7 @@ function handleAnswerSubmit() {
     const submittedText = textAnswerInput.value.trim();
 
     if (!submittedText) {
-      alert("答えを入力してください。");
+      await AppDialog.alert("答えを入力してください。");
       return;
     }
 
@@ -600,7 +636,7 @@ function handleAnswerSubmit() {
     .map(button => Number(button.dataset.index));
 
   if (selectedIndices.length === 0) {
-    alert("選択肢を選んでください。");
+    await AppDialog.alert("選択肢を選んでください。");
     return;
   }
 
@@ -833,7 +869,7 @@ async function runDescriptiveGrading(submittedText) {
     showDescriptiveModal({ phase: "result", score: result.score, reason: result.reason });
   } catch (error) {
     console.error("Gemini採点エラー:", error);
-    alert("採点でエラーが発生しました。\n" + (error && error.message ? error.message : error));
+    await AppDialog.alert("採点でエラーが発生しました。\n" + (error && error.message ? error.message : error));
     showDescriptiveModal({ phase: "error" });
   }
 }

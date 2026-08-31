@@ -3,6 +3,7 @@
   --primary-rgb: 206, 87, 155;
   --primary-dark: #a8386f;
   --primary-soft: #fbeaf3;
+  --accent: #5b6ee8;
 
   --light: #faf0f5;
 
@@ -45,7 +46,7 @@ body {
 }
 
 .hidden {
-  display: none;
+  display: none !important; /* ★ 個別要素の display 指定に負けて hidden が効かなくなる事故を防ぐ */
 }
 
 #loading-overlay {
@@ -217,6 +218,9 @@ body {
   box-shadow: var(--shadow-sm);
   transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), background-color 0.2s var(--ease);
 }
+.drawer button.normal-button.hidden {
+  display: none;
+}
 .drawer button.normal-button:hover:not(:disabled) {
   background-color: var(--primary-dark);
   box-shadow: var(--shadow-md);
@@ -273,11 +277,6 @@ body {
   font-size: 14px;
   margin-top: 5px;
 }
-
-#drawer-user-list-button.hidden {
-  display: none;
-}
-
 
 
 
@@ -436,6 +435,9 @@ body {
   text-decoration: none;
   cursor: pointer;
 }
+.modal-content .close-button.hidden {
+  display: none;
+}
 .modal-content img {
   max-width: 100%;
   max-height: 80vh;
@@ -496,6 +498,223 @@ body {
 
   animation: wave 2s linear infinite;
 }
+/* ★ スペシャルライブ優勝の景品(1週間だけ名前が光る)。管理者と同じ配色だが、半分の速度でゆっくり流す */
+#setting-madeBy-p .prize {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+
+  animation: wave 4s linear infinite;
+}
+.recruit-comment-area {
+  text-align: left;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.8rem;
+  background-color: var(--primary-soft);
+  border: 1.5px solid rgba(var(--primary-rgb), 0.35);
+  border-radius: var(--radius-md);
+}
+.recruit-comment-area.hidden {
+  display: none;
+}
+.recruit-comment-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  margin-bottom: 0.3rem;
+}
+.recruit-comment-text {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: var(--text);
+  white-space: pre-line;
+}
+.recruit-open-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0.8rem 1.2rem;
+  width: 100%;
+  text-align: center;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+
+  color: #fff;
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.35);
+  border: none;
+  margin-top: 0;
+  margin-bottom: 0.8rem;
+}
+.recruit-open-button:hover {
+  background: linear-gradient(120deg, var(--primary-dark), var(--accent));
+}
+.recruit-open-button.hidden {
+  display: none;
+}
+.recruit-open-button:disabled,
+.recruit-open-button.disabled-feature {
+  background: #dbe0e6;
+  color: #9aa4ae;
+  box-shadow: none;
+  border: none;
+  cursor: not-allowed;
+}
+.recruit-open-button:disabled:hover,
+.recruit-open-button.disabled-feature:hover {
+  background: #dbe0e6;
+}
+.buttons-area #join-button {
+  width: 100%;
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.35);
+}
+.buttons-area #join-button:hover:not(:disabled) {
+  background: linear-gradient(120deg, var(--primary-dark), var(--accent));
+}
+.buttons-area #join-button.leave-mode {
+  background-color: var(--surface-alt);
+  color: #d64545;
+  border: 1.5px solid #f3c8c8;
+  box-shadow: none;
+}
+.recruit-modal-hint {
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.8rem;
+}
+#recruit-comment-input {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-size: 0.95rem;
+  color: var(--text);
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  margin-bottom: 1rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-alt);
+  box-sizing: border-box;
+  resize: vertical;
+}
+#recruit-comment-input:focus {
+  border-color: var(--primary);
+  background-color: var(--surface);
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.15);
+  outline: none;
+}
+.host-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 2.6rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+}
+.toggle-switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+  z-index: 1;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.toggle-switch-track {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--border);
+  border-radius: var(--radius-full);
+  transition: background-color 0.2s var(--ease);
+  pointer-events: none;
+}
+.toggle-switch-track::before {
+  content: "";
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(20, 30, 40, 0.25);
+  transition: transform 0.2s var(--ease);
+}
+.toggle-switch input:checked + .toggle-switch-track {
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+}
+.toggle-switch input:checked + .toggle-switch-track::before {
+  transform: translateX(1.1rem);
+}
+.join-disabled-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 0.6rem;
+}
+.recruit-confirm-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0.8rem 1.2rem;
+  width: 100%;
+  text-align: center;
+  cursor: pointer;
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.35);
+  transition: background-color 0.2s var(--ease), box-shadow 0.2s var(--ease), transform 0.15s var(--ease);
+}
+.recruit-confirm-button:hover:not(:disabled) {
+  background: linear-gradient(120deg, var(--primary-dark), var(--accent));
+  box-shadow: var(--shadow-md);
+}
+.recruit-confirm-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.recruit-confirm-button:disabled {
+  background: #dbe0e6;
+  color: #9aa4ae;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.private-badge.recruiting-badge {
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+}
+.private-badge.started-badge {
+  background: var(--text-muted);
+}
+.card.just-started-card {
+  animation: just-started-glow 1.8s ease-out 2;
+}
+@keyframes just-started-glow {
+  0% { box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.65); transform: scale(1); }
+  40% { box-shadow: 0 0 0 10px rgba(var(--primary-rgb), 0); transform: scale(1.015); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0); transform: scale(1); }
+}
+
 .shuffle-toggle-row {
   display: flex;
   align-items: center;
@@ -576,6 +795,17 @@ body {
 }
 .buttons-area #edit-button.hidden + #start-button {
   width: 100%;
+}
+.buttons-area .full-width-button {
+  width: 100% !important;
+}
+/* ★ 「待機画面へ」(募集中の問題集の主催者用)の時だけ、ライブ周りのボタンと同じグラデーションにする */
+.buttons-area #start-button.full-width-button {
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.35);
+}
+.buttons-area #start-button.full-width-button:hover:not(:disabled) {
+  background: linear-gradient(120deg, var(--primary-dark), var(--accent));
 }
 
 .view-impressions-button {
@@ -679,6 +909,18 @@ body {
   color: transparent;
   animation: wave 2s linear infinite;
 }
+.impression-card-name.prize {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wave 4s linear infinite;
+}
 .impression-card-edit-button {
   margin-left: auto;
   flex-shrink: 0;
@@ -772,6 +1014,21 @@ body {
   color: transparent;
 
   animation: wave 2s linear infinite;
+}
+#drawerUsername.prize {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+
+  animation: wave 4s linear infinite;
 }
 
 
@@ -909,6 +1166,7 @@ body {
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-sm);
   pointer-events: none;
+  white-space: nowrap;
 }
 .card-area .card.make-card {
   background-color: var(--surface-alt);
@@ -1029,6 +1287,21 @@ body {
   color: transparent;
 
   animation: wave 2s linear infinite;
+}
+.card-madeBy .prize {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+
+  animation: wave 4s linear infinite;
 }
 
 /* --- アバター（頭文字 or 画像アイコン） --- */
@@ -1165,6 +1438,18 @@ body {
   color: transparent;
   animation: wave 2s linear infinite;
 }
+.member-name.prize {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wave 4s linear infinite;
+}
 .member-last-checked {
   font-size: 0.78rem;
   font-weight: 700;
@@ -1241,6 +1526,9 @@ body {
   box-sizing: border-box;
 }
 #profile-name.admin {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
   background: linear-gradient(
     90deg,
     #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
@@ -1251,6 +1539,21 @@ body {
   -webkit-text-fill-color: transparent;
   color: transparent;
   animation: wave 2s linear infinite;
+}
+#profile-name.prize {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wave 4s linear infinite;
 }
 #profile-name-input {
   font-family: "BIZ UDGothic", sans-serif;
@@ -1443,3 +1746,4 @@ footer p {
     width: 100%;
   }
 }
+

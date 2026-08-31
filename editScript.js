@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       currentBookId = getParmFromUrl("id");
       if (!currentBookId) {
-        alert("問題集が指定されていません。");
+        await AppDialog.alert("問題集が指定されていません。");
         window.location.href = "./app.html";
         return;
       }
@@ -224,7 +224,7 @@ function applyBackupSnapshot(data) {
   }
 }
 
-function checkForBackup() {
+async function checkForBackup() {
   let raw;
   try {
     raw = localStorage.getItem(getBackupKey());
@@ -243,7 +243,7 @@ function checkForBackup() {
     return;
   }
 
-  if (confirm("前回の作業データが残っています。復元しますか？")) {
+  if (await AppDialog.confirm("前回の作業データが残っています。復元しますか？")) {
     applyBackupSnapshot(data);
   } else {
     clearBackup();
@@ -262,7 +262,7 @@ async function loadBookData(bookId) {
     const bookSnap = await bookRef.get();
 
     if (!bookSnap.exists) {
-      alert("問題集が見つかりません。");
+      await AppDialog.alert("問題集が見つかりません。");
       window.location.href = "./app.html";
       return;
     }
@@ -329,7 +329,7 @@ async function loadBookData(bookId) {
     checkForBackup();
   } catch (error) {
     console.error(error);
-    alert("問題集の読み込みに失敗しました。\n" + error);
+    await AppDialog.alert("問題集の読み込みに失敗しました。\n" + error);
   }
 }
 
@@ -660,13 +660,13 @@ function handleImportJsonFile(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      applyImportedBookJson(data);
+      await applyImportedBookJson(data);
     } catch (error) {
       console.error(error);
-      alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
+      await AppDialog.alert("JSONの読み込みに失敗しました。ファイルの形式を確認してください。\n" + error);
     }
   };
   reader.readAsText(file);
@@ -675,19 +675,19 @@ function handleImportJsonFile(event) {
   event.target.value = "";
 }
 
-function applyImportedBookJson(data) {
+async function applyImportedBookJson(data) {
   if (!data || typeof data !== "object") {
-    alert("JSONの形式が正しくありません。");
+    await AppDialog.alert("JSONの形式が正しくありません。");
     return;
   }
 
   const problems = Array.isArray(data.problems) ? data.problems : [];
   if (problems.length === 0) {
-    alert("problems配列が見つからないか、中身が空です。");
+    await AppDialog.alert("problems配列が見つからないか、中身が空です。");
     return;
   }
 
-  const isConfirmed = confirm(`${problems.length}問を読み込みます。現在の問題はすべて置き換えられますがよろしいですか？（画像は引き継がれません）`);
+  const isConfirmed = await AppDialog.confirm(`${problems.length}問を読み込みます。現在の問題はすべて置き換えられますがよろしいですか？（画像は引き継がれません）`);
   if (!isConfirmed) return;
 
   if (typeof data.title === "string") bookTitleInput.value = data.title;
@@ -707,10 +707,10 @@ function applyImportedBookJson(data) {
 }
 
 
-function validateAndCollectPayload() {
+async function validateAndCollectPayload() {
   const title = bookTitleInput.value.trim();
   if (!title) {
-    alert("タイトルを入力してください。");
+    await AppDialog.alert("タイトルを入力してください。");
     return null;
   }
 
@@ -727,14 +727,14 @@ function validateAndCollectPayload() {
   if (meIsAdmin) {
     madeBy = bookMadeByInput.value.trim();
     if (!madeBy) {
-      alert("作成者のユーザーIDを入力してください。");
+      await AppDialog.alert("作成者のユーザーIDを入力してください。");
       return null;
     }
   }
 
   const problemCards = Array.from(problemsListEl.querySelectorAll(".problem-card"));
   if (problemCards.length === 0) {
-    alert("問題を1問以上追加してください。");
+    await AppDialog.alert("問題を1問以上追加してください。");
     return null;
   }
 
@@ -746,7 +746,7 @@ function validateAndCollectPayload() {
 
     const problemText = card.querySelector(".problem-text-input").value.trim();
     if (!problemText) {
-      alert(`${problemNumber}問目の問題文を入力してください。`);
+      await AppDialog.alert(`${problemNumber}問目の問題文を入力してください。`);
       return null;
     }
 
@@ -760,13 +760,13 @@ function validateAndCollectPayload() {
     if (answerType === "text") {
       const textAnswerInputs = Array.from(card.querySelectorAll(".text-answer-input"));
       if (textAnswerInputs.length < MIN_TEXT_ANSWERS) {
-        alert(`${problemNumber}問目の正解を${MIN_TEXT_ANSWERS}つ以上入力してください。`);
+        await AppDialog.alert(`${problemNumber}問目の正解を${MIN_TEXT_ANSWERS}つ以上入力してください。`);
         return null;
       }
       for (let a = 0; a < textAnswerInputs.length; a++) {
         const text = textAnswerInputs[a].value.trim();
         if (!text) {
-          alert(`${problemNumber}問目の正解${a + 1}を入力してください。`);
+          await AppDialog.alert(`${problemNumber}問目の正解${a + 1}を入力してください。`);
           return null;
         }
         answer.push(text);
@@ -774,21 +774,21 @@ function validateAndCollectPayload() {
     } else if (answerType === "descriptive") {
       modelAnswer = card.querySelector(".model-answer-input").value.trim();
       if (!modelAnswer) {
-        alert(`${problemNumber}問目の模範解答を入力してください。`);
+        await AppDialog.alert(`${problemNumber}問目の模範解答を入力してください。`);
         return null;
       }
       gradingCriteria = card.querySelector(".grading-criteria-input").value.trim();
     } else {
       const choiceRows = Array.from(card.querySelectorAll(".choice-row"));
       if (choiceRows.length < MIN_CHOICES) {
-        alert(`${problemNumber}問目の選択肢は${MIN_CHOICES}個以上入力してください。`);
+        await AppDialog.alert(`${problemNumber}問目の選択肢は${MIN_CHOICES}個以上入力してください。`);
         return null;
       }
 
       for (let c = 0; c < choiceRows.length; c++) {
         const choiceText = choiceRows[c].querySelector(".choice-text-input").value.trim();
         if (!choiceText) {
-          alert(`${problemNumber}問目の選択肢${c + 1}を入力してください。`);
+          await AppDialog.alert(`${problemNumber}問目の選択肢${c + 1}を入力してください。`);
           return null;
         }
         choices.push(choiceText);
@@ -798,11 +798,11 @@ function validateAndCollectPayload() {
       }
 
       if (answer.length === 0) {
-        alert(`${problemNumber}問目の正解を1つ以上チェックしてください。`);
+        await AppDialog.alert(`${problemNumber}問目の正解を1つ以上チェックしてください。`);
         return null;
       }
       if (answerType === "single" && answer.length !== 1) {
-        alert(`${problemNumber}問目は単数選択なので、正解は1つだけチェックしてください。`);
+        await AppDialog.alert(`${problemNumber}問目は単数選択なので、正解は1つだけチェックしてください。`);
         return null;
       }
     }
@@ -830,12 +830,12 @@ function validateAndCollectPayload() {
 }
 
 async function handleUpdate() {
-  const collected = validateAndCollectPayload();
+  const collected = await validateAndCollectPayload();
   if (!collected) return;
   const { title, description, subjectId, gradeId, shuffleProblems, isPrivate, madeBy, problemsPayload } = collected;
 
   if (!myUserId) {
-    alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
+    await AppDialog.alert("ユーザー情報を確認しています。少し待ってからもう一度お試しください。");
     return;
   }
 
@@ -908,12 +908,12 @@ async function handleUpdate() {
     });
     await batch.commit();
 
-    alert("問題集を更新しました！");
+    await AppDialog.alert("問題集を更新しました！");
     clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);
-    alert("更新に失敗しました。\n" + error);
+    await AppDialog.alert("更新に失敗しました。\n" + error);
     submitButton.disabled = false;
     deleteBookButton.disabled = false;
     loadingOverlay.classList.add("hidden");
@@ -921,7 +921,10 @@ async function handleUpdate() {
 }
 
 async function handleDeleteBook() {
-  const isConfirmed = confirm("本当にこの問題集を削除しますか？この操作は取り消せません。");
+  const isConfirmed = await AppDialog.confirm("本当にこの問題集を削除しますか？この操作は取り消せません。", {
+    okText: "削除する",
+    danger: true
+  });
   if (!isConfirmed) return;
 
   submitButton.disabled = true;
@@ -943,12 +946,12 @@ async function handleDeleteBook() {
     batch.delete(bookRef);
     await batch.commit();
 
-    alert("削除しました。");
+    await AppDialog.alert("削除しました。");
     clearBackup();
     window.location.href = "./app.html";
   } catch (error) {
     console.error(error);
-    alert("削除に失敗しました。\n" + error);
+    await AppDialog.alert("削除に失敗しました。\n" + error);
     submitButton.disabled = false;
     deleteBookButton.disabled = false;
     loadingOverlay.classList.add("hidden");

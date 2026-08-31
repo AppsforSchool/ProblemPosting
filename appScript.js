@@ -4,13 +4,31 @@ const firebaseConfig = {
   projectId: "appsforschool-study",
   storageBucket: "appsforschool-study.firebasestorage.app",
   messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:a1363adbab57f1ceec60e5"
+  appId: "1:740735293440:web:a1363adbab57f1ceec60e5",
+  // ★ Realtime Databaseを使うために追加。Firebaseコンソール > Realtime Database の画面上部に
+  //   表示されているURLに書き換えてください（例: "https://appsforschool-study-default-rtdb.asia-southeast1.firebasedatabase.app"）
+  databaseURL: "https://appsforschool-study-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
 
 // Firebase 初期化とサービス取得
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const rtdb = firebase.database();
+const DEFAULT_RECRUIT_TIME_LIMIT_SECONDS = 10; // ★ 初期値。主催者は待機画面(liveHost.html)で変更できる
+
+// ★ iPadなどコンソールが見られない環境向けに、想定外のエラーをアラートで表示する
+window.addEventListener("error", event => {
+  const message = (event.error && event.error.message) || event.message || "不明なエラー";
+  console.error("Uncaught error:", event.error || event.message);
+  alert("予期しないエラーが発生しました:\n" + message);
+});
+window.addEventListener("unhandledrejection", event => {
+  const reason = event.reason;
+  const message = (reason && reason.message) || String(reason);
+  console.error("Unhandled promise rejection:", reason);
+  alert("予期しないエラーが発生しました:\n" + message);
+});
 
 const STACK_ICON_SVG = `<svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
   <rect x="3" y="1" width="11" height="8" rx="1.4" opacity="0.45"></rect>
@@ -45,12 +63,33 @@ function setUserCache(userId, data) {
   return userDataCache[userId];
 }
 
+// ★ Firestoreのタイムスタンプ(またはミリ秒数値)を、比較に使いやすいミリ秒数値へ揃える
+function toMillisOrNull(value) {
+  if (!value) return null;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value === "number") return value;
+  return null;
+}
+
+// ★ スペシャルライブ優勝の景品(名前が光る)が、現在も有効期限内かどうか
+function hasActivePrize(cached) {
+  const expiresAt = cached && cached.prizeExpiresAt;
+  return typeof expiresAt === "number" && expiresAt > Date.now();
+}
+
 let bookCache = {};
 
-function getParmFromUrl(parm) {
-  const params = new URLSearchParams(window.location.search);
-  return params.get(parm);
+// ★ 「募集中」はFirestoreのフィールドではなく、RTDBの liveSessions を唯一の情報源として判定する
+let liveSessionsCache = {}; // bookId -> セッションデータ(status が finished/cancelled 以外のもののみ保持)
+let liveSessionsInitialLoadDone = false;
+// ★ 初回読み込み時点で既に募集中だったが、まだ bookCache に無い(非公開の他人の問題集など)ものを覚えておき、
+//   一覧に初めて追加されたタイミングで一度だけハイライトするための集合
+let bookIdsToHighlightOnce = new Set();
+
+function isActiveSessionStatus(status) {
+  return !!status && status !== "finished" && status !== "cancelled" && status !== "ended";
 }
+
 let deckCache = {};
 let imgbbApiKeyCache = null;
 
@@ -104,7 +143,7 @@ function createAvatar(name, size, imageUrl) {
   return avatar;
 }
 
-// ★ 指定したユーザーの情報（name/isAdmin/imageUrl/profileText）がキャッシュになければ取得する
+// ★ 指定したユーザーの情報（name/isAdmin/imageUrl/profileText/prizeExpiresAt）がキャッシュになければ取得する
 async function ensureUserCached(userId) {
   if (getUserCache(userId)) return;
 
@@ -115,10 +154,11 @@ async function ensureUserCached(userId) {
       name: userData.name || "名前未設定",
       isAdmin: userData.isAdmin || false,
       imageUrl: userData.imageUrl || "",
-      profileText: userData.profileText || ""
+      profileText: userData.profileText || "",
+      prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
     });
   } else {
-    setUserCache(userId, { name: "不明なユーザー", isAdmin: false, imageUrl: "", profileText: "" });
+    setUserCache(userId, { name: "不明なユーザー", isAdmin: false, imageUrl: "", profileText: "", prizeExpiresAt: null });
   }
 }
 
@@ -173,16 +213,19 @@ document.addEventListener("DOMContentLoaded", () => {
   gradeSelect.addEventListener("change", handleFilterChange);
   sortOrderSelect.addEventListener("change", handleFilterChange);
   solvedFilterSelect.addEventListener("change", handleFilterChange);
-  contentTypeSelect.addEventListener("change", handleFilterChange);
+  contentTypeSelect.addEventListener("change", () => {
+    resetHashToCurrentType();
+    handleFilterChange();
+  });
 });
 
-function handleFilterChange() {
+function handleFilterChange(animateBookId) {
   const isCardMode = contentTypeSelect.value === "cards";
 
   if (isCardMode) {
     makeDisplayCards(subjectSelect.value, gradeSelect.value, sortOrderSelect.value, solvedFilterSelect.value);
   } else {
-    makeDisplayBooks(subjectSelect.value, gradeSelect.value, sortOrderSelect.value, solvedFilterSelect.value);
+    makeDisplayBooks(subjectSelect.value, gradeSelect.value, sortOrderSelect.value, solvedFilterSelect.value, animateBookId);
   }
 }
 
@@ -212,28 +255,35 @@ document.addEventListener("DOMContentLoaded", () => {
         name: userData.name,
         isAdmin: userData.isAdmin,
         imageUrl: userData.imageUrl || "",
-        profileText: userData.profileText || ""
+        profileText: userData.profileText || "",
+        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
       });
       meIsAdmin = userData.isAdmin || false;
       drawerUsername.textContent = userData.name;
-      if (meIsAdmin) drawerUsername.classList.add("admin");
+      if (meIsAdmin) {
+        drawerUsername.classList.add("admin");
+      } else if (hasActivePrize(getUserCache(myUserId))) {
+        drawerUsername.classList.add("prize");
+      }
       drawerUserListButton.classList.toggle("hidden", !meIsAdmin);
 
       myUid = userData.uid;
+      maybeShowNotice(userData.lastOpenedAt); // ★ 最終確認時刻に応じて、お知らせモーダルを表示する(結果を待たずに進める)
 
       //displayVocabularyBooks();
       await loadProblemBooks();
       await loadCardDecks();
 
-      if (getParmFromUrl("type") === "cards") {
-        contentTypeSelect.value = "cards";
-        makeDisplayCards("all", "all", "created", "all");
+      if (window.location.hash) {
+        initializeViewFromHash();
       } else {
-        makeDisplayBooks("all", "all", "created", "all");
+        contentTypeSelect.value = "books";
+        makeDisplayBooks("all", "all", sortOrderSelect.value, "all");
+        resetHashToCurrentType(); // ★ 履歴を汚さないよう置き換えで #books を補っておく
       }
-      openSettingModalFromHash();
       loadingOverlay.classList.add("hidden");
       updateLastChecked();
+      attachLiveSessionsListener();
     } else {
       console.log("logout");
       window.location.href = "./index.html";
@@ -249,17 +299,30 @@ function updateLastChecked() {
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
+// ★ 最終確認時刻が指定日時より前(=未確認)なら、最新のお知らせをモーダルで表示する。
+//   一度表示されれば、直後にupdateLastChecked()で最終確認時刻が更新されるため、次回以降は表示されない
+const NOTICE_CUTOFF_MS = new Date(2026, 8, 1, 0, 0, 0).getTime(); // 2026/09/01 0:00
+function maybeShowNotice(lastOpenedAt) {
+  const lastMillis = toMillisOrNull(lastOpenedAt) || 0;
+  if (lastMillis < NOTICE_CUTOFF_MS) {
+    AppDialog.alert(
+      "ゲームモード(β版)が公開されました！\nゲーム形式で、複数人で同時に問題を解くことができます。",
+      { title: "お知らせ" }
+    );
+  }
+}
+
 const handleLogout = async () => {
-  const isConfirmed = confirm("ログアウトしますか？");
+  const isConfirmed = await AppDialog.confirm("ログアウトしますか？", { okText: "ログアウトする", danger: true });
   if (isConfirmed) {
     try {
       await auth.signOut(auth);
       console.log("ログアウトしました！");
-      alert("ログアウトしました。");
+      await AppDialog.alert("ログアウトしました。");
       window.location.href = "./index.html";
     } catch (error) {
       console.error("ログアウトエラー:", error);
-      alert("ログアウトに失敗しました。");
+      await AppDialog.alert("ログアウトに失敗しました。");
     }
   }
 };
@@ -290,7 +353,9 @@ async function loadProblemBooks() {
       const createdAtMillis = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0;
       const updatedAtMillis = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : createdAtMillis;
 
-      // ★ 非公開の問題集は作成者本人と管理者にのみ表示する
+      // ★ 非公開の問題集は作成者本人と管理者にのみ表示する。
+      //   「みんなで解く」募集中かどうかはRTDB(liveSessions)側で別途判定し、
+      //   募集中の他人の非公開問題集は attachLiveSessionsListener() が動的に追加する
       if (isPrivate && makerUserId !== myUserId && !meIsAdmin) continue;
 
       bookCache[bookId] = [
@@ -314,7 +379,139 @@ async function loadProblemBooks() {
     }
   } catch (error) {
     console.log(error);
-    alert(error);
+    await AppDialog.alert(String(error));
+  }
+}
+
+// ★ RTDBの liveSessions を監視し、「募集中」の状態をリアルタイムに一覧へ反映する。
+//   ・自分の問題集や公開問題集は既に bookCache にあるので、バッジと並び順だけ更新すればよい
+//   ・他人の非公開問題集が新たに募集を開始した場合は、Firestoreから該当の問題集を取得して一覧に追加する
+//   ・募集が終わった(finished/cancelled)場合、他人の非公開問題集なら一覧から取り除く
+function attachLiveSessionsListener() {
+  const sessionsRef = rtdb.ref("liveSessions");
+  let errorAlertShown = false;
+  const reportError = error => {
+    console.error("募集状況の取得に失敗しました:", error);
+    if (!errorAlertShown) {
+      errorAlertShown = true;
+      AppDialog.alert(
+        "募集中の問題集の情報取得に失敗しました。RTDBのセキュリティルールで liveSessions 一覧の読み取りが許可されているかご確認ください。\n" +
+          (error && error.message ? error.message : error)
+      );
+    }
+  };
+
+  sessionsRef
+    .once("value")
+    .then(snap => {
+      const all = snap.val() || {};
+      // ★ 初回表示時、既に募集中のものはすべて強調したい。
+      //   bookCacheに既にある(公開/自分の問題集など)ものはこの場でハイライトし、
+      //   まだ無いもの(非公開の他人の問題集など)は、一覧に追加されたタイミングで改めてハイライトする
+      const highlightNow = new Set();
+      Object.entries(all).forEach(([bookId, session]) => {
+        if (isActiveSessionStatus(session && session.status)) {
+          liveSessionsCache[bookId] = session;
+          if (bookCache[bookId]) {
+            highlightNow.add(bookId);
+          } else {
+            bookIdsToHighlightOnce.add(bookId);
+          }
+        }
+      });
+      liveSessionsInitialLoadDone = true;
+      handleFilterChange(highlightNow);
+    })
+    .catch(reportError);
+
+  sessionsRef.on("child_added", snap => handleLiveSessionUpdate(snap.key, snap.val()), reportError);
+  sessionsRef.on("child_changed", snap => handleLiveSessionUpdate(snap.key, snap.val()), reportError);
+  sessionsRef.on("child_removed", snap => handleLiveSessionUpdate(snap.key, null), reportError);
+}
+
+async function handleLiveSessionUpdate(bookId, session) {
+  const wasActive = isActiveSessionStatus(liveSessionsCache[bookId] && liveSessionsCache[bookId].status);
+  const isActive = isActiveSessionStatus(session && session.status);
+
+  if (isActive) {
+    liveSessionsCache[bookId] = session;
+  } else {
+    delete liveSessionsCache[bookId];
+  }
+
+  // ★ 初回読み込みが終わったあとに「非アクティブ→アクティブ」になった時だけ新規開始として扱う
+  const justStarted = liveSessionsInitialLoadDone && !wasActive && isActive;
+  const justEnded = wasActive && !isActive;
+  // ★ 初回読み込み時点で既に募集中だった問題集が、今まさに一覧へ初めて追加される場合もハイライトする
+  const pendingInitialHighlight = bookIdsToHighlightOnce.has(bookId);
+  if (pendingInitialHighlight) bookIdsToHighlightOnce.delete(bookId);
+  const highlightBookId = justStarted || pendingInitialHighlight ? bookId : null;
+
+  if (!bookCache[bookId]) {
+    if (isActive) {
+      await fetchAndAddBookToCache(bookId);
+      handleFilterChange(highlightBookId);
+    }
+    return;
+  }
+
+  if (justEnded) {
+    const book = bookCache[bookId];
+    const isPrivate = !!book[10];
+    const isMakerOrAdmin = book[5] === myUserId || meIsAdmin;
+    if (isPrivate && !isMakerOrAdmin) {
+      delete bookCache[bookId];
+    }
+  }
+
+  handleFilterChange(highlightBookId);
+
+  // ★ 問題集モーダルを開いている最中に募集開始/終了などが起きても、開いたままリアルタイムで反映する
+  if (settingModalType === "book" && settingModalBookId === bookId) {
+    if (bookCache[bookId]) {
+      applyRecruitModeToSettingModal(bookId);
+    } else {
+      // 非公開×他人の問題集が募集終了して見えなくなった場合は、開いたままのモーダルを閉じる
+      settingModal.classList.add("hidden");
+      resetHashToCurrentType();
+    }
+  }
+}
+
+async function fetchAndAddBookToCache(bookId) {
+  try {
+    const doc = await db.collection("ProblemPosting").doc("books").collection("data").doc(bookId).get();
+    if (!doc.exists) return;
+    const data = doc.data();
+    let subjectId = data.subjectId || 0;
+    if (9 < subjectId) subjectId = 0;
+    let gradeId = data.gradeId || 0;
+    if (4 < gradeId) gradeId = 0;
+    const makerUserId = data.madeBy || "";
+    const solvedBy = data.solvedBy || [];
+    const createdAtMillis = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0;
+    const updatedAtMillis = data.updatedAt && data.updatedAt.toMillis ? data.updatedAt.toMillis() : createdAtMillis;
+
+    bookCache[bookId] = [
+      data.title || "タイトルがありません",
+      data.description || "説明文がありません",
+      subjectId,
+      gradeId,
+      data.problemCount || 0,
+      makerUserId,
+      solvedBy,
+      createdAtMillis,
+      updatedAtMillis,
+      !!data.shuffleProblems,
+      !!data.isPrivate
+    ];
+
+    await ensureUserCached(makerUserId);
+    for (const solverId of solvedBy) {
+      await ensureUserCached(solverId);
+    }
+  } catch (error) {
+    console.error("問題集の取得に失敗しました:", error);
   }
 }
 
@@ -368,11 +565,18 @@ async function loadCardDecks() {
     }
   } catch (error) {
     console.log(error);
-    alert(error);
+    await AppDialog.alert(String(error));
   }
 }
 
-function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
+// ★ animateTarget は単一のbookId文字列、または複数まとめてハイライトしたい場合のSetのどちらも受け付ける
+function shouldHighlightCard(bookId, animateTarget) {
+  if (!animateTarget) return false;
+  if (animateTarget instanceof Set) return animateTarget.has(bookId);
+  return bookId === animateTarget;
+}
+
+function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, animateBookId) {
   const listElement = document.getElementById("card-area");
   const loadingText = document.getElementById("loading-text");
 
@@ -380,20 +584,38 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
   const fragment = document.createDocumentFragment();
 
   const sortIndex = sortOrder === "updated" ? 8 : 7;
-  const sortedEntries = Object.entries(bookCache).sort(
-    ([, bookA], [, bookB]) => (bookB[sortIndex] || 0) - (bookA[sortIndex] || 0)
-  );
+  const sortedEntries = Object.entries(bookCache).sort(([bookIdA], [bookIdB]) => {
+    const bookA = bookCache[bookIdA];
+    const bookB = bookCache[bookIdB];
+    const recruitingDiff = (liveSessionsCache[bookIdB] ? 1 : 0) - (liveSessionsCache[bookIdA] ? 1 : 0);
+    if (recruitingDiff !== 0) return recruitingDiff;
+    return (bookB[sortIndex] || 0) - (bookA[sortIndex] || 0);
+  });
 
   sortedEntries.forEach(([bookId, book]) => {
     
     const card = document.createElement("div");
     card.classList.add("card");
+    card.dataset.bookId = bookId;
+    if (shouldHighlightCard(bookId, animateBookId)) card.classList.add("just-started-card");
 
     const isPrivate = !!book[10];
-    if (isPrivate) {
+    const session = liveSessionsCache[bookId];
+    const isRecruiting = !!session;
+    if (isPrivate || isRecruiting) {
       const privateBadge = document.createElement("span");
       privateBadge.classList.add("private-badge");
-      privateBadge.textContent = "非公開";
+      if (isRecruiting) {
+        const isWaiting = session.status === "waiting";
+        privateBadge.classList.add(isWaiting ? "recruiting-badge" : "started-badge");
+        if (isWaiting) {
+          privateBadge.textContent = session.isSpecial ? "スペシャルライブ・募集中" : "募集中";
+        } else {
+          privateBadge.textContent = "開始済み";
+        }
+      } else {
+        privateBadge.textContent = "非公開";
+      }
       card.appendChild(privateBadge);
     }
       
@@ -430,7 +652,11 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
     const nameSpan = document.createElement("span");
     nameSpan.textContent = makerCached.name;
     nameSpan.classList.add("clickable-user");
-    if (makerCached.isAdmin) nameSpan.classList.add("admin");
+    if (makerCached.isAdmin) {
+      nameSpan.classList.add("admin");
+    } else if (hasActivePrize(makerCached)) {
+      nameSpan.classList.add("prize");
+    }
     nameSpan.addEventListener("click", (e) => {
       e.stopPropagation();
       openProfileModal(book[5]);
@@ -583,7 +809,11 @@ function makeDisplayCards(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
     const nameSpan = document.createElement("span");
     nameSpan.textContent = makerCached.name;
     nameSpan.classList.add("clickable-user");
-    if (makerCached.isAdmin) nameSpan.classList.add("admin");
+    if (makerCached.isAdmin) {
+      nameSpan.classList.add("admin");
+    } else if (hasActivePrize(makerCached)) {
+      nameSpan.classList.add("prize");
+    }
     nameSpan.addEventListener("click", (e) => {
       e.stopPropagation();
       openProfileModal(deck[5]);
@@ -705,6 +935,9 @@ let settingModalEditButton, settingModalStartButton, viewImpressionsButton;
 let shuffleProblemsToggle;
 let shuffleToggleRow, flipToggleRow, flipCardsToggle;
 let settingModalType = "book";
+let recruitCommentArea, recruitCommentText, recruitStartOpenButton, joinButton, joinDisabledText;
+let recruitStartModal, recruitStartModalClose, recruitCommentInput, recruitStartConfirmButton;
+let specialLiveToggleRow, specialLiveToggle;
 document.addEventListener("DOMContentLoaded", () => {
   settingModal = document.getElementById("setting-modal");
   settingModalClose = document.getElementById("setting-modal-close");
@@ -722,10 +955,21 @@ document.addEventListener("DOMContentLoaded", () => {
   shuffleToggleRow = document.getElementById("shuffle-toggle-row");
   flipToggleRow = document.getElementById("flip-toggle-row");
   flipCardsToggle = document.getElementById("flip-cards-toggle");
+  recruitCommentArea = document.getElementById("recruit-comment-area");
+  recruitCommentText = document.getElementById("recruit-comment-text");
+  recruitStartOpenButton = document.getElementById("recruit-start-open-button");
+  joinButton = document.getElementById("join-button");
+  joinDisabledText = document.getElementById("join-disabled-text");
+  recruitStartModal = document.getElementById("recruit-start-modal");
+  recruitStartModalClose = document.getElementById("recruit-start-modal-close");
+  recruitCommentInput = document.getElementById("recruit-comment-input");
+  recruitStartConfirmButton = document.getElementById("recruit-start-confirm-button");
+  specialLiveToggleRow = document.getElementById("special-live-toggle-row");
+  specialLiveToggle = document.getElementById("special-live-toggle");
 
   settingModalClose.addEventListener("click", () => {
     settingModal.classList.add("hidden");
-    clearBookHash();
+    resetHashToCurrentType();
     settingModalSubject.textContent = "不明";
     settingModalGrade.textContent = "不明";
     settingModalCountText.textContent = "--問";
@@ -742,14 +986,126 @@ document.addEventListener("DOMContentLoaded", () => {
     settingModalDescription.textContent = "loading...";
     settingModalMadeByName.textContent = "loading...";
     settingModalMadeByName.classList.remove("admin");
+    settingModalMadeByName.classList.remove("prize");
 
     settingModalEditButton.classList.add("hidden");
     flipCardsToggle.checked = false;
+
+    recruitCommentArea.classList.add("hidden");
+    recruitStartOpenButton.classList.add("hidden");
+    joinButton.classList.add("hidden");
+    joinButton.classList.remove("leave-mode");
+    joinDisabledText.classList.add("hidden");
+    settingModalStartButton.classList.remove("hidden");
+    settingModalStartButton.classList.remove("full-width-button");
+    settingModalStartButton.textContent = "スタート";
+    shuffleToggleRow.classList.remove("hidden");
+  });
+
+  recruitStartOpenButton.addEventListener("click", () => {
+    recruitCommentInput.value = "";
+    recruitStartConfirmButton.disabled = false;
+    recruitStartConfirmButton.textContent = "募集を開始";
+    recruitStartModalClose.classList.remove("hidden");
+    specialLiveToggle.checked = false;
+    specialLiveToggleRow.classList.toggle("hidden", !meIsAdmin);
+    recruitStartModal.classList.remove("hidden");
+  });
+  recruitStartModalClose.addEventListener("click", () => {
+    recruitStartModal.classList.add("hidden");
+  });
+  recruitStartConfirmButton.addEventListener("click", async () => {
+    const bookId = settingModalBookId;
+    if (!bookId || !bookCache[bookId]) return;
+    const comment = recruitCommentInput.value.trim();
+    const timeLimitSeconds = DEFAULT_RECRUIT_TIME_LIMIT_SECONDS; // ★ 待機画面(liveHost.html)側で主催者が変更可能
+    const isSpecial = meIsAdmin && specialLiveToggle.checked; // ★ スペシャルライブ(景品つき)は管理者のみ設定可能
+
+    recruitStartConfirmButton.disabled = true;
+    recruitStartConfirmButton.textContent = "セッションを作成中…";
+    recruitStartModalClose.classList.add("hidden");
+    try {
+      await rtdb.ref(`liveSessions/${bookId}`).set({
+        hostUserId: myUserId,
+        status: "waiting",
+        timeLimitSeconds,
+        totalQuestions: bookCache[bookId][4] || 0,
+        recruitComment: comment,
+        isSpecial,
+        currentQuestionIndex: -1,
+        currentQuestion: null,
+        currentAnswerKey: null,
+        locked: false,
+        participants: {},
+        answers: {},
+        totalScores: {},
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+      });
+      // ★ liveSessionsCacheはattachLiveSessionsListener()のchild_addedで自動更新されるが、
+      //   モーダルの再表示はそれを待たず即座に行いたいのでここでも反映しておく
+      liveSessionsCache[bookId] = {
+        hostUserId: myUserId,
+        status: "waiting",
+        timeLimitSeconds,
+        recruitComment: comment,
+        isSpecial,
+        participants: {}
+      };
+      recruitStartModal.classList.add("hidden");
+      openSettingModal(bookId);
+      handleFilterChange();
+    } catch (error) {
+      console.error(error);
+      await AppDialog.alert("募集の開始に失敗しました。");
+    } finally {
+      recruitStartConfirmButton.disabled = false;
+      recruitStartConfirmButton.textContent = "募集を開始";
+      recruitStartModalClose.classList.remove("hidden");
+    }
+  });
+
+  joinButton.addEventListener("click", async () => {
+    const bookId = settingModalBookId;
+    if (!bookId || !bookCache[bookId]) return;
+    const session = liveSessionsCache[bookId];
+    const participants = (session && session.participants) || {};
+    const alreadyJoined = Object.prototype.hasOwnProperty.call(participants, myUserId);
+
+    if (alreadyJoined) {
+      // ★ 既に参加済みの場合はそのまま待機画面(解答画面)へ移動するだけ
+      window.location.href = `./liveAnswer.html?id=${bookId}`;
+      return;
+    }
+
+    joinButton.disabled = true;
+    try {
+      const statusSnap = await rtdb.ref(`liveSessions/${bookId}/status`).get();
+      const status = statusSnap.exists() ? statusSnap.val() : null;
+      if (status !== "waiting") {
+        joinButton.classList.add("hidden");
+        joinDisabledText.classList.remove("hidden");
+        return;
+      }
+
+      const myCached = getUserCache(myUserId) || {};
+      await rtdb.ref(`liveSessions/${bookId}/participants/${myUserId}`).set({
+        name: myCached.name || myUserId,
+        joinedAt: firebase.database.ServerValue.TIMESTAMP
+      });
+      window.location.href = `./liveAnswer.html?id=${bookId}`;
+    } catch (error) {
+      console.error(error);
+      await AppDialog.alert("参加処理に失敗しました。");
+      joinButton.disabled = false;
+    }
   });
   settingModalStartButton.addEventListener("click", () => {
     if (settingModalType === "card") {
       const flipParam = flipCardsToggle.checked && !flipCardsToggle.disabled ? "&flip=1" : "";
       window.location.href = `./answerCard.html?id=${settingModalBookId}${flipParam}`;
+    } else if (liveSessionsCache[settingModalBookId]) {
+      // ★ 募集中の問題集は、主催者用のライブ進行画面へ
+      window.location.href = `./liveHost.html?id=${settingModalBookId}`;
     } else {
       const shuffleParam = shuffleProblemsToggle.checked && !shuffleProblemsToggle.disabled ? "&shuffle=1" : "";
       window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}`;
@@ -779,6 +1135,15 @@ function setSettingModalMode(mode) {
   settingModalEditButton.classList.add("hidden");
   viewImpressionsButton.classList.remove("hidden");
   settingModalShareButton.classList.remove("hidden");
+
+  recruitCommentArea.classList.add("hidden");
+  recruitStartOpenButton.classList.add("hidden");
+  joinButton.classList.add("hidden");
+  joinButton.classList.remove("leave-mode");
+  joinDisabledText.classList.add("hidden");
+  settingModalStartButton.classList.remove("hidden");
+  settingModalStartButton.classList.remove("full-width-button");
+  settingModalStartButton.textContent = "スタート";
 }
 
 function openSettingModal(id) {
@@ -800,12 +1165,87 @@ function openSettingModal(id) {
   const makerCached = getUserCache(bookCache[id][5]) || {};
   settingModalMadeByName.textContent = makerCached.name;
   settingModalMadeByName.classList.toggle("admin", !!makerCached.isAdmin);
+  settingModalMadeByName.classList.toggle("prize", !makerCached.isAdmin && hasActivePrize(makerCached));
 
   if (bookCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.classList.remove("hidden");
 
   const allowShuffle = !!bookCache[id][9];
   shuffleProblemsToggle.checked = false;
   shuffleProblemsToggle.disabled = !allowShuffle;
+
+  applyRecruitModeToSettingModal(id);
+}
+
+// ★ 「みんなで解く」募集中かどうかで出題設定モーダルの表示を切り替える（問題集のみ対象）
+// ★ 「みんなで解く」募集中かどうかで出題設定モーダルの表示を切り替える（問題集のみ対象）
+//   liveSessionsCache はRTDBのリアルタイム監視で常に最新化されているので、ここでは同期的に判定できる
+function applyRecruitModeToSettingModal(id) {
+  const book = bookCache[id];
+  const isMaker = book[5] === myUserId;
+  const isPrivate = !!book[10];
+  const session = liveSessionsCache[id];
+  const isRecruiting = !!session;
+
+  recruitCommentArea.classList.add("hidden");
+  recruitStartOpenButton.classList.add("hidden");
+  joinButton.classList.add("hidden");
+  joinButton.classList.remove("leave-mode");
+  joinDisabledText.classList.add("hidden");
+  settingModalStartButton.classList.remove("hidden");
+  settingModalStartButton.classList.remove("full-width-button");
+  settingModalStartButton.textContent = "スタート";
+  shuffleToggleRow.classList.remove("hidden");
+
+  if (isRecruiting) {
+    // 募集中は編集・感想・シャッフル設定を隠す。シェアは残す
+    settingModalEditButton.classList.add("hidden");
+    viewImpressionsButton.classList.add("hidden");
+    shuffleToggleRow.classList.add("hidden");
+
+    recruitCommentArea.classList.remove("hidden");
+    recruitCommentText.textContent = session.recruitComment || "(コメントはありません)";
+
+    if (isMaker) {
+      // 主催者: 待機画面(進行管理)へ
+      settingModalStartButton.classList.remove("hidden");
+      settingModalStartButton.classList.add("full-width-button");
+      settingModalStartButton.textContent = "待機画面へ";
+      joinButton.classList.add("hidden");
+    } else {
+      // 参加者: 参加する/待機画面へ のみ。既に開始済み(waiting以外)かつ未参加なら参加不可
+      settingModalStartButton.classList.add("hidden");
+
+      const participants = session.participants || {};
+      const alreadyJoined = Object.prototype.hasOwnProperty.call(participants, myUserId);
+
+      joinButton.classList.remove("hidden");
+      joinButton.disabled = false;
+      if (alreadyJoined) {
+        joinButton.textContent = "待機画面へ";
+      } else if (session.status === "waiting") {
+        joinButton.textContent = "参加する";
+      } else {
+        joinButton.classList.add("hidden");
+        joinDisabledText.classList.remove("hidden");
+      }
+    }
+  } else {
+    viewImpressionsButton.classList.remove("hidden");
+    if (isPrivate && isMaker) {
+      recruitStartOpenButton.classList.remove("hidden");
+      // ★ 一時的に管理者以外は「みんなで解く」を無効化(グレー表示)しておく
+      recruitStartOpenButton.disabled = !meIsAdmin;
+      recruitStartOpenButton.classList.toggle("disabled-feature", !meIsAdmin);
+    }
+  }
+
+  // ★ 編集ボタンと参加ボタンが両方隠れているなら、スタートボタンは常に横幅100%にする
+  //   (隣接セレクタでのwidth切り替えはjoin-buttonが間に挟まると効かないため、ここでまとめて判定する)
+  const editHidden = settingModalEditButton.classList.contains("hidden");
+  const joinHidden = joinButton.classList.contains("hidden");
+  if (!settingModalStartButton.classList.contains("hidden")) {
+    settingModalStartButton.classList.toggle("full-width-button", editHidden && joinHidden);
+  }
 }
 
 function openCardSettingModal(id) {
@@ -827,6 +1267,7 @@ function openCardSettingModal(id) {
   const makerCached = getUserCache(deckCache[id][5]) || {};
   settingModalMadeByName.textContent = makerCached.name;
   settingModalMadeByName.classList.toggle("admin", !!makerCached.isAdmin);
+  settingModalMadeByName.classList.toggle("prize", !makerCached.isAdmin && hasActivePrize(makerCached));
 
   if (deckCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.classList.remove("hidden");
 
@@ -841,22 +1282,44 @@ function setBookHash(bookId) {
   const newUrl = `${window.location.pathname}${window.location.search}#${bookId}`;
   history.pushState(null, "", newUrl);
 }
-function clearBookHash() {
-  if (!window.location.hash) return;
-  const newUrl = `${window.location.pathname}${window.location.search}`;
+// ★ 「#books」「#cards」は一覧の種類そのものを表すハッシュとして扱う。
+//   モーダルを閉じた時などは、個別ID(#問題集ID)からこちらに戻す
+function resetHashToCurrentType() {
+  const target = `#${contentTypeSelect.value === "cards" ? "cards" : "books"}`;
+  if (window.location.hash === target) return;
+  const newUrl = `${window.location.pathname}${window.location.search}${target}`;
   history.replaceState(null, "", newUrl);
 }
-function openSettingModalFromHash() {
-  const id = window.location.hash.replace("#", "");
-  if (!id) return;
-  if (bookCache[id]) {
-    contentTypeSelect.value = "books";
-    handleFilterChange();
-    openSettingModal(id);
-  } else if (deckCache[id]) {
+// ★ 起動時、URLハッシュに応じて表示する一覧の種類・開くモーダルを決める。
+//   #books / #cards ならその一覧を表示するだけ、それ以外は問題集/暗記カードIDとみなし、
+//   該当する一覧をバックで表示したうえで、そのモーダルを開く
+function initializeViewFromHash() {
+  const hash = window.location.hash.replace("#", "");
+
+  if (hash === "cards") {
     contentTypeSelect.value = "cards";
-    handleFilterChange();
-    openCardSettingModal(id);
+    makeDisplayCards("all", "all", sortOrderSelect.value, "all");
+    return;
+  }
+  if (hash === "books") {
+    contentTypeSelect.value = "books";
+    makeDisplayBooks("all", "all", sortOrderSelect.value, "all");
+    return;
+  }
+
+  if (bookCache[hash]) {
+    contentTypeSelect.value = "books";
+    makeDisplayBooks("all", "all", sortOrderSelect.value, "all");
+    openSettingModal(hash);
+  } else if (deckCache[hash]) {
+    contentTypeSelect.value = "cards";
+    makeDisplayCards("all", "all", sortOrderSelect.value, "all");
+    openCardSettingModal(hash);
+  } else {
+    // ★ 該当データが無い(存在しないID/権限がない等)場合は、通常の問題集一覧にフォールバックする
+    contentTypeSelect.value = "books";
+    makeDisplayBooks("all", "all", sortOrderSelect.value, "all");
+    resetHashToCurrentType();
   }
 }
 
@@ -924,7 +1387,11 @@ function openSolvedModal(id, type) {
       const nameSpan = document.createElement("span");
       nameSpan.classList.add("member-name");
       nameSpan.textContent = cached.name || "不明なユーザー";
-      if (cached.isAdmin) nameSpan.classList.add("admin");
+      if (cached.isAdmin) {
+        nameSpan.classList.add("admin");
+      } else if (hasActivePrize(cached)) {
+        nameSpan.classList.add("prize");
+      }
       left.appendChild(nameSpan);
 
       item.appendChild(left);
@@ -992,7 +1459,8 @@ async function openUserListModal() {
         name,
         isAdmin,
         imageUrl,
-        profileText: userData.profileText || ""
+        profileText: userData.profileText || "",
+        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
       });
 
       const item = document.createElement("div");
@@ -1007,7 +1475,11 @@ async function openUserListModal() {
       const nameSpan = document.createElement("span");
       nameSpan.classList.add("member-name");
       nameSpan.textContent = name;
-      if (isAdmin) nameSpan.classList.add("admin");
+      if (isAdmin) {
+        nameSpan.classList.add("admin");
+      } else if (hasActivePrize(getUserCache(userId))) {
+        nameSpan.classList.add("prize");
+      }
       left.appendChild(nameSpan);
 
       item.appendChild(left);
@@ -1171,7 +1643,7 @@ async function handleProfileEditOrSave() {
     const newProfileText = profileTextEdit.value.trim();
 
     if (!newName) {
-      alert("ユーザーネームを入力してください。");
+      await AppDialog.alert("ユーザーネームを入力してください。");
       return;
     }
 
@@ -1203,7 +1675,8 @@ async function handleProfileEditOrSave() {
         name: newName,
         isAdmin: previousCache.isAdmin || false,
         imageUrl: finalImageUrl,
-        profileText: newProfileText
+        profileText: newProfileText,
+        prizeExpiresAt: previousCache.prizeExpiresAt || null
       });
 
       if (currentProfileUserId === myUserId) {
@@ -1220,12 +1693,13 @@ async function handleProfileEditOrSave() {
       profileAvatarHolder.appendChild(createAvatar(newName, "large", updated.imageUrl));
 
       profileName.classList.toggle("admin", !!updated.isAdmin);
+      profileName.classList.toggle("prize", !updated.isAdmin && hasActivePrize(updated));
 
       resetProfileEditMode();
-      alert("プロフィールを保存しました。");
+      await AppDialog.alert("プロフィールを保存しました。");
     } catch (error) {
       console.error("プロフィール保存エラー:", error);
-      alert("プロフィールの保存に失敗しました: " + error.message);
+      await AppDialog.alert("プロフィールの保存に失敗しました: " + error.message);
       profileEditButton.disabled = false;
       profileEditButton.textContent = "プロフィールを保存";
     }
@@ -1242,6 +1716,7 @@ async function openProfileModal(userId, startEditMode = false) {
   const hasCachedProfileText = !!cached && cached.profileText !== undefined;
   profileName.textContent = (cached && cached.name) || "取得中...";
   profileName.classList.toggle("admin", !!(cached && cached.isAdmin));
+  profileName.classList.toggle("prize", !!cached && !cached.isAdmin && hasActivePrize(cached));
   profileText.textContent = hasCachedProfileText
     ? (cached.profileText || "ステータスメッセージはありません。")
     : "取得中...";
@@ -1267,11 +1742,13 @@ async function openProfileModal(userId, startEditMode = false) {
         name: userData.name || "名前未設定",
         isAdmin: userData.isAdmin || false,
         imageUrl: userData.imageUrl || "",
-        profileText: userData.profileText || ""
+        profileText: userData.profileText || "",
+        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
       });
 
       profileName.textContent = updated.name;
       profileName.classList.toggle("admin", !!updated.isAdmin);
+      profileName.classList.toggle("prize", !updated.isAdmin && hasActivePrize(updated));
       profileText.textContent = updated.profileText || "ステータスメッセージはありません。";
       profileAvatarCurrentUrl = updated.imageUrl || "";
 
@@ -1345,7 +1822,11 @@ async function openImpressionsModal(bookId, type) {
       const nameSpan = document.createElement("span");
       nameSpan.classList.add("impression-card-name", "clickable-user");
       nameSpan.textContent = cached.name || "不明なユーザー";
-      if (cached.isAdmin) nameSpan.classList.add("admin");
+      if (cached.isAdmin) {
+        nameSpan.classList.add("admin");
+      } else if (hasActivePrize(cached)) {
+        nameSpan.classList.add("prize");
+      }
       nameSpan.addEventListener("click", () => {
         openProfileModal(userId);
       });
@@ -1418,7 +1899,7 @@ async function saveImpressionEdit() {
     await openImpressionsModal(impressionEditBookId, impressionEditType);
   } catch (error) {
     console.error("感想の保存エラー:", error);
-    alert("感想の保存に失敗しました。\n" + error);
+    await AppDialog.alert("感想の保存に失敗しました。\n" + error);
   } finally {
     impressionEditSaveButton.disabled = false;
     impressionEditSaveButton.textContent = "保存する";

@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="answerCardStyle.css">
+  <link rel="stylesheet" href="appDialogStyle.css">
   
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -22,6 +23,50 @@
     <p>カードを読み込んでいます｡</p>
   </div>
 
+  <div id="no-permission-overlay" class="hidden">
+    <h1>解答できません</h1>
+    <p>この暗記カードを解く権限がありません。</p>
+    <a href="./app.html#cards" class="answer-next-button">ホームにもどる</a>
+  </div>
+
+  <div id="user-list-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="title">ユーザー一覧</p>
+        <span id="user-list-modal-close" class="close-button">&times;</span>
+      </div>
+      <div id="user-list-area"></div>
+    </div>
+  </div>
+
+  <div id="profile-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="title">プロフィール</p>
+        <span id="profile-modal-close" class="close-button">&times;</span>
+      </div>
+      <div id="profile-area">
+        <div class="profile-avatar-wrap">
+          <div id="profile-avatar-holder"></div>
+          <input type="file" id="profile-avatar-input" accept="image/*" class="visually-hidden-input">
+          <button id="profile-avatar-remove-button" class="hidden">画像を削除</button>
+        </div>
+
+        <p id="profile-name">取得中...</p>
+        <input id="profile-name-input" class="hidden" type="text" placeholder="ユーザーネーム">
+
+        <p class="profile-label">ステータスメッセージ</p>
+        <div id="profile-text">取得中...</div>
+        <textarea id="profile-text-edit" class="hidden" placeholder="自己紹介を入力してください"></textarea>
+
+        <div class="profile-edit-button-row">
+          <button id="profile-cancel-button" class="hidden">キャンセル</button>
+          <button id="profile-edit-button" class="hidden">プロフィールを編集</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="drawerOverlay" class="drawer-overlay"></div>
   <div id="accountSettingsDrawer" class="drawer">
     <div class="drawer-header">
@@ -32,6 +77,10 @@
       <div class="drawer-section">
         <p class="title">現在のユーザー</p>
         <p>ID: <strong id="drawerUserId">取得中...</strong><span></span></p>
+        <p>ユーザーネーム: <strong id="drawerUsername">取得中...</strong></p>
+
+        <button id="drawer-edit-profile-button" class="normal-button" style="margin-bottom: 1rem;">プロフィールを編集</button>
+        <button id="drawer-user-list-button" class="normal-button hidden" style="margin-bottom: 1rem;">ユーザー一覧</button>
         <button id="logout-button" class="logout-button normal-button">ログアウト</button>
       </div>
     </div>
@@ -60,18 +109,25 @@
       </div>
 
       <div id="card-container" class="card-container hidden">
-        <div class="flip-card-container">
-          <div class="flip-card-inner" id="flip-card">
-            <div class="flip-card-front">
-              <p id="card-front-text">loading...</p>
-              <button id="show-back-button">答えをみる</button>
-            </div>
-            <div class="flip-card-back">
-              <p id="card-back-text">loading...</p>
-              <button id="next-card-button">次へ</button>
+        <div class="flip-card-container" id="flip-card-container">
+          <div class="flip-card-peek" id="flip-card-peek">
+            <p id="peek-card-text"></p>
+            <button id="peek-card-button" class="peek-card-button" tabindex="-1" disabled></button>
+          </div>
+          <div class="flip-card-slide" id="flip-card-slide">
+            <div class="flip-card-inner" id="flip-card">
+              <div class="flip-card-front">
+                <p id="card-front-text">loading...</p>
+                <button id="show-back-button">答えをみる</button>
+              </div>
+              <div class="flip-card-back">
+                <p id="card-back-text">loading...</p>
+                <button id="next-card-button">次へ</button>
+              </div>
             </div>
           </div>
         </div>
+        <p class="swipe-hint">左右にスワイプでも操作できます</p>
       </div>
 
       <div id="card-finished-area" class="card-finished-area hidden">
@@ -93,6 +149,19 @@
       <button id="impression-save-button" class="answer-next-button">保存する</button>
     </div>
   </div>
+
+  <div id="app-dialog-modal" class="modal-overlay hidden">
+    <div class="modal-content app-dialog-content">
+      <p id="app-dialog-title" class="app-dialog-title hidden"></p>
+      <p id="app-dialog-message" class="app-dialog-message"></p>
+      <div class="app-dialog-actions">
+        <button id="app-dialog-ok-button">OK</button>
+        <button id="app-dialog-cancel-button" class="hidden">キャンセル</button>
+      </div>
+    </div>
+  </div>
   
+  <script src="appDialog.js"></script>
+  <script src="profileSystem.js"></script>
   <script src="answerCardScript.js"></script>
 </html>
