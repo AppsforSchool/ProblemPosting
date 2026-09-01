@@ -1286,6 +1286,7 @@ function handleNextButton() {
     // ★ status を "finished" にした時点で、募集中の判定(appScript.js側)は自動的に外れる
     sessionRef.update({ status: "finished" });
     bumpBookUpdatedAt();
+    makeBookPublic();
     markParticipantsAsSolved();
     grantSpecialLivePrize();
   } else {
@@ -1304,6 +1305,16 @@ function bumpBookUpdatedAt() {
     .doc(bookId)
     .update({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
     .catch(error => console.error("更新日時の更新に失敗しました:", error));
+}
+
+// ★ ライブが終了(結果発表画面に到達)したら、この問題集の非公開設定を解除する(主催者側で自動的に公開する)
+function makeBookPublic() {
+  db.collection("ProblemPosting")
+    .doc("books")
+    .collection("data")
+    .doc(bookId)
+    .update({ isPrivate: false })
+    .catch(error => console.error("公開設定の更新に失敗しました:", error));
 }
 
 // ★ 最終結果発表まで到達したら、参加者全員を「解いた人」に追加する(通常の解答モードと同様)
