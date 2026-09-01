@@ -694,6 +694,97 @@ function renderGradingPhase() {
   });
 }
 
+// ★ 前回の問題までの累計点数を基準にした、今回加算する前の順位
+function buildRankingBeforeThisRound() {
+  const participants = sessionData.participants || {};
+  const deltaMap = buildScoreDeltaMap();
+  return Object.keys(participants)
+    .map(uid => ({
+      uid,
+      name: (participants[uid] && participants[uid].name) || uid,
+      score: deltaMap[uid] ? deltaMap[uid].before : 0
+    }))
+    .filter(entry => entry.score > 0) // ★ 0点の人はランキングから除外する
+    .sort((a, b) => b.score - a.score);
+}
+
+// ★ uid -> { before(今回加算前の累計), after(現在の累計), delta(今回の得点) }
+function buildScoreDeltaMap() {
+  const index = sessionData.currentQuestionIndex;
+  const totalScores = sessionData.totalScores || {};
+  const participants = sessionData.participants || {};
+  const roundAnswers = (sessionData.answers && sessionData.answers[index]) || {};
+  const map = {};
+  Object.keys(participants).forEach(uid => {
+    const thisRoundScore =
+      roundAnswers[uid] && typeof roundAnswers[uid].score === "number" ? roundAnswers[uid].score : 0;
+    const after = totalScores[uid] || 0;
+    const before = Math.max(0, after - thisRoundScore);
+    map[uid] = { before, after, delta: after - before };
+  });
+  return map;
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ★ 数値表示を、指定時間かけて滑らかにカウントアップさせる
+function animateCountUp(el, from, to, duration) {
+  if (from === to) {
+    el.textContent = to;
+    return Promise.resolve();
+  }
+  return new Promise(resolve => {
+    const startTime = performance.now();
+    function step(now) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out
+      el.textContent = Math.round(from + (to - from) * eased);
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        el.textContent = to;
+        resolve();
+      }
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+// ★ 今回の結果発表を「①加算前の順位を表示→②得点がカウントアップ→③順位が入れ替わる」の3段階で見せる。
+//   同じ問題の間に何度もrenderResultsPhase()が呼ばれても、このシーケンスは初回の1回だけ再生する
+let resultsSequencePlayedIndex = -1;
+
+async function playResultsLeaderboardSequence(container, isFinal) {
+  const beforeRanking = buildRankingBeforeThisRound();
+  const deltaMap = buildScoreDeltaMap();
+
+  // ★①まずは、今回の得点を加算する前の順位をそのまま表示する
+  container.innerHTML = "";
+  beforeRanking.forEach((entry, i) => {
+    const row = buildLeaderboardRow(entry, i + 1);
+    container.appendChild(row);
+  });
+
+  await wait(700);
+
+  // ★②各自の得点を、加算前の点数から加算後の点数までカウントアップさせる
+  const countPromises = Array.from(container.children).map(row => {
+    const info = deltaMap[row.dataset.uid];
+    if (!info || info.delta === 0) return Promise.resolve();
+    const scoreEl = row.querySelector(".leaderboard-score");
+    if (!scoreEl) return Promise.resolve();
+    return animateCountUp(scoreEl, info.before, info.after, 700);
+  });
+  await Promise.all(countPromises);
+
+  await wait(350);
+
+  // ★③加算後の順位へ、既存のFLIPアニメーションで入れ替える
+  renderLeaderboard(container, isFinal);
+}
+
 function renderResultsPhase() {
   const index = sessionData.currentQuestionIndex;
   const answerKey = sessionData.currentAnswerKey || {};
@@ -714,7 +805,12 @@ function renderResultsPhase() {
     resultsCorrectArea.appendChild(exp);
   }
 
-  renderLeaderboard(resultsLeaderboardArea);
+  if (resultsSequencePlayedIndex !== index) {
+    resultsSequencePlayedIndex = index;
+    playResultsLeaderboardSequence(resultsLeaderboardArea);
+  } else {
+    renderLeaderboard(resultsLeaderboardArea);
+  }
 
   const isLast = index >= problemsData.length - 1;
   nextQuestionButton.textContent = isLast ? "結果発表を見る" : "次の問題へ";
