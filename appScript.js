@@ -936,8 +936,9 @@ let shuffleProblemsToggle;
 let shuffleToggleRow, flipToggleRow, flipCardsToggle;
 let settingModalType = "book";
 let recruitCommentArea, recruitCommentText, recruitStartOpenButton, joinButton, joinDisabledText;
-let recruitStartModal, recruitStartModalClose, recruitCommentInput, recruitStartConfirmButton;
+let recruitStartModal, recruitStartModalClose, recruitCommentInput, recruitStartConfirmButton, recruitStartModalTitle;
 let specialLiveToggleRow, specialLiveToggle;
+let soloStartButton;
 document.addEventListener("DOMContentLoaded", () => {
   settingModal = document.getElementById("setting-modal");
   settingModalClose = document.getElementById("setting-modal-close");
@@ -962,10 +963,12 @@ document.addEventListener("DOMContentLoaded", () => {
   joinDisabledText = document.getElementById("join-disabled-text");
   recruitStartModal = document.getElementById("recruit-start-modal");
   recruitStartModalClose = document.getElementById("recruit-start-modal-close");
+  recruitStartModalTitle = document.getElementById("recruit-start-modal-title");
   recruitCommentInput = document.getElementById("recruit-comment-input");
   recruitStartConfirmButton = document.getElementById("recruit-start-confirm-button");
   specialLiveToggleRow = document.getElementById("special-live-toggle-row");
   specialLiveToggle = document.getElementById("special-live-toggle");
+  soloStartButton = document.getElementById("solo-start-button");
 
   settingModalClose.addEventListener("click", () => {
     settingModal.classList.add("hidden");
@@ -993,12 +996,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     recruitCommentArea.classList.add("hidden");
     recruitStartOpenButton.classList.add("hidden");
+    recruitStartOpenButton.textContent = "みんなで解く";
     joinButton.classList.add("hidden");
     joinButton.classList.remove("leave-mode");
+    joinButton.classList.remove("split-primary");
     joinDisabledText.classList.add("hidden");
     settingModalStartButton.classList.remove("hidden");
     settingModalStartButton.classList.remove("full-width-button");
+    settingModalStartButton.classList.remove("split-primary");
     settingModalStartButton.textContent = "スタート";
+    soloStartButton.classList.add("hidden");
+    soloStartButton.classList.remove("split-secondary");
     shuffleToggleRow.classList.remove("hidden");
   });
 
@@ -1009,6 +1017,9 @@ document.addEventListener("DOMContentLoaded", () => {
     recruitStartModalClose.classList.remove("hidden");
     specialLiveToggle.checked = false;
     specialLiveToggleRow.classList.toggle("hidden", !meIsAdmin);
+    const currentBook = bookCache[settingModalBookId];
+    const isPrivateBook = !!(currentBook && currentBook[10]);
+    recruitStartModalTitle.textContent = isPrivateBook ? "みんなで解く" : "みんなで解き直す";
     recruitStartModal.classList.remove("hidden");
   });
   recruitStartModalClose.addEventListener("click", () => {
@@ -1111,6 +1122,11 @@ document.addEventListener("DOMContentLoaded", () => {
       window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}`;
     }
   });
+  // ★ 募集中でも一人で解けるようにするための「スタート」ボタン。ライブセッションを無視して通常の解答画面へ
+  soloStartButton.addEventListener("click", () => {
+    const shuffleParam = shuffleProblemsToggle.checked && !shuffleProblemsToggle.disabled ? "&shuffle=1" : "";
+    window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}`;
+  });
   settingModalEditButton.addEventListener("click", () => {
     const editPage = settingModalType === "card" ? "editCard.html" : "edit.html";
     window.location.href = `./${editPage}?id=${settingModalBookId}`;
@@ -1138,12 +1154,17 @@ function setSettingModalMode(mode) {
 
   recruitCommentArea.classList.add("hidden");
   recruitStartOpenButton.classList.add("hidden");
+  recruitStartOpenButton.textContent = "みんなで解く";
   joinButton.classList.add("hidden");
   joinButton.classList.remove("leave-mode");
+  joinButton.classList.remove("split-primary");
   joinDisabledText.classList.add("hidden");
   settingModalStartButton.classList.remove("hidden");
   settingModalStartButton.classList.remove("full-width-button");
+  settingModalStartButton.classList.remove("split-primary");
   settingModalStartButton.textContent = "スタート";
+  soloStartButton.classList.add("hidden");
+  soloStartButton.classList.remove("split-secondary");
 }
 
 function openSettingModal(id) {
@@ -1188,12 +1209,17 @@ function applyRecruitModeToSettingModal(id) {
 
   recruitCommentArea.classList.add("hidden");
   recruitStartOpenButton.classList.add("hidden");
+  recruitStartOpenButton.textContent = "みんなで解く";
   joinButton.classList.add("hidden");
   joinButton.classList.remove("leave-mode");
+  joinButton.classList.remove("split-primary");
   joinDisabledText.classList.add("hidden");
   settingModalStartButton.classList.remove("hidden");
   settingModalStartButton.classList.remove("full-width-button");
+  settingModalStartButton.classList.remove("split-primary");
   settingModalStartButton.textContent = "スタート";
+  soloStartButton.classList.add("hidden");
+  soloStartButton.classList.remove("split-secondary");
   shuffleToggleRow.classList.remove("hidden");
 
   if (isRecruiting) {
@@ -1205,14 +1231,27 @@ function applyRecruitModeToSettingModal(id) {
     recruitCommentArea.classList.remove("hidden");
     recruitCommentText.textContent = session.recruitComment || "(コメントはありません)";
 
+    // ★ 募集中の「スタート」(一人で解く)は、公開済みの問題集の時だけ出す。
+    //   非公開の問題集は元々「みんなで解く」専用の問題集なので、募集中は従来通りライブ関連のボタンのみにする
+    const showSoloStart = !isPrivate;
+    if (showSoloStart) {
+      soloStartButton.classList.remove("hidden");
+    }
+
     if (isMaker) {
-      // 主催者: 待機画面(進行管理)へ
+      // 主催者: 待機画面(進行管理)へ ＋ (公開済みなら)一人で解く(スタート)
       settingModalStartButton.classList.remove("hidden");
-      settingModalStartButton.classList.add("full-width-button");
       settingModalStartButton.textContent = "待機画面へ";
       joinButton.classList.add("hidden");
+      if (showSoloStart) {
+        settingModalStartButton.classList.add("split-primary");
+        soloStartButton.classList.add("split-secondary");
+      } else {
+        settingModalStartButton.classList.add("full-width-button");
+      }
     } else {
-      // 参加者: 参加する/待機画面へ のみ。既に開始済み(waiting以外)かつ未参加なら参加不可
+      // 参加者: 参加する/待機画面へ ＋ (公開済みなら)一人で解く(スタート)。
+      // 既に開始済み(waiting以外)かつ未参加の場合は参加ボタンのみ出せず、一人で解くボタンだけ表示する
       settingModalStartButton.classList.add("hidden");
 
       const participants = session.participants || {};
@@ -1222,26 +1261,40 @@ function applyRecruitModeToSettingModal(id) {
       joinButton.disabled = false;
       if (alreadyJoined) {
         joinButton.textContent = "待機画面へ";
+        if (showSoloStart) {
+          joinButton.classList.add("split-primary");
+          soloStartButton.classList.add("split-secondary");
+        }
       } else if (session.status === "waiting") {
         joinButton.textContent = "参加する";
+        if (showSoloStart) {
+          joinButton.classList.add("split-primary");
+          soloStartButton.classList.add("split-secondary");
+        }
       } else {
         joinButton.classList.add("hidden");
         joinDisabledText.classList.remove("hidden");
+        // ★ 参加できない状態でも、公開済みなら一人で解くボタンは単独(幅100%)で表示する
       }
     }
   } else {
     viewImpressionsButton.classList.remove("hidden");
-    if (isPrivate && isMaker) {
+    if (isMaker) {
+      // ★ 公開済みの問題集でも、作成者なら「みんなで解き直す」として募集を開始できる
       recruitStartOpenButton.classList.remove("hidden");
+      recruitStartOpenButton.textContent = isPrivate ? "みんなで解く" : "みんなで解き直す";
     }
   }
 
   // ★ 編集ボタンと参加ボタンが両方隠れているなら、スタートボタンは常に横幅100%にする
   //   (隣接セレクタでのwidth切り替えはjoin-buttonが間に挟まると効かないため、ここでまとめて判定する)
-  const editHidden = settingModalEditButton.classList.contains("hidden");
-  const joinHidden = joinButton.classList.contains("hidden");
-  if (!settingModalStartButton.classList.contains("hidden")) {
-    settingModalStartButton.classList.toggle("full-width-button", editHidden && joinHidden);
+  //   募集中は split-primary / split-secondary で幅を制御するので、この自動判定は対象外にする
+  if (!isRecruiting) {
+    const editHidden = settingModalEditButton.classList.contains("hidden");
+    const joinHidden = joinButton.classList.contains("hidden");
+    if (!settingModalStartButton.classList.contains("hidden")) {
+      settingModalStartButton.classList.toggle("full-width-button", editHidden && joinHidden);
+    }
   }
 }
 

@@ -799,6 +799,25 @@ body {
 .buttons-area .full-width-button {
   width: 100% !important;
 }
+/* ★ 募集中でも一人で解けるようにするための「スタート」ボタン(solo-start-button)。
+   デフォルトは単独表示(幅100%)。主催者用の「待機画面へ」や参加者用の「参加する」ボタンと
+   並べて表示する時だけ、JS側で split-primary / split-secondary を付け替えて幅を分け合う。 */
+.buttons-area #solo-start-button {
+  width: 100%;
+  background-color: var(--surface-alt);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  box-shadow: none;
+}
+.buttons-area #solo-start-button:hover:not(:disabled) {
+  background-color: var(--border);
+}
+.buttons-area .split-primary {
+  width: 65% !important;
+}
+.buttons-area .split-secondary {
+  width: 35% !important;
+}
 /* ★ 「待機画面へ」(募集中の問題集の主催者用)の時だけ、ライブ周りのボタンと同じグラデーションにする */
 .buttons-area #start-button.full-width-button {
   background: linear-gradient(120deg, var(--primary), var(--accent));
