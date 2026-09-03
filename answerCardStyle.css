@@ -1059,6 +1059,38 @@ footer p {
   margin-bottom: 0.9rem;
 }
 
+.favorite-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.45rem 0.85rem;
+  margin-bottom: 0.6rem;
+  cursor: pointer;
+  box-sizing: border-box;
+
+  background-color: var(--surface-alt);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-full);
+  transition: background-color 0.2s var(--ease), border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+.favorite-button:hover:not(:disabled) {
+  background-color: var(--border);
+}
+.favorite-button.is-favorited {
+  background-color: #fff6da;
+  color: #b8860b;
+  border-color: #f0dfa0;
+}
+.favorite-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 /* ---- 背面: 次/前のカードの覗き見レイヤー ---- */
 .flip-card-peek {
   position: absolute;

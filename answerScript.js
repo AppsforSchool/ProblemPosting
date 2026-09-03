@@ -43,6 +43,7 @@ let currentBookId = "";
 
 let answerButton;
 let skipButton;
+let favoriteButton;
 let textAnswerInputEl;
 let descriptiveAnswerInputEl;
 let answerModal;
@@ -116,6 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   answerButton = document.getElementById("answer-button");
   skipButton = document.getElementById("skip-button");
+  favoriteButton = document.getElementById("favorite-button");
   textAnswerInputEl = document.getElementById("text-answer-input");
   descriptiveAnswerInputEl = document.getElementById("descriptive-answer-input");
   answerModal = document.getElementById("answer-modal");
@@ -143,6 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   answerButton.addEventListener("click", handleAnswerSubmit);
   skipButton.addEventListener("click", handleSkip);
+  favoriteButton.addEventListener("click", handleAddFavorite);
   textAnswerInputEl.addEventListener("input", updateAnswerButtonState);
   descriptiveAnswerInputEl.addEventListener("input", updateAnswerButtonState);
   answerModalNextButton.addEventListener("click", handleAnswerModalNext);
@@ -295,6 +298,37 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+// ★ 現在表示中の問題をお気に入りに追加する(シャッフル順に依存しない、元の並び順でのインデックスを保存)
+async function handleAddFavorite() {
+  const originalIndex = problemsData[currentProblemIndex][9];
+
+  favoriteButton.disabled = true;
+  favoriteButton.textContent = "追加中...";
+
+  try {
+    await db
+      .collection("users_random")
+      .doc(myUserId)
+      .set(
+        {
+          favorites: firebase.firestore.FieldValue.arrayUnion({
+            type: "problem",
+            bookId: currentBookId,
+            index: originalIndex
+          })
+        },
+        { merge: true }
+      );
+    favoriteButton.textContent = "★ お気に入りに追加済み";
+    favoriteButton.classList.add("is-favorited");
+  } catch (error) {
+    console.error("お気に入りの追加に失敗しました:", error);
+    await AppDialog.alert("お気に入りへの追加に失敗しました。\n" + error);
+    favoriteButton.disabled = false;
+    favoriteButton.textContent = "☆ お気に入りに追加";
+  }
+}
+
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
   db.collection("users_random")
@@ -412,7 +446,7 @@ async function loadProblemBook(bookId) {
         answer = data.answer;
       }
 
-      problemsData.push([problem, choices, answer, explanation, imageUrl, answerType, shuffleChoices, modelAnswer, gradingCriteria]);
+      problemsData.push([problem, choices, answer, explanation, imageUrl, answerType, shuffleChoices, modelAnswer, gradingCriteria, problemsData.length]);
     }
 
     const shuffleRequested = getParmFromUrl("shuffle") === "1";
@@ -484,6 +518,10 @@ function nextProblem(problemCount) {
   skipButton.disabled = false;
   answerActionsRow.classList.remove("hidden");
   viewExplanationButton.classList.add("hidden");
+
+  favoriteButton.disabled = false;
+  favoriteButton.textContent = "☆ お気に入りに追加";
+  favoriteButton.classList.remove("is-favorited");
 
   // 前の問題の採点関連の表示状態をリセットしておく
   answerCorrectLabelEl.textContent = "正解";

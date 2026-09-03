@@ -51,6 +51,7 @@ let impressionModal;
 let impressionModalClose;
 let impressionInput;
 let impressionSaveButton;
+let favoriteButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
@@ -84,6 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
   impressionModalClose = document.getElementById("impression-modal-close");
   impressionInput = document.getElementById("impression-input");
   impressionSaveButton = document.getElementById("impression-save-button");
+  favoriteButton = document.getElementById("favorite-button");
 
   accountSettingsButton.addEventListener("click", openDrawer);
   drawerCloseButton.addEventListener("click", closeDrawer);
@@ -116,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     impressionModal.classList.add("hidden");
   });
   impressionSaveButton.addEventListener("click", saveImpression);
+  favoriteButton.addEventListener("click", handleAddFavorite);
 });
 
 async function openImpressionModal() {
@@ -246,6 +249,38 @@ function updateLastChecked() {
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
+// ★ 現在表示中のカードをお気に入りに追加する(シャッフル順に依存しない、元の並び順でのインデックスを保存)
+async function handleAddFavorite() {
+  const originalIndex = cardsData[currentCardIndex].originalIndex;
+
+  favoriteButton.disabled = true;
+  favoriteButton.textContent = "追加中...";
+
+  try {
+    await db
+      .collection("users_random")
+      .doc(myUserId)
+      .set(
+        {
+          favorites: firebase.firestore.FieldValue.arrayUnion({
+            type: "card",
+            bookId: currentDeckId,
+            index: originalIndex
+          })
+        },
+        { merge: true }
+      );
+    favoriteButton.textContent = "★ お気に入りに追加済み";
+    favoriteButton.classList.add("is-favorited");
+  } catch (error) {
+    console.error("お気に入りの追加に失敗しました:", error);
+    await AppDialog.alert("お気に入りへの追加に失敗しました。\n" + error);
+    favoriteButton.disabled = false;
+    favoriteButton.textContent = "☆ お気に入りに追加";
+  }
+}
+
+
 function getParmFromUrl(parm) {
   const params = new URLSearchParams(window.location.search);
   return params.get(parm);
@@ -290,10 +325,12 @@ async function loadDeck(deckId) {
     const flipAllowed = !!deckData.allowFlip;
     const shouldFlip = flipRequested && flipAllowed;
 
-    cardsData = rawCards.map(c => {
-      return shouldFlip
+    cardsData = rawCards.map((c, index) => {
+      const mapped = shouldFlip
         ? { front: c.back, back: c.front }
         : { front: c.front, back: c.back };
+      mapped.originalIndex = index;
+      return mapped;
     });
 
     // ★ 出題順のシャッフルは無条件に行う
@@ -326,6 +363,10 @@ function showCard(index) {
 
   showBackButton.disabled = false;
   nextCardButton.disabled = false;
+
+  favoriteButton.disabled = false;
+  favoriteButton.textContent = "☆ お気に入りに追加";
+  favoriteButton.classList.remove("is-favorited");
 }
 
 function isCardFlipped() {
@@ -463,6 +504,10 @@ function applyCardChange(index, showBack) {
 
   cardFrontText.textContent = cardsData[index].front;
   cardBackText.textContent = cardsData[index].back;
+
+  favoriteButton.disabled = false;
+  favoriteButton.textContent = "☆ お気に入りに追加";
+  favoriteButton.classList.remove("is-favorited");
 
   // ★ このタイミングだけtransitionを止め、位置リセットと表裏の切替を瞬時に行う(見た目には隠れているので違和感が無い)
   flipCardSlideEl.classList.add("card-enter");
