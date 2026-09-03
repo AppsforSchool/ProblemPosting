@@ -252,6 +252,11 @@ function updateLastChecked() {
 }
 
 // ★ 現在表示中のカードのお気に入りを追加/解除する(シャッフル順に依存しない、元の並び順でのインデックスで管理)
+// ★ お気に入りに登録済みのカードかどうかを判定する(このデッキIDと、シャッフル順に依存しない元のインデックスで照合)
+function isCardFavorited(originalIndex) {
+  return myFavorites.some(f => f && f.type === "card" && f.bookId === currentDeckId && f.index === originalIndex);
+}
+
 async function handleToggleFavorite() {
   const originalIndex = cardsData[currentCardIndex].originalIndex;
   const favoriteEntry = { type: "card", bookId: currentDeckId, index: originalIndex };
@@ -273,9 +278,13 @@ async function handleToggleFavorite() {
         { merge: true }
       );
     if (isFavorited) {
+      myFavorites = myFavorites.filter(
+        f => !(f && f.type === "card" && f.bookId === currentDeckId && f.index === originalIndex)
+      );
       favoriteButton.textContent = "☆ お気に入りに追加";
       favoriteButton.classList.remove("is-favorited");
     } else {
+      myFavorites.push(favoriteEntry);
       favoriteButton.textContent = "★ お気に入りに追加済み";
       favoriteButton.classList.add("is-favorited");
     }
@@ -386,8 +395,13 @@ function showCard(index) {
   nextCardButton.disabled = false;
 
   favoriteButton.disabled = false;
-  favoriteButton.textContent = "☆ お気に入りに追加";
-  favoriteButton.classList.remove("is-favorited");
+  if (isCardFavorited(cardsData[index].originalIndex)) {
+    favoriteButton.textContent = "★ お気に入りに追加済み";
+    favoriteButton.classList.add("is-favorited");
+  } else {
+    favoriteButton.textContent = "☆ お気に入りに追加";
+    favoriteButton.classList.remove("is-favorited");
+  }
 }
 
 function isCardFlipped() {
@@ -527,8 +541,13 @@ function applyCardChange(index, showBack) {
   cardBackText.textContent = cardsData[index].back;
 
   favoriteButton.disabled = false;
-  favoriteButton.textContent = "☆ お気に入りに追加";
-  favoriteButton.classList.remove("is-favorited");
+  if (isCardFavorited(cardsData[index].originalIndex)) {
+    favoriteButton.textContent = "★ お気に入りに追加済み";
+    favoriteButton.classList.add("is-favorited");
+  } else {
+    favoriteButton.textContent = "☆ お気に入りに追加";
+    favoriteButton.classList.remove("is-favorited");
+  }
 
   // ★ このタイミングだけtransitionを止め、位置リセットと表裏の切替を瞬時に行う(見た目には隠れているので違和感が無い)
   flipCardSlideEl.classList.add("card-enter");

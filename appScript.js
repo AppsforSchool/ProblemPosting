@@ -1236,20 +1236,22 @@ function applyRecruitModeToSettingModal(id) {
   favoriteOnlyToggleRow.classList.remove("hidden");
 
   if (isRecruiting) {
-    // 募集中は編集・感想・シャッフル・お気に入り設定を隠す。シェアは残す
+    // 募集中は編集・感想を隠す。シェアは残す
     settingModalEditButton.classList.add("hidden");
     viewImpressionsButton.classList.add("hidden");
-    shuffleToggleRow.classList.add("hidden");
-    favoriteOnlyToggleRow.classList.add("hidden");
 
     recruitCommentArea.classList.remove("hidden");
     recruitCommentText.textContent = session.recruitComment || "(コメントはありません)";
 
     // ★ 募集中の「スタート」(一人で解く)は、公開済みの問題集の時だけ出す。
-    //   非公開の問題集は元々「みんなで解く」専用の問題集なので、募集中は従来通りライブ関連のボタンのみにする
+    //   非公開の問題集は元々「みんなで解く」専用の問題集なので、募集中は従来通りライブ関連のボタンのみにする。
+    //   公開済みの問題集は普通に(一人で)解けるので、シャッフル/お気に入り絞り込みトグルも通常通り出す
     const showSoloStart = !isPrivate;
     if (showSoloStart) {
       soloStartButton.classList.remove("hidden");
+    } else {
+      shuffleToggleRow.classList.add("hidden");
+      favoriteOnlyToggleRow.classList.add("hidden");
     }
 
     if (isMaker) {
@@ -1338,6 +1340,11 @@ function openCardSettingModal(id) {
   const allowFlip = !!deckCache[id][9];
   flipCardsToggle.checked = false;
   flipCardsToggle.disabled = !allowFlip;
+
+  // ★ 編集ボタンが出ない(自分の暗記カードでない)場合は、スタートボタンを横幅いっぱいに広げる
+  //   (問題集側のapplyRecruitModeToSettingModalと同様の判定。暗記カードには募集中の概念が無いのでjoinButtonは常に非表示)
+  const editHidden = settingModalEditButton.classList.contains("hidden");
+  settingModalStartButton.classList.toggle("full-width-button", editHidden);
 }
 
 // ★ URLのハッシュ(#問題集ID)を使った出題設定モーダルの直リンク対応

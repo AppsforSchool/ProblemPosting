@@ -322,9 +322,13 @@ async function handleToggleFavorite() {
         { merge: true }
       );
     if (isFavorited) {
+      myFavorites = myFavorites.filter(
+        f => !(f && f.type === "problem" && f.bookId === currentBookId && f.index === originalIndex)
+      );
       favoriteButton.textContent = "☆ お気に入りに追加";
       favoriteButton.classList.remove("is-favorited");
     } else {
+      myFavorites.push(favoriteEntry);
       favoriteButton.textContent = "★ お気に入りに追加済み";
       favoriteButton.classList.add("is-favorited");
     }
@@ -521,6 +525,11 @@ async function preloadAllProblemImages() {
 
 
 
+// ★ お気に入りに登録済みの問題かどうかを判定する(この問題集IDと、シャッフル順に依存しない元のインデックスで照合)
+function isProblemFavorited(originalIndex) {
+  return myFavorites.some(f => f && f.type === "problem" && f.bookId === currentBookId && f.index === originalIndex);
+}
+
 function nextProblem(problemCount) {
   currentProblemIndex = problemCount;
 
@@ -541,8 +550,13 @@ function nextProblem(problemCount) {
   viewExplanationButton.classList.add("hidden");
 
   favoriteButton.disabled = false;
-  favoriteButton.textContent = "☆ お気に入りに追加";
-  favoriteButton.classList.remove("is-favorited");
+  if (isProblemFavorited(problemsData[problemCount][9])) {
+    favoriteButton.textContent = "★ お気に入りに追加済み";
+    favoriteButton.classList.add("is-favorited");
+  } else {
+    favoriteButton.textContent = "☆ お気に入りに追加";
+    favoriteButton.classList.remove("is-favorited");
+  }
 
   // 前の問題の採点関連の表示状態をリセットしておく
   answerCorrectLabelEl.textContent = "正解";
