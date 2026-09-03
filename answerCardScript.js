@@ -14,6 +14,7 @@ const db = firebase.firestore();
 let myUid = "";
 let myUserId = "";
 let currentDeckId = "";
+let myFavorites = [];
 
 let cardsData = [];
 let currentCardIndex = 0;
@@ -185,6 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const userSnapshot = await db.collection("users_random").doc(myUserId).get();
       const userData = userSnapshot.data();
+      myFavorites = userData.favorites || [];
       myUid = userData.uid;
       meIsAdmin = !!userData.isAdmin;
       setUserCache(myUserId, {
@@ -338,6 +340,19 @@ async function loadDeck(deckId) {
       mapped.originalIndex = index;
       return mapped;
     });
+
+    // ★ 「お気に入りの暗記カードだけを解く」が指定されていたら、このデッキについてのお気に入り(シャッフル順に依存しない元のインデックス)だけに絞り込む
+    const favoritesOnlyRequested = getParmFromUrl("favoritesOnly") === "1";
+    if (favoritesOnlyRequested) {
+      const favoriteIndexes = new Set(
+        myFavorites.filter(f => f && f.type === "card" && f.bookId === deckId).map(f => f.index)
+      );
+      cardsData = cardsData.filter(c => favoriteIndexes.has(c.originalIndex));
+      if (cardsData.length === 0) {
+        await AppDialog.alert("お気に入りに登録された暗記カードがありません。");
+        return false;
+      }
+    }
 
     // ★ 出題順のシャッフルは無条件に行う
     cardsData = shuffleArray(cardsData);

@@ -40,6 +40,7 @@ let problemsData = [];
 let currentProblemIndex = 0;
 let correctAnswersCount = 0;
 let currentBookId = "";
+let myFavorites = [];
 
 let answerButton;
 let skipButton;
@@ -255,6 +256,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .doc(myUserId)
         .get();
       const userData = userSnapshot.data();
+      myFavorites = userData.favorites || [];
       setUserCache(myUserId, {
         name: userData.name,
         isAdmin: userData.isAdmin,
@@ -423,8 +425,6 @@ async function loadProblemBook(bookId) {
       .collection("problems")
       .orderBy("no")
       .get();
-    
-    allProblemsCount.textContent = problemsSnapshot.size;
 
     for (const doc of problemsSnapshot.docs) {
       const data = doc.data();
@@ -454,6 +454,21 @@ async function loadProblemBook(bookId) {
 
       problemsData.push([problem, choices, answer, explanation, imageUrl, answerType, shuffleChoices, modelAnswer, gradingCriteria, problemsData.length]);
     }
+
+    // ★ 「お気に入りの問題だけを解く」が指定されていたら、この問題集についてのお気に入り(シャッフル順に依存しない元のインデックス)だけに絞り込む
+    const favoritesOnlyRequested = getParmFromUrl("favoritesOnly") === "1";
+    if (favoritesOnlyRequested) {
+      const favoriteIndexes = new Set(
+        myFavorites.filter(f => f && f.type === "problem" && f.bookId === bookId).map(f => f.index)
+      );
+      problemsData = problemsData.filter(p => favoriteIndexes.has(p[9]));
+      if (problemsData.length === 0) {
+        await AppDialog.alert("お気に入りに登録された問題がありません。");
+        return false;
+      }
+    }
+
+    allProblemsCount.textContent = problemsData.length;
 
     const shuffleRequested = getParmFromUrl("shuffle") === "1";
     const shuffleAllowed = !!bookData.get("shuffleProblems");

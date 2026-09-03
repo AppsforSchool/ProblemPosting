@@ -936,6 +936,7 @@ let settingModalTitle, settingModalDescription, settingModalMadeByName;
 let settingModalEditButton, settingModalStartButton, viewImpressionsButton;
 let shuffleProblemsToggle;
 let shuffleToggleRow, flipToggleRow, flipCardsToggle;
+let favoriteOnlyToggleRow, favoriteOnlyToggle, favoriteOnlyToggleLabel;
 let settingModalType = "book";
 let recruitCommentArea, recruitCommentText, recruitStartOpenButton, joinButton, joinDisabledText;
 let recruitStartModal, recruitStartModalClose, recruitCommentInput, recruitStartConfirmButton, recruitStartModalTitle;
@@ -958,6 +959,9 @@ document.addEventListener("DOMContentLoaded", () => {
   shuffleToggleRow = document.getElementById("shuffle-toggle-row");
   flipToggleRow = document.getElementById("flip-toggle-row");
   flipCardsToggle = document.getElementById("flip-cards-toggle");
+  favoriteOnlyToggleRow = document.getElementById("favorite-only-toggle-row");
+  favoriteOnlyToggle = document.getElementById("favorite-only-toggle");
+  favoriteOnlyToggleLabel = document.getElementById("favorite-only-toggle-label");
   recruitCommentArea = document.getElementById("recruit-comment-area");
   recruitCommentText = document.getElementById("recruit-comment-text");
   recruitStartOpenButton = document.getElementById("recruit-start-open-button");
@@ -1114,21 +1118,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   settingModalStartButton.addEventListener("click", () => {
+    const favoritesParam = favoriteOnlyToggle.checked && !favoriteOnlyToggle.disabled ? "&favoritesOnly=1" : "";
     if (settingModalType === "card") {
       const flipParam = flipCardsToggle.checked && !flipCardsToggle.disabled ? "&flip=1" : "";
-      window.location.href = `./answerCard.html?id=${settingModalBookId}${flipParam}`;
+      window.location.href = `./answerCard.html?id=${settingModalBookId}${flipParam}${favoritesParam}`;
     } else if (liveSessionsCache[settingModalBookId]) {
-      // ★ 募集中の問題集は、主催者用のライブ進行画面へ
+      // ★ 募集中の問題集は、主催者用のライブ進行画面へ(お気に入り絞り込みは対象外)
       window.location.href = `./liveHost.html?id=${settingModalBookId}`;
     } else {
       const shuffleParam = shuffleProblemsToggle.checked && !shuffleProblemsToggle.disabled ? "&shuffle=1" : "";
-      window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}`;
+      window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}${favoritesParam}`;
     }
   });
   // ★ 募集中でも一人で解けるようにするための「スタート」ボタン。ライブセッションを無視して通常の解答画面へ
   soloStartButton.addEventListener("click", () => {
     const shuffleParam = shuffleProblemsToggle.checked && !shuffleProblemsToggle.disabled ? "&shuffle=1" : "";
-    window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}`;
+    const favoritesParam = favoriteOnlyToggle.checked && !favoriteOnlyToggle.disabled ? "&favoritesOnly=1" : "";
+    window.location.href = `./answer.html?id=${settingModalBookId}${shuffleParam}${favoritesParam}`;
   });
   settingModalEditButton.addEventListener("click", () => {
     const editPage = settingModalType === "card" ? "editCard.html" : "edit.html";
@@ -1150,6 +1156,9 @@ function setSettingModalMode(mode) {
 
   shuffleToggleRow.classList.toggle("hidden", isCard);
   flipToggleRow.classList.toggle("hidden", !isCard);
+  favoriteOnlyToggleRow.classList.remove("hidden");
+  favoriteOnlyToggle.checked = false;
+  favoriteOnlyToggleLabel.textContent = isCard ? "お気に入りの暗記カードだけを解く" : "お気に入りの問題だけを解く";
 
   settingModalEditButton.classList.add("hidden");
   viewImpressionsButton.classList.remove("hidden");
@@ -1224,12 +1233,14 @@ function applyRecruitModeToSettingModal(id) {
   soloStartButton.classList.add("hidden");
   soloStartButton.classList.remove("split-secondary");
   shuffleToggleRow.classList.remove("hidden");
+  favoriteOnlyToggleRow.classList.remove("hidden");
 
   if (isRecruiting) {
-    // 募集中は編集・感想・シャッフル設定を隠す。シェアは残す
+    // 募集中は編集・感想・シャッフル・お気に入り設定を隠す。シェアは残す
     settingModalEditButton.classList.add("hidden");
     viewImpressionsButton.classList.add("hidden");
     shuffleToggleRow.classList.add("hidden");
+    favoriteOnlyToggleRow.classList.add("hidden");
 
     recruitCommentArea.classList.remove("hidden");
     recruitCommentText.textContent = session.recruitComment || "(コメントはありません)";
