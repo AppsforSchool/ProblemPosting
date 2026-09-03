@@ -609,7 +609,9 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
         const isWaiting = session.status === "waiting";
         privateBadge.classList.add(isWaiting ? "recruiting-badge" : "started-badge");
         if (isWaiting) {
-          privateBadge.textContent = session.isSpecial ? "スペシャルライブ・募集中" : "募集中";
+          const participantCount = Object.keys(session.participants || {}).length;
+          const baseLabel = session.isSpecial ? "スペシャルライブ・募集中" : "募集中";
+          privateBadge.textContent = `${baseLabel}(${participantCount}人が参加中)`;
         } else {
           privateBadge.textContent = "開始済み";
         }

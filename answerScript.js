@@ -145,7 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   answerButton.addEventListener("click", handleAnswerSubmit);
   skipButton.addEventListener("click", handleSkip);
-  favoriteButton.addEventListener("click", handleAddFavorite);
+  favoriteButton.addEventListener("click", handleToggleFavorite);
   textAnswerInputEl.addEventListener("input", updateAnswerButtonState);
   descriptiveAnswerInputEl.addEventListener("input", updateAnswerButtonState);
   answerModalNextButton.addEventListener("click", handleAnswerModalNext);
@@ -298,12 +298,14 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// ★ 現在表示中の問題をお気に入りに追加する(シャッフル順に依存しない、元の並び順でのインデックスを保存)
-async function handleAddFavorite() {
+// ★ 現在表示中の問題のお気に入りを追加/解除する(シャッフル順に依存しない、元の並び順でのインデックスで管理)
+async function handleToggleFavorite() {
   const originalIndex = problemsData[currentProblemIndex][9];
+  const favoriteEntry = { type: "problem", bookId: currentBookId, index: originalIndex };
+  const isFavorited = favoriteButton.classList.contains("is-favorited");
 
   favoriteButton.disabled = true;
-  favoriteButton.textContent = "追加中...";
+  favoriteButton.textContent = isFavorited ? "削除中..." : "追加中...";
 
   try {
     await db
@@ -311,21 +313,25 @@ async function handleAddFavorite() {
       .doc(myUserId)
       .set(
         {
-          favorites: firebase.firestore.FieldValue.arrayUnion({
-            type: "problem",
-            bookId: currentBookId,
-            index: originalIndex
-          })
+          favorites: isFavorited
+            ? firebase.firestore.FieldValue.arrayRemove(favoriteEntry)
+            : firebase.firestore.FieldValue.arrayUnion(favoriteEntry)
         },
         { merge: true }
       );
-    favoriteButton.textContent = "★ お気に入りに追加済み";
-    favoriteButton.classList.add("is-favorited");
+    if (isFavorited) {
+      favoriteButton.textContent = "☆ お気に入りに追加";
+      favoriteButton.classList.remove("is-favorited");
+    } else {
+      favoriteButton.textContent = "★ お気に入りに追加済み";
+      favoriteButton.classList.add("is-favorited");
+    }
   } catch (error) {
-    console.error("お気に入りの追加に失敗しました:", error);
-    await AppDialog.alert("お気に入りへの追加に失敗しました。\n" + error);
+    console.error("お気に入りの更新に失敗しました:", error);
+    await AppDialog.alert("お気に入りの更新に失敗しました。\n" + error);
+    favoriteButton.textContent = isFavorited ? "★ お気に入りに追加済み" : "☆ お気に入りに追加";
+  } finally {
     favoriteButton.disabled = false;
-    favoriteButton.textContent = "☆ お気に入りに追加";
   }
 }
 
