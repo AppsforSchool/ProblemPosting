@@ -1016,9 +1016,10 @@ document.addEventListener("DOMContentLoaded", () => {
     recruitStartConfirmButton.textContent = "募集を開始";
     recruitStartModalClose.classList.remove("hidden");
     specialLiveToggle.checked = false;
-    specialLiveToggleRow.classList.toggle("hidden", !meIsAdmin);
     const currentBook = bookCache[settingModalBookId];
     const isPrivateBook = !!(currentBook && currentBook[10]);
+    // ★ 解き直し(公開済みの問題集の再募集)の場合は、スペシャルライブのトグルを出さない
+    specialLiveToggleRow.classList.toggle("hidden", !meIsAdmin || !isPrivateBook);
     recruitStartModalTitle.textContent = isPrivateBook ? "みんなで解く" : "みんなで解き直す";
     recruitStartModal.classList.remove("hidden");
   });
