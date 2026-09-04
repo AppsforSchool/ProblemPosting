@@ -1332,7 +1332,7 @@ function markParticipantsAsSolved() {
 // ★ スペシャルライブなら、最終順位1位の参加者(0点は対象外)に景品を付与する。
 //   景品の実体は、Firestoreのユーザーデータに「景品の期限(タイムスタンプ)」を持たせるだけ。
 //   期限内であれば、名前が管理者と同じように光る(ただしアニメーションは半分の速度)。
-const PRIZE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 1週間
+const PRIZE_DURATION_MS = 10 * 60 * 1000; // 10分間
 function grantSpecialLivePrize() {
   if (!sessionData.isSpecial) return;
 
