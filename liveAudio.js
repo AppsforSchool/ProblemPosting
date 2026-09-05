@@ -1,13 +1,12 @@
-// ★ 外部音源ファイルを使わず、Web Audio APIで効果音・BGMをその場で合成するモジュール。
+// ★ 効果音はWeb Audio APIでその場で合成し、BGMは音源ファイル(BGM/marbletechno2.mp3)を再生するモジュール。
 //   liveHost.html / liveAnswer.html の両方から <script> で読み込み、グローバルの LiveAudio として使う。
 const LiveAudio = (() => {
+  const BGM_SRC = "BGM/marbletechno2.mp3";
+
   let ctx = null;
   let masterGain = null;
-  let bgmGain = null;
   let sfxGain = null;
-  let bgmTimer = null;
-  let bgmStep = 0;
-  let noiseBuffer = null;
+  let bgmAudioEl = null;
   let muted = localStorage.getItem("liveAudioMuted") === "1";
 
   function ensureContext() {
@@ -20,10 +19,6 @@ const LiveAudio = (() => {
       masterGain.gain.value = muted ? 0 : 1;
       masterGain.connect(ctx.destination);
 
-      bgmGain = ctx.createGain();
-      bgmGain.gain.value = 0.13;
-      bgmGain.connect(masterGain);
-
       sfxGain = ctx.createGain();
       sfxGain.gain.value = 0.35;
       sfxGain.connect(masterGain);
@@ -32,15 +27,28 @@ const LiveAudio = (() => {
     return ctx;
   }
 
+  // ★ BGM用の<audio>要素を用意する(効果音とは別に、通常のHTMLAudio再生でループさせる)
+  function ensureBgmAudio() {
+    if (!bgmAudioEl) {
+      bgmAudioEl = new Audio(BGM_SRC);
+      bgmAudioEl.loop = true;
+      bgmAudioEl.preload = "auto";
+      bgmAudioEl.volume = 0.35;
+    }
+    bgmAudioEl.muted = muted;
+    return bgmAudioEl;
+  }
+
   // ★ ブラウザの自動再生制限対策。ページ内の最初のタップ/クリックで音声を解禁する
   function unlock() {
     ensureContext();
+    ensureBgmAudio();
   }
   ["click", "touchstart"].forEach(evt => {
     document.addEventListener(evt, unlock, { once: true, passive: true });
   });
 
-  // ---- 基本パーツ ----
+  // ---- 基本パーツ(効果音用) ----
   function playTone(freq, duration, type, delay, gainValue, destination) {
     if (!ctx) return;
     const t0 = ctx.currentTime + (delay || 0);
@@ -74,77 +82,6 @@ const LiveAudio = (() => {
     gain.connect(destination || sfxGain);
     osc.start(t0);
     osc.stop(t0 + duration + 0.05);
-  }
-
-  function ensureNoiseBuffer() {
-    if (noiseBuffer || !ctx) return noiseBuffer;
-    const length = ctx.sampleRate * 0.2;
-    noiseBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
-    const data = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < length; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-    return noiseBuffer;
-  }
-
-  // ★ シャカッという打楽器風の短いノイズ音(BGMのリズム用)
-  function playNoiseTick(delay, gainValue, destination) {
-    if (!ctx) return;
-    const buffer = ensureNoiseBuffer();
-    if (!buffer) return;
-    const t0 = ctx.currentTime + (delay || 0);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "highpass";
-    filter.frequency.value = 4000;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(gainValue || 0.15, t0);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(destination || bgmGain);
-    source.start(t0);
-    source.stop(t0 + 0.08);
-  }
-
-  // ★ お祭りの太鼓のような低いドスンという音(BGMのキック用)
-  function playKick(delay, gainValue, destination) {
-    if (!ctx) return;
-    const t0 = ctx.currentTime + (delay || 0);
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(150, t0);
-    osc.frequency.exponentialRampToValueAtTime(45, t0 + 0.12);
-    gain.gain.setValueAtTime(gainValue || 0.4, t0);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
-    osc.connect(gain);
-    gain.connect(destination || bgmGain);
-    osc.start(t0);
-    osc.stop(t0 + 0.2);
-  }
-
-  // ★ パンッという手拍子風のノイズ音(BGMのクラップ用。お祭りの掛け声・手拍子のイメージ)
-  function playClap(delay, gainValue, destination) {
-    if (!ctx) return;
-    const buffer = ensureNoiseBuffer();
-    if (!buffer) return;
-    const t0 = ctx.currentTime + (delay || 0);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.value = 1500;
-    filter.Q.value = 1.1;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(gainValue || 0.22, t0);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15);
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(destination || bgmGain);
-    source.start(t0);
-    source.stop(t0 + 0.18);
   }
 
   // ---- 効果音 ----
@@ -202,61 +139,28 @@ const LiveAudio = (() => {
     [1568, 1975.5, 2093].forEach((f, i) => playTone(f, 0.5, "sine", 1.15 + i * 0.09, 0.16));
   }
 
-  // ---- BGM: 賑やかなお祭り風ループ(キック・ベース・ハイハット・クラップ・アルペジオ・ベルを重ねる) ----
-  const bgmProgression = [
-    [261.63, 329.63, 392.0, 523.25], // C
-    [392.0, 493.88, 587.33, 783.99], // G
-    [220.0, 261.63, 329.63, 440.0], // Am
-    [349.23, 440.0, 523.25, 698.46] // F
-  ];
+  // ---- BGM: 音源ファイル(BGM/marbletechno2.mp3)をループ再生する ----
   function startBgm() {
     ensureContext();
-    if (bgmTimer || !ctx) return;
-    ensureNoiseBuffer();
-    bgmStep = 0;
-    const stepTime = 0.2; // ★ 少しテンポアップして賑やかな体感速度にする
-    const scheduleNext = () => {
-      const groupIndex = Math.floor(bgmStep / 4) % bgmProgression.length;
-      const barStep = bgmStep % 4;
-      const chord = bgmProgression[groupIndex];
-      const freq = chord[bgmStep % chord.length];
-
-      // アルペジオ(メロディの芯)
-      playTone(freq, stepTime * 1.7, "triangle", 0, 0.15, bgmGain);
-      // 1つ飛ばしで高いキラキラ音を重ね、お祭りの賑わい感を足す
-      if (bgmStep % 2 === 0) {
-        playTone(freq * 2, stepTime * 1.2, "sine", 0, 0.05, bgmGain);
-      }
-
-      // 4分打ちのベース(各コードの頭でドンと鳴らす)
-      if (barStep === 0) {
-        playTone(chord[0] / 2, stepTime * 3.6, "sawtooth", 0, 0.1, bgmGain);
-        playKick(0, 0.4, bgmGain);
-        // コードの頭にベルのアクセントを添えて華やかに
-        playTone(freq * 4, 0.4, "sine", 0.02, 0.1, bgmGain);
-      }
-      // 裏拍にもう一発キックでリズムを弾ませる
-      if (barStep === 2) {
-        playKick(0, 0.28, bgmGain);
-      }
-
-      // ハイハット的な刻みを毎ステップ入れる。3拍目は少しオープン気味に長く
-      playNoiseTick(0, barStep === 2 ? 0.09 : 0.055, bgmGain);
-
-      // 2小節ごとに手拍子(クラップ)のアクセントを入れ、お祭りらしい賑わいを出す
-      if (bgmStep % 8 === 4) {
-        playClap(0, 0.22, bgmGain);
-      }
-
-      bgmStep += 1;
-    };
-    scheduleNext();
-    bgmTimer = setInterval(scheduleNext, stepTime * 1000);
+    const audio = ensureBgmAudio();
+    audio.muted = muted;
+    audio.currentTime = 0;
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        // ★ 自動再生がブロックされた場合、次のクリック/タップで再度試みる
+        const retryPlay = () => {
+          audio.play().catch(() => {});
+        };
+        document.addEventListener("click", retryPlay, { once: true, passive: true });
+        document.addEventListener("touchstart", retryPlay, { once: true, passive: true });
+      });
+    }
   }
   function stopBgm() {
-    if (bgmTimer) {
-      clearInterval(bgmTimer);
-      bgmTimer = null;
+    if (bgmAudioEl) {
+      bgmAudioEl.pause();
+      bgmAudioEl.currentTime = 0;
     }
   }
 
@@ -264,6 +168,7 @@ const LiveAudio = (() => {
     muted = value;
     localStorage.setItem("liveAudioMuted", muted ? "1" : "0");
     if (masterGain) masterGain.gain.value = muted ? 0 : 1;
+    if (bgmAudioEl) bgmAudioEl.muted = muted;
   }
   function toggleMuted() {
     setMuted(!muted);
