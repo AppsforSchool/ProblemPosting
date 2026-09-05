@@ -1252,7 +1252,6 @@ footer p {
   box-shadow: var(--shadow-md);
 }
 #show-back-button:disabled {
-  opacity: 0.6;
   cursor: not-allowed;
 }
 #next-card-button {
@@ -1269,7 +1268,6 @@ footer p {
   transition: opacity 0.2s var(--ease);
 }
 #next-card-button:disabled {
-  opacity: 0.6;
   cursor: not-allowed;
 }
 
