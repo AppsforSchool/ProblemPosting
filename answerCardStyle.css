@@ -1057,7 +1057,10 @@ footer p {
   width: 100%;
   max-width: 420px;
   margin: 0.5rem 0 0.6rem;
-  touch-action: pan-y; /* ★ 横方向はスワイプ判定に使うのでブラウザ標準のパンには渡さない */
+  /* ★ pan-yのままだと、指が少しでも縦方向にぶれるとブラウザ側が「縦スクロール」と判定してしまい、
+     途中でpointercancelが発生してスワイプが不発になることがあった。
+     このカード領域は縦スクロールが不要なので、noneにしてブラウザの自動判定に横取りされないようにする */
+  touch-action: none;
 }
 .swipe-hint {
   font-size: 0.78rem;

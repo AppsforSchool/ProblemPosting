@@ -615,6 +615,14 @@ function onSwipePointerDown(event) {
   swipeStartX = event.clientX;
   swipeStartY = event.clientY;
   swipeActive = true;
+  // ★ 速いスワイプで指がこの要素の外に出ても、pointerup/pointercancelを確実にこの要素で受け取れるようにする
+  if (flipCardContainerEl.setPointerCapture) {
+    try {
+      flipCardContainerEl.setPointerCapture(event.pointerId);
+    } catch (error) {
+      // 一部環境でpointerIdが無効な場合は無視する
+    }
+  }
 }
 function onSwipePointerCancel() {
   swipeActive = false;
@@ -622,6 +630,9 @@ function onSwipePointerCancel() {
 function onSwipePointerUp(event) {
   if (!swipeActive) return;
   swipeActive = false;
+  if (flipCardContainerEl.releasePointerCapture && flipCardContainerEl.hasPointerCapture && flipCardContainerEl.hasPointerCapture(event.pointerId)) {
+    flipCardContainerEl.releasePointerCapture(event.pointerId);
+  }
   if (isTransitioning) return;
 
   const dx = event.clientX - swipeStartX;
