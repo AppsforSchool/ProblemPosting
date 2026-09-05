@@ -108,6 +108,45 @@ const LiveAudio = (() => {
     source.stop(t0 + 0.08);
   }
 
+  // ★ お祭りの太鼓のような低いドスンという音(BGMのキック用)
+  function playKick(delay, gainValue, destination) {
+    if (!ctx) return;
+    const t0 = ctx.currentTime + (delay || 0);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(150, t0);
+    osc.frequency.exponentialRampToValueAtTime(45, t0 + 0.12);
+    gain.gain.setValueAtTime(gainValue || 0.4, t0);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+    osc.connect(gain);
+    gain.connect(destination || bgmGain);
+    osc.start(t0);
+    osc.stop(t0 + 0.2);
+  }
+
+  // ★ パンッという手拍子風のノイズ音(BGMのクラップ用。お祭りの掛け声・手拍子のイメージ)
+  function playClap(delay, gainValue, destination) {
+    if (!ctx) return;
+    const buffer = ensureNoiseBuffer();
+    if (!buffer) return;
+    const t0 = ctx.currentTime + (delay || 0);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 1500;
+    filter.Q.value = 1.1;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(gainValue || 0.22, t0);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(destination || bgmGain);
+    source.start(t0);
+    source.stop(t0 + 0.18);
+  }
+
   // ---- 効果音 ----
   function playCountdownTick(isFinal) {
     ensureContext();
@@ -163,25 +202,51 @@ const LiveAudio = (() => {
     [1568, 1975.5, 2093].forEach((f, i) => playTone(f, 0.5, "sine", 1.15 + i * 0.09, 0.16));
   }
 
-  // ---- BGM: リズミカルなアルペジオ・ループ(生成音のみ、外部音源不要) ----
-  const bgmChordA = [261.63, 329.63, 392.0, 523.25]; // C major
-  const bgmChordB = [293.66, 349.23, 440.0, 587.33]; // D minor風
+  // ---- BGM: 賑やかなお祭り風ループ(キック・ベース・ハイハット・クラップ・アルペジオ・ベルを重ねる) ----
+  const bgmProgression = [
+    [261.63, 329.63, 392.0, 523.25], // C
+    [392.0, 493.88, 587.33, 783.99], // G
+    [220.0, 261.63, 329.63, 440.0], // Am
+    [349.23, 440.0, 523.25, 698.46] // F
+  ];
   function startBgm() {
     ensureContext();
     if (bgmTimer || !ctx) return;
     ensureNoiseBuffer();
     bgmStep = 0;
-    const stepTime = 0.24;
+    const stepTime = 0.2; // ★ 少しテンポアップして賑やかな体感速度にする
     const scheduleNext = () => {
-      const barStep = bgmStep % 8;
-      const chord = bgmStep % 16 < 8 ? bgmChordA : bgmChordB;
-      const freq = chord[barStep % chord.length];
+      const groupIndex = Math.floor(bgmStep / 4) % bgmProgression.length;
+      const barStep = bgmStep % 4;
+      const chord = bgmProgression[groupIndex];
+      const freq = chord[bgmStep % chord.length];
 
-      playTone(freq, stepTime * 1.6, "triangle", 0, 0.15, bgmGain);
-      playTone(freq / 2, stepTime * 1.6, "sine", 0, 0.07, bgmGain);
+      // アルペジオ(メロディの芯)
+      playTone(freq, stepTime * 1.7, "triangle", 0, 0.15, bgmGain);
+      // 1つ飛ばしで高いキラキラ音を重ね、お祭りの賑わい感を足す
+      if (bgmStep % 2 === 0) {
+        playTone(freq * 2, stepTime * 1.2, "sine", 0, 0.05, bgmGain);
+      }
 
-      // 裏拍で軽いノイズパーカッションを入れてリズムに弾みをつける
-      if (barStep % 2 === 1) playNoiseTick(0, 0.06, bgmGain);
+      // 4分打ちのベース(各コードの頭でドンと鳴らす)
+      if (barStep === 0) {
+        playTone(chord[0] / 2, stepTime * 3.6, "sawtooth", 0, 0.1, bgmGain);
+        playKick(0, 0.4, bgmGain);
+        // コードの頭にベルのアクセントを添えて華やかに
+        playTone(freq * 4, 0.4, "sine", 0.02, 0.1, bgmGain);
+      }
+      // 裏拍にもう一発キックでリズムを弾ませる
+      if (barStep === 2) {
+        playKick(0, 0.28, bgmGain);
+      }
+
+      // ハイハット的な刻みを毎ステップ入れる。3拍目は少しオープン気味に長く
+      playNoiseTick(0, barStep === 2 ? 0.09 : 0.055, bgmGain);
+
+      // 2小節ごとに手拍子(クラップ)のアクセントを入れ、お祭りらしい賑わいを出す
+      if (bgmStep % 8 === 4) {
+        playClap(0, 0.22, bgmGain);
+      }
 
       bgmStep += 1;
     };

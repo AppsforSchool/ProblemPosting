@@ -369,7 +369,7 @@ async function handleSubmit() {
 
     await AppDialog.alert("暗記カードを作成しました！");
     clearBackup();
-    window.location.href = "./app.html";
+    window.location.href = "./app.html#cards";
   } catch (error) {
     console.error(error);
     await AppDialog.alert("作成に失敗しました。\n" + error);

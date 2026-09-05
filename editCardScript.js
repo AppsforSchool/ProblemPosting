@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
   submitButton.addEventListener("click", handleUpdate);
   deleteDeckButton.addEventListener("click", handleDeleteDeck);
   noPermissionHomeButton.addEventListener("click", () => {
-    window.location.href = "./app.html";
+    window.location.href = "./app.html#cards";
   });
   importJsonButton.addEventListener("click", () => importJsonFileInput.click());
   importJsonFileInput.addEventListener("change", handleImportJsonFile);
@@ -93,7 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
       currentDeckId = getParmFromUrl("id");
       if (!currentDeckId) {
         await AppDialog.alert("暗記カードが指定されていません。");
-        window.location.href = "./app.html";
+        window.location.href = "./app.html#cards";
         return;
       }
 
@@ -229,7 +229,7 @@ async function loadDeckData(deckId) {
 
     if (!deckSnap.exists) {
       await AppDialog.alert("暗記カードが見つかりません。");
-      window.location.href = "./app.html";
+      window.location.href = "./app.html#cards";
       return;
     }
 
@@ -492,7 +492,7 @@ async function handleUpdate() {
 
     await AppDialog.alert("暗記カードを更新しました！");
     clearBackup();
-    window.location.href = "./app.html";
+    window.location.href = "./app.html#cards";
   } catch (error) {
     console.error(error);
     await AppDialog.alert("更新に失敗しました。\n" + error);
@@ -520,7 +520,7 @@ async function handleDeleteDeck() {
 
     await AppDialog.alert("削除しました。");
     clearBackup();
-    window.location.href = "./app.html";
+    window.location.href = "./app.html#cards";
   } catch (error) {
     console.error(error);
     await AppDialog.alert("削除に失敗しました。\n" + error);
