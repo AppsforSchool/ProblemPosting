@@ -1197,7 +1197,7 @@ footer p {
   transition: none; /* ★ カード切替の瞬間だけ、表裏の状態リセットをアニメーションさせない */
 }
 .flip-card-inner.flipped {
-  transform: rotateY(180deg);
+  transform: rotateY(-180deg);
 }
 .flip-card-front,
 .flip-card-back {
@@ -1224,7 +1224,7 @@ footer p {
 .flip-card-back {
   background-color: var(--primary);
   color: #fff;
-  transform: rotateY(180deg);
+  transform: rotateY(-180deg);
 }
 #card-front-text,
 #card-back-text {
