@@ -46,6 +46,7 @@ let cardBackText;
 let showBackButton;
 let nextCardButton;
 let finishedHomeButton;
+let restartShuffledButton;
 
 let writeImpressionButton;
 let impressionModal;
@@ -80,6 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
   showBackButton = document.getElementById("show-back-button");
   nextCardButton = document.getElementById("next-card-button");
   finishedHomeButton = document.getElementById("finished-home-button");
+  restartShuffledButton = document.getElementById("restart-shuffled-button");
 
   writeImpressionButton = document.getElementById("write-impression-button");
   impressionModal = document.getElementById("impression-modal");
@@ -105,6 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
   finishedHomeButton.addEventListener("click", () => {
     window.location.href = "./app.html#cards";
   });
+  restartShuffledButton.addEventListener("click", handleRestartShuffled);
 
   showBackButton.addEventListener("click", () => {
     flipToBack();
@@ -404,6 +407,29 @@ function showCard(index) {
   }
 }
 
+// ★ 終了メッセージの「シャッフルして最初から」。終了メッセージをフェードアウトさせつつ、単語カードをフェードインさせて最初から再開する
+function handleRestartShuffled() {
+  isTransitioning = false;
+
+  // 終了メッセージをフェードアウト
+  cardFinishedArea.classList.remove("is-visible");
+
+  // 単語カードを、フェードインしながら表示する
+  cardContainer.classList.remove("hidden");
+  cardContainer.classList.add("fade-in-start");
+  void cardContainer.offsetWidth;
+  cardContainer.classList.remove("fade-in-start");
+
+  // シャッフルし直して、最初のカードから再開する
+  cardsData = shuffleArray(cardsData);
+  showCard(0);
+
+  // 終了メッセージのフェードアウトが完了してから非表示にする
+  setTimeout(() => {
+    cardFinishedArea.classList.add("hidden");
+  }, 450);
+}
+
 function isCardFlipped() {
   return flipCardEl.classList.contains("flipped");
 }
@@ -455,6 +481,9 @@ function goToNextCard() {
     setTimeout(() => {
       cardContainer.classList.add("hidden");
       cardFinishedArea.classList.remove("hidden");
+      // ★ 通常のカード切替と同じく、フェードイン＋拡大のアニメーションで終了メッセージを出す
+      void cardFinishedArea.offsetWidth;
+      cardFinishedArea.classList.add("is-visible");
       recordDeckSolved();
     }, 500);
     return;

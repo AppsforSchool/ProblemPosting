@@ -1040,9 +1040,15 @@ footer p {
   display: flex;
   flex-direction: column;
   align-items: center;
+
+  opacity: 1;
+  transition: opacity 0.45s var(--ease);
 }
 .card-container.hidden {
   display: none;
+}
+.card-container.fade-in-start {
+  opacity: 0;
 }
 .flip-card-container {
   position: relative;
@@ -1271,18 +1277,22 @@ footer p {
   gap: 0.6rem;
   padding: 2rem 0;
   width: 100%;
+
+  opacity: 0;
+  transform: scale(0.9) translateY(6px);
+  transition: opacity 0.45s var(--ease), transform 0.45s var(--ease);
 }
 .card-finished-area.hidden {
   display: none;
+}
+.card-finished-area.is-visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
 }
 .card-finished-title {
   font-size: 1.6rem;
   font-weight: 700;
   color: var(--primary);
-}
-.card-finished-text {
-  font-size: 0.95rem;
-  color: var(--text-muted);
   margin-bottom: 1rem;
 }
 
