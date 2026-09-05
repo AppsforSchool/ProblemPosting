@@ -536,9 +536,11 @@ body {
   font-weight: 700;
   font-size: 0.78rem;
 
+  display: inline-block;
   padding: 0.4rem 0.75rem;
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
 
   background-color: var(--surface-alt);
   color: var(--primary-dark);

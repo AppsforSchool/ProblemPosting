@@ -106,9 +106,10 @@
           <div class="import-export-buttons">
             <button id="import-json-button" type="button" class="io-button">JSON読込</button>
             <button id="export-json-button" type="button" class="io-button">JSON書出</button>
+            <a id="ai-prompt-download-link" class="io-button" href="prompts/book-prompt.md" download="book-prompt.md">AI用プロンプト</a>
           </div>
         </div>
-        <p class="io-hint">AIで作った問題をJSON形式で読み込んだり、現在の内容をJSONとして書き出せます。読み込むと現在の問題リストは置き換わります。</p>
+        <p class="io-hint">「AI用プロンプト」をダウンロードしてAIに添付すると、AIに問題を作成してもらいやすくなります。できあがったJSONを「JSON読込」で読み込んだり、現在の内容を「JSON書出」で書き出せます。読み込むと現在の問題リストは置き換わります。</p>
         <input type="file" id="import-json-file-input" accept="application/json,.json" class="hidden">
 
         <div id="problems-list"></div>

@@ -447,10 +447,24 @@ function flipToFront() {
 function flipInPlace(toBack) {
   showBackButton.disabled = true;
   nextCardButton.disabled = true;
-  setTimeout(() => {
+
+  // ★ 固定時間で戻すのではなく、実際に回転アニメーションが終わったタイミングで正確に通常色へ戻す
+  let finalized = false;
+  const finalize = () => {
+    if (finalized) return;
+    finalized = true;
+    flipCardEl.removeEventListener("transitionend", onFlipTransitionEnd);
     showBackButton.disabled = false;
     nextCardButton.disabled = false;
-  }, 550);
+  };
+  const onFlipTransitionEnd = (event) => {
+    if (event.target !== flipCardEl || event.propertyName !== "transform") return;
+    finalize();
+  };
+  flipCardEl.addEventListener("transitionend", onFlipTransitionEnd);
+  // transitionendが発火しない環境に備えたフォールバック
+  setTimeout(finalize, 600);
+
   flipCardEl.classList.toggle("flipped", toBack);
 }
 
