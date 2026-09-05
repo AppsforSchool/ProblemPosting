@@ -262,7 +262,7 @@ document.addEventListener("DOMContentLoaded", () => {
         isAdmin: userData.isAdmin,
         imageUrl: userData.imageUrl || "",
         profileText: userData.profileText || "",
-        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
+        prizeGrantedAt: toMillisOrNull(userData.prizeGrantedAt)
       });
       meIsAdmin = userData.isAdmin || false;
       drawerUsername.textContent = userData.name;

@@ -71,10 +71,14 @@ function toMillisOrNull(value) {
   return null;
 }
 
+// ★ スペシャルライブ優勝の景品(名前が光る)の持続時間。liveHostScript.js側の値と揃える
+const PRIZE_DURATION_MS = 10 * 60 * 1000; // 10分間
+
 // ★ スペシャルライブ優勝の景品(名前が光る)が、現在も有効期限内かどうか
+//   ユーザーデータには「付与日時(prizeGrantedAt)」だけを保持し、期限はここで都度計算する
 function hasActivePrize(cached) {
-  const expiresAt = cached && cached.prizeExpiresAt;
-  return typeof expiresAt === "number" && expiresAt > Date.now();
+  const grantedAt = cached && cached.prizeGrantedAt;
+  return typeof grantedAt === "number" && grantedAt + PRIZE_DURATION_MS > Date.now();
 }
 
 let bookCache = {};
@@ -143,7 +147,7 @@ function createAvatar(name, size, imageUrl) {
   return avatar;
 }
 
-// ★ 指定したユーザーの情報（name/isAdmin/imageUrl/profileText/prizeExpiresAt）がキャッシュになければ取得する
+// ★ 指定したユーザーの情報（name/isAdmin/imageUrl/profileText/prizeGrantedAt）がキャッシュになければ取得する
 async function ensureUserCached(userId) {
   if (getUserCache(userId)) return;
 
@@ -155,10 +159,10 @@ async function ensureUserCached(userId) {
       isAdmin: userData.isAdmin || false,
       imageUrl: userData.imageUrl || "",
       profileText: userData.profileText || "",
-      prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
+      prizeGrantedAt: toMillisOrNull(userData.prizeGrantedAt)
     });
   } else {
-    setUserCache(userId, { name: "不明なユーザー", isAdmin: false, imageUrl: "", profileText: "", prizeExpiresAt: null });
+    setUserCache(userId, { name: "不明なユーザー", isAdmin: false, imageUrl: "", profileText: "", prizeGrantedAt: null });
   }
 }
 
@@ -256,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
         isAdmin: userData.isAdmin,
         imageUrl: userData.imageUrl || "",
         profileText: userData.profileText || "",
-        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
+        prizeGrantedAt: toMillisOrNull(userData.prizeGrantedAt)
       });
       meIsAdmin = userData.isAdmin || false;
       drawerUsername.textContent = userData.name;
@@ -1531,7 +1535,7 @@ async function openUserListModal() {
         isAdmin,
         imageUrl,
         profileText: userData.profileText || "",
-        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
+        prizeGrantedAt: toMillisOrNull(userData.prizeGrantedAt)
       });
 
       const item = document.createElement("div");
@@ -1747,7 +1751,7 @@ async function handleProfileEditOrSave() {
         isAdmin: previousCache.isAdmin || false,
         imageUrl: finalImageUrl,
         profileText: newProfileText,
-        prizeExpiresAt: previousCache.prizeExpiresAt || null
+        prizeGrantedAt: previousCache.prizeGrantedAt || null
       });
 
       if (currentProfileUserId === myUserId) {
@@ -1814,7 +1818,7 @@ async function openProfileModal(userId, startEditMode = false) {
         isAdmin: userData.isAdmin || false,
         imageUrl: userData.imageUrl || "",
         profileText: userData.profileText || "",
-        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
+        prizeGrantedAt: toMillisOrNull(userData.prizeGrantedAt)
       });
 
       profileName.textContent = updated.name;

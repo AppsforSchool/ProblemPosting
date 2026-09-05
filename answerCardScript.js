@@ -197,7 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
         isAdmin: userData.isAdmin,
         imageUrl: userData.imageUrl || "",
         profileText: userData.profileText || "",
-        prizeExpiresAt: toMillisOrNull(userData.prizeExpiresAt)
+        prizeGrantedAt: toMillisOrNull(userData.prizeGrantedAt)
       });
       drawerUsername.textContent = userData.name;
       if (meIsAdmin) {

@@ -1330,8 +1330,8 @@ function markParticipantsAsSolved() {
 }
 
 // ★ スペシャルライブなら、最終順位1位の参加者(0点は対象外)に景品を付与する。
-//   景品の実体は、Firestoreのユーザーデータに「景品の期限(タイムスタンプ)」を持たせるだけ。
-//   期限内であれば、名前が管理者と同じように光る(ただしアニメーションは半分の速度)。
+//   景品の実体は、Firestoreのユーザーデータに「景品の付与日時(タイムスタンプ)」を持たせるだけ。
+//   付与日時からPRIZE_DURATION_MS以内であれば、名前が管理者と同じように光る(ただしアニメーションは半分の速度)。
 const PRIZE_DURATION_MS = 10 * 60 * 1000; // 10分間
 function grantSpecialLivePrize() {
   if (!sessionData.isSpecial) return;
@@ -1340,10 +1340,9 @@ function grantSpecialLivePrize() {
   const winner = ranking[0];
   if (!winner) return; // 0点でない参加者がいなければ、誰にも付与しない
 
-  const expiresAt = firebase.firestore.Timestamp.fromDate(new Date(Date.now() + PRIZE_DURATION_MS));
   db.collection("users_random")
     .doc(winner.uid)
-    .set({ prizeExpiresAt: expiresAt }, { merge: true })
+    .set({ prizeGrantedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
     .catch(error => console.error("スペシャルライブの景品付与に失敗しました:", error));
 }
 
