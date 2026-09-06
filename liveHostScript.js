@@ -28,8 +28,11 @@ window.addEventListener("unhandledrejection", event => {
   LiveDialog.alert("予期しないエラーが発生しました:\n" + message);
 });
 
-// ★ 記述式の一括採点に使うGeminiモデル。answerScript.jsと合わせておく
-const GEMINI_MODEL = "gemini-3.6-flash";
+// ★ 記述式の一括採点に使うGeminiモデル。answerScript.jsと合わせておく。
+//   1日の利用回数などでレート制限にかかることがあるため、複数のモデルを候補として持っておき、
+//   あるモデルで失敗したら次のモデルを順に試す。
+//   (2026年9月時点でGoogleが提供している主要なGeminiモデルから選定。廃止/変更された場合はここを更新する)
+const GEMINI_MODEL_CANDIDATES = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"];
 let geminiApiKeyCache = null;
 
 const BASE_SCORE = 1000;
@@ -1227,8 +1230,23 @@ async function gradeDescriptiveBatch({ problem, modelAnswer, gradingCriteria, im
     }
   }
 
+  // ★ 候補モデルを順に試し、失敗したら次のモデルにフォールバックする
+  let lastError = null;
+  for (const model of GEMINI_MODEL_CANDIDATES) {
+    try {
+      return await callGeminiForBatchGrading(model, apiKey, parts);
+    } catch (error) {
+      console.error(`Gemini一括採点エラー(モデル: ${model}):`, error);
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("Gemini APIでの採点にすべて失敗しました。");
+}
+
+// ★ 指定したモデルでGeminiに一括採点(複数生徒分)を依頼する
+async function callGeminiForBatchGrading(model, apiKey, parts) {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
@@ -1255,7 +1273,7 @@ async function gradeDescriptiveBatch({ problem, modelAnswer, gradingCriteria, im
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
-    throw new Error(`Gemini APIエラー: ${response.status} ${errorBody}`);
+    throw new Error(`Gemini APIエラー(${model}): ${response.status} ${errorBody}`);
   }
 
   const data = await response.json();
@@ -1267,10 +1285,10 @@ async function gradeDescriptiveBatch({ problem, modelAnswer, gradingCriteria, im
     data.candidates[0].content.parts &&
     data.candidates[0].content.parts[0] &&
     data.candidates[0].content.parts[0].text;
-  if (!resultText) throw new Error("Gemini APIから採点結果が得られませんでした。");
+  if (!resultText) throw new Error(`Gemini APIから採点結果が得られませんでした。(${model})`);
 
   const parsed = JSON.parse(resultText);
-  if (!Array.isArray(parsed)) throw new Error("採点結果の形式が不正です。");
+  if (!Array.isArray(parsed)) throw new Error(`採点結果の形式が不正です。(${model})`);
 
   return parsed.map(item => ({
     userId: String(item.userId),

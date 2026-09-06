@@ -26,8 +26,10 @@ const subjectIdList = [
 ];
 const gradeIdList = ["不明", "1年", "2年", "3年", "総合"];
 
-// ★ 記述式の採点に使うGeminiモデル。廃止された場合はここを新しいモデルIDに差し替える
-const GEMINI_MODEL = "gemini-3.6-flash";
+// ★ 記述式の採点に使うGeminiモデル。1日の利用回数などでレート制限にかかることがあるため、
+//   複数のモデルを候補として持っておき、あるモデルで失敗したら次のモデルを順に試す。
+//   (2026年9月時点でGoogleが提供している主要なGeminiモデルから選定。廃止/変更された場合はここを更新する)
+const GEMINI_MODEL_CANDIDATES = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"];
 let geminiApiKeyCache = null;
 let lastDescriptiveSubmission = null;
 
@@ -1015,8 +1017,23 @@ async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, s
     }
   }
 
+  // ★ 候補モデルを順に試し、失敗したら次のモデルにフォールバックする
+  let lastError = null;
+  for (const model of GEMINI_MODEL_CANDIDATES) {
+    try {
+      return await callGeminiForDescriptiveGrading(model, apiKey, parts);
+    } catch (error) {
+      console.error(`Gemini採点エラー(モデル: ${model}):`, error);
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("Gemini APIでの採点にすべて失敗しました。");
+}
+
+// ★ 指定したモデルでGeminiに1件分の記述式採点を依頼する
+async function callGeminiForDescriptiveGrading(model, apiKey, parts) {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
       headers: {
@@ -1042,7 +1059,7 @@ async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, s
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
-    throw new Error(`Gemini APIエラー: ${response.status} ${errorBody}`);
+    throw new Error(`Gemini APIエラー(${model}): ${response.status} ${errorBody}`);
   }
 
   const data = await response.json();
@@ -1050,7 +1067,7 @@ async function gradeDescriptiveAnswer({ problem, modelAnswer, gradingCriteria, s
     data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
     data.candidates[0].content.parts[0].text;
   if (!resultText) {
-    throw new Error("Gemini APIから採点結果が得られませんでした。");
+    throw new Error(`Gemini APIから採点結果が得られませんでした。(${model})`);
   }
 
   const parsed = JSON.parse(resultText);
