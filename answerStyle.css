@@ -508,6 +508,17 @@ body {
 .grading-disclaimer-text.hidden {
   display: none;
 }
+.grading-model-text {
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  opacity: 0.7;
+  margin-top: -0.9rem;
+  margin-bottom: 1.2rem;
+}
+.grading-model-text.hidden {
+  display: none;
+}
 .answer-correct-area {
   text-align: left;
   margin-bottom: 1.2rem;

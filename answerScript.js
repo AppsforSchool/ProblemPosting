@@ -52,6 +52,7 @@ let descriptiveAnswerInputEl;
 let answerModal;
 let answerResultText;
 let gradingDisclaimerText;
+let gradingModelText;
 let answerCorrectAreaEl;
 let answerCorrectLabelEl;
 let answerExplanationArea;
@@ -126,6 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
   answerModal = document.getElementById("answer-modal");
   answerResultText = document.getElementById("answer-result-text");
   gradingDisclaimerText = document.getElementById("grading-disclaimer-text");
+  gradingModelText = document.getElementById("grading-model-text");
   answerCorrectAreaEl = document.getElementById("answer-correct-area");
   answerCorrectLabelEl = document.getElementById("answer-correct-label");
   answerExplanationArea = document.getElementById("answer-explanation-area");
@@ -842,6 +844,7 @@ function showDescriptiveModal(state) {
   answerActionsRow.classList.add("hidden");
   answerResultText.classList.add("hidden");
   gradingDisclaimerText.classList.add("hidden");
+  gradingModelText.classList.add("hidden");
   answerCorrectAreaEl.classList.add("hidden");
   gradingCriteriaArea.classList.add("hidden");
   gradingReasonArea.classList.add("hidden");
@@ -883,6 +886,10 @@ function showDescriptiveModal(state) {
     answerResultText.classList.toggle("correct-text", state.score >= 6);
     answerResultText.classList.toggle("incorrect-text", state.score < 6);
     gradingDisclaimerText.classList.remove("hidden");
+    if (state.model) {
+      gradingModelText.textContent = `採点モデル: ${state.model}`;
+      gradingModelText.classList.remove("hidden");
+    }
   }
 
   answerCorrectLabelEl.textContent = "模範解答";
@@ -941,7 +948,7 @@ async function runDescriptiveGrading(submittedText) {
     // 6/10点以上を「正解」扱いとして結果画面の正解数にカウントする（あくまで目安の合格ライン）
     if (result.score >= 6) correctAnswersCount++;
 
-    showDescriptiveModal({ phase: "result", score: result.score, reason: result.reason });
+    showDescriptiveModal({ phase: "result", score: result.score, reason: result.reason, model: result.model });
   } catch (error) {
     console.error("Gemini採点エラー:", error);
     await AppDialog.alert("採点でエラーが発生しました。\n" + (error && error.message ? error.message : error));
@@ -1075,7 +1082,7 @@ async function callGeminiForDescriptiveGrading(model, apiKey, parts) {
   if (!Number.isFinite(score)) score = 0;
   score = Math.max(0, Math.min(10, Math.round(score)));
 
-  return { score, reason: String(parsed.reason || "") };
+  return { score, reason: String(parsed.reason || ""), model };
 }
 
 function handleAnswerModalNext() {
