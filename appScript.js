@@ -1207,7 +1207,8 @@ function openSettingModal(id) {
   if (bookCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.classList.remove("hidden");
 
   const allowShuffle = !!bookCache[id][9];
-  shuffleProblemsToggle.checked = false;
+  // ★ シャッフル可能な問題集は、初期状態でシャッフルをオンにしておく
+  shuffleProblemsToggle.checked = allowShuffle;
   shuffleProblemsToggle.disabled = !allowShuffle;
 
   applyRecruitModeToSettingModal(id);
