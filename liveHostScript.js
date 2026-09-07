@@ -357,7 +357,19 @@ function setPhase(phase) {
   [phaseWaiting, phaseCountdown, phaseQuestion, phaseGrading, phaseResults, phaseFinished, phaseSessionMissing].forEach(
     el => el.classList.add("hidden")
   );
+  phaseQuestion.classList.remove("question-settled");
+  phaseResults.classList.remove("show", "stacked-below");
   phase.classList.remove("hidden");
+}
+
+// ★ 参加者側と同じく、正解発表後も問題カードを消さずに少し縮めて下にどかしたまま残し、
+//   その上に結果(得点・ランキング)を表示する
+function showResultsStackedBelowQuestion() {
+  phaseQuestion.classList.remove("hidden");
+  phaseQuestion.classList.add("question-settled");
+  phaseResults.classList.remove("hidden");
+  phaseResults.classList.add("stacked-below");
+  requestAnimationFrame(() => phaseResults.classList.add("show"));
 }
 
 function resetBrokenSessionAndGoHome() {
@@ -417,8 +429,8 @@ function render() {
     setPhase(phaseGrading);
     renderGradingPhase();
   } else if (status === "results") {
-    setPhase(phaseResults);
     if (statusChanged) LiveAudio.playReveal();
+    showResultsStackedBelowQuestion();
     renderResultsPhase();
   } else if (status === "finished") {
     setPhase(phaseFinished);
