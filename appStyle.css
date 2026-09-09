@@ -818,12 +818,14 @@ body {
 .buttons-area .split-secondary {
   width: 35% !important;
 }
-/* ★ 「待機画面へ」(募集中の問題集の主催者用)の時だけ、ライブ周りのボタンと同じグラデーションにする */
-.buttons-area #start-button.full-width-button {
+/* ★ 「待機画面へ」(募集中の問題集の主催者用)の時だけ、ライブ周りのボタンと同じグラデーションにする。
+   full-width-buttonは単なる横幅100%指定の汎用クラス(編集ボタンが無いだけの通常ユーザーにも付与される)なので、
+   グラデーションはこの専用クラス(live-gradient-button)にだけ適用し、混同しないようにする */
+.buttons-area #start-button.live-gradient-button {
   background: linear-gradient(120deg, var(--primary), var(--accent));
   box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.35);
 }
-.buttons-area #start-button.full-width-button:hover:not(:disabled) {
+.buttons-area #start-button.live-gradient-button:hover:not(:disabled) {
   background: linear-gradient(120deg, var(--primary-dark), var(--accent));
 }
 

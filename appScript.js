@@ -671,13 +671,15 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
     cardMadeBy.appendChild(madeByTextContent);
     cardMadeBy.appendChild(nameSpan);
       
-    const solvedBy = book[6] || [];
+    const isCurrentlyWaiting = isRecruiting && session.status === "waiting";
+    const participantIds = isCurrentlyWaiting ? Object.keys(session.participants || {}) : [];
+    const solvedBy = isCurrentlyWaiting ? participantIds : (book[6] || []);
     const solvedByArea = document.createElement("div");
     solvedByArea.classList.add("solved-by-area");
 
     const solvedByLabel = document.createElement("span");
     solvedByLabel.classList.add("solved-by-label");
-    solvedByLabel.textContent = "解いた人:";
+    solvedByLabel.textContent = isCurrentlyWaiting ? "参加中:" : "解いた人:";
     solvedByArea.appendChild(solvedByLabel);
 
     if (solvedBy.length > 0) {
@@ -701,12 +703,12 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
       solvedByArea.appendChild(stack);
       solvedByArea.addEventListener("click", (e) => {
         e.stopPropagation();
-        openSolvedModal(bookId);
+        openSolvedModal(bookId, isCurrentlyWaiting ? "participants" : "book");
       });
     } else {
       const emptyText = document.createElement("span");
       emptyText.classList.add("solved-by-empty-text");
-      emptyText.textContent = "解いた人はまだいません";
+      emptyText.textContent = isCurrentlyWaiting ? "まだ参加者がいません" : "解いた人はまだいません";
       solvedByArea.appendChild(emptyText);
     }
       
@@ -1013,6 +1015,7 @@ document.addEventListener("DOMContentLoaded", () => {
     joinDisabledText.classList.add("hidden");
     settingModalStartButton.classList.remove("hidden");
     settingModalStartButton.classList.remove("full-width-button");
+    settingModalStartButton.classList.remove("live-gradient-button");
     settingModalStartButton.classList.remove("split-primary");
     settingModalStartButton.textContent = "スタート";
     soloStartButton.classList.add("hidden");
@@ -1177,6 +1180,7 @@ function setSettingModalMode(mode) {
   joinDisabledText.classList.add("hidden");
   settingModalStartButton.classList.remove("hidden");
   settingModalStartButton.classList.remove("full-width-button");
+  settingModalStartButton.classList.remove("live-gradient-button");
   settingModalStartButton.classList.remove("split-primary");
   settingModalStartButton.textContent = "スタート";
   soloStartButton.classList.add("hidden");
@@ -1233,6 +1237,7 @@ function applyRecruitModeToSettingModal(id) {
   joinDisabledText.classList.add("hidden");
   settingModalStartButton.classList.remove("hidden");
   settingModalStartButton.classList.remove("full-width-button");
+  settingModalStartButton.classList.remove("live-gradient-button");
   settingModalStartButton.classList.remove("split-primary");
   settingModalStartButton.textContent = "スタート";
   soloStartButton.classList.add("hidden");
@@ -1265,10 +1270,10 @@ function applyRecruitModeToSettingModal(id) {
       settingModalStartButton.textContent = "待機画面へ";
       joinButton.classList.add("hidden");
       if (showSoloStart) {
-        settingModalStartButton.classList.add("split-primary");
+        settingModalStartButton.classList.add("split-primary", "live-gradient-button");
         soloStartButton.classList.add("split-secondary");
       } else {
-        settingModalStartButton.classList.add("full-width-button");
+        settingModalStartButton.classList.add("full-width-button", "live-gradient-button");
       }
     } else {
       // 参加者: 参加する/待機画面へ ＋ (公開済みなら)一人で解く(スタート)。
@@ -1428,10 +1433,12 @@ function openBookShareModal(bookId) {
 
 let solvedModal;
 let solvedModalClose;
+let solvedModalTitle;
 let solvedArea;
 document.addEventListener("DOMContentLoaded", () => {
   solvedModal = document.getElementById("solved-modal");
   solvedModalClose = document.getElementById("solved-modal-close");
+  solvedModalTitle = document.getElementById("solved-modal-title");
   solvedArea = document.getElementById("solved-area");
 
   solvedModalClose.addEventListener("click", () => {
@@ -1440,16 +1447,29 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function openSolvedModal(id, type) {
-  const cache = type === "card" ? deckCache : bookCache;
-  const solvedBy = (cache[id] && cache[id][6]) || [];
   solvedArea.innerHTML = "";
 
-  if (solvedBy.length === 0) {
-    const emptyMessage = document.createElement("p");
-    emptyMessage.textContent = "まだ誰も解いていません";
-    solvedArea.appendChild(emptyMessage);
+  let userIds;
+  let emptyMessage;
+
+  if (type === "participants") {
+    const session = liveSessionsCache[id];
+    userIds = session ? Object.keys(session.participants || {}) : [];
+    solvedModalTitle.textContent = "参加中";
+    emptyMessage = "まだ参加者がいません";
   } else {
-    solvedBy.forEach(userId => {
+    const cache = type === "card" ? deckCache : bookCache;
+    userIds = (cache[id] && cache[id][6]) || [];
+    solvedModalTitle.textContent = "解いた人";
+    emptyMessage = "まだ誰も解いていません";
+  }
+
+  if (userIds.length === 0) {
+    const emptyMessageEl = document.createElement("p");
+    emptyMessageEl.textContent = emptyMessage;
+    solvedArea.appendChild(emptyMessageEl);
+  } else {
+    userIds.forEach(userId => {
       const item = document.createElement("div");
       item.classList.add("member-item");
 
