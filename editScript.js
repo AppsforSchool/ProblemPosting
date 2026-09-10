@@ -285,13 +285,13 @@ async function loadBookData(bookId) {
     const visibilityRadios = document.querySelectorAll(".book-visibility-radio");
     visibilityRadios.forEach(radio => {
       radio.checked = bookData.isPrivate ? radio.value === "private" : radio.value === "public";
-      // 一度公開された問題集は、非公開に戻せないようにする
-      if (wasAlreadyPublic) {
+      // 一度公開された問題集は、非公開に戻せないようにする(ただし管理者は戻せる)
+      if (wasAlreadyPublic && !meIsAdmin) {
         radio.disabled = radio.value === "private";
       }
     });
     const visibilityLockedMessage = document.getElementById("visibility-locked-message");
-    if (visibilityLockedMessage) visibilityLockedMessage.classList.toggle("hidden", !wasAlreadyPublic);
+    if (visibilityLockedMessage) visibilityLockedMessage.classList.toggle("hidden", !wasAlreadyPublic || meIsAdmin);
 
     if (meIsAdmin) {
       madeByArea.classList.remove("hidden");
@@ -720,8 +720,8 @@ async function validateAndCollectPayload() {
   const shuffleProblems = bookShuffleProblemsCheckbox.checked;
 
   const visibilityRadio = document.querySelector(".book-visibility-radio:checked");
-  // 一度公開された問題集は、UIを迂回されても非公開に戻せないようにする
-  const isPrivate = wasAlreadyPublic ? false : (!!visibilityRadio && visibilityRadio.value === "private");
+  // 一度公開された問題集は、UIを迂回されても非公開に戻せないようにする(ただし管理者は戻せる)
+  const isPrivate = wasAlreadyPublic && !meIsAdmin ? false : (!!visibilityRadio && visibilityRadio.value === "private");
 
   let madeBy = null;
   if (meIsAdmin) {

@@ -15,6 +15,53 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 const rtdb = firebase.database();
 
+// ★ 参加者/主催者の名前を、管理者/景品保持者なら虹色で表示するためのキャッシュ・判定ロジック。
+//   appScript.js/profileSystem.js側と同じ考え方(値は揃える)を、このページ用に単体で持たせている
+const userInfoCache = {};
+const PRIZE_DURATION_MS = 10 * 60 * 1000; // 10分間 (liveHostScript.jsの付与処理と揃えてある)
+
+function toMillisOrNull(value) {
+  if (!value) return null;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value === "number") return value;
+  return null;
+}
+function hasActivePrize(cached) {
+  const grantedAt = cached && cached.prizeGrantedAt;
+  return typeof grantedAt === "number" && grantedAt + PRIZE_DURATION_MS > Date.now();
+}
+async function ensureUserInfo(userId) {
+  if (userInfoCache[userId]) return userInfoCache[userId];
+  try {
+    const snap = await db.collection("users_random").doc(userId).get();
+    const data = snap.exists ? snap.data() : {};
+    userInfoCache[userId] = {
+      name: data.name || userId,
+      isAdmin: !!data.isAdmin,
+      prizeGrantedAt: toMillisOrNull(data.prizeGrantedAt)
+    };
+  } catch (error) {
+    console.error("ユーザー情報の取得に失敗しました:", error);
+    userInfoCache[userId] = { name: userId, isAdmin: false, prizeGrantedAt: null };
+  }
+  return userInfoCache[userId];
+}
+// ★ 名前を表示する要素に、管理者/景品保持者なら虹色クラスを付与する。
+//   まだ情報が無ければ取得してから改めて反映する
+function applyRainbowNameClass(el, userId) {
+  if (!el || !userId) return;
+  const cached = userInfoCache[userId];
+  if (cached) {
+    el.classList.toggle("admin", cached.isAdmin);
+    el.classList.toggle("prize", !cached.isAdmin && hasActivePrize(cached));
+    return;
+  }
+  ensureUserInfo(userId).then(info => {
+    el.classList.toggle("admin", info.isAdmin);
+    el.classList.toggle("prize", !info.isAdmin && hasActivePrize(info));
+  });
+}
+
 // ★ iPadなどコンソールが見られない環境向けに、想定外のエラーをアラートで表示する
 window.addEventListener("error", event => {
   const message = (event.error && event.error.message) || event.message || "不明なエラー";
@@ -44,6 +91,8 @@ let problemsData = []; // [problem, choices, answer, explanation, imageUrl, answ
 let loadingOverlay;
 let loadingStatusText;
 let liveHeaderTitle;
+let hostNameText;
+let hostNameFetched = false;
 
 let phaseWaiting, phaseCountdown, phaseQuestion, phaseGrading, phaseResults, phaseFinished, phaseCancelled, phaseSessionEnded;
 
@@ -121,6 +170,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
   liveHeaderTitle = document.getElementById("host-title-text");
+  hostNameText = document.getElementById("host-name-text");
 
   phaseWaiting = document.getElementById("phase-waiting");
   phaseCountdown = document.getElementById("phase-countdown");
@@ -349,6 +399,10 @@ function attachSessionListener() {
         setPhase(phaseCancelled);
         return;
       }
+      if (!hostNameFetched && sessionData.hostUserId) {
+        hostNameFetched = true;
+        renderHostName(sessionData.hostUserId);
+      }
       render();
     },
     error => {
@@ -357,6 +411,18 @@ function attachSessionListener() {
       LiveDialog.alert("セッション情報の取得に失敗しました。権限設定をご確認ください。\n" + error.message);
     }
   );
+}
+
+// ★ ヘッダーに主催者の名前を表示する(管理者/景品保持者なら虹色で)
+async function renderHostName(hostUserId) {
+  const info = await ensureUserInfo(hostUserId);
+  hostNameText.innerHTML = "";
+  hostNameText.appendChild(document.createTextNode("主催者: "));
+  const nameSpan = document.createElement("span");
+  nameSpan.classList.add("host-name-value");
+  nameSpan.textContent = info.name;
+  hostNameText.appendChild(nameSpan);
+  applyRainbowNameClass(nameSpan, hostUserId);
 }
 
 function showCancelledMessage(title, hint) {
@@ -453,10 +519,14 @@ function renderWaitingPhase() {
   waitingCommentText.textContent = comment;
   waitingCommentText.classList.toggle("hidden", comment === "");
   waitingParticipantsList.innerHTML = "";
-  Object.values(participants).forEach(p => {
+  Object.entries(participants).forEach(([uid, p]) => {
     const chip = document.createElement("span");
     chip.classList.add("participant-chip");
-    chip.textContent = p.name || "";
+    const nameSpan = document.createElement("span");
+    nameSpan.classList.add("chip-name");
+    nameSpan.textContent = p.name || "";
+    applyRainbowNameClass(nameSpan, uid);
+    chip.appendChild(nameSpan);
     waitingParticipantsList.appendChild(chip);
   });
 }
@@ -871,6 +941,7 @@ function buildLeaderboardRow(entry, rank) {
   row.innerHTML = `<span class="leaderboard-rank">${rank}</span><span class="leaderboard-name">${escapeHtml(
     entry.name
   )}</span><span class="leaderboard-score">${entry.score}</span>`;
+  applyRainbowNameClass(row.querySelector(".leaderboard-name"), entry.uid);
   return row;
 }
 
@@ -914,7 +985,6 @@ function renderLeaderboard(container, isFinal) {
 //   自分が4位以下の場合は、順位表示欄に自分の順位を出す(トップ3の場合はポディウム内に既に表示されるので隠す)
 let finishedRevealStarted = false;
 let prizeModalShown = false;
-const PRIZE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 1週間 (liveHostScript.jsの付与処理と揃えてある)
 
 function renderFinishedPhase(isFreshTransition) {
   const ranking = buildRanking();
@@ -1000,7 +1070,7 @@ function maybeShowPrizeModal(ranking) {
   //   数秒程度ズレる可能性があるが、表示上の目安としては十分な精度
   const expiresAt = new Date(now() + PRIZE_DURATION_MS);
   prizeModalText.textContent =
-    `おめでとうございます！\n今日から1週間(${formatDateTime(expiresAt)}まで)、ユーザー名が虹色に発光します！`;
+    `おめでとうございます！\n${formatDateTime(expiresAt)}まで、ユーザー名が虹色に発光します！`;
   prizeModal.classList.remove("hidden");
 }
 

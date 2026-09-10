@@ -1048,7 +1048,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const currentBook = bookCache[settingModalBookId];
     const isPrivateBook = !!(currentBook && currentBook[10]);
     // ★ 解き直し(公開済みの問題集の再募集)の場合は、スペシャルライブのトグルを出さない
-    specialLiveToggleRow.classList.toggle("hidden", !meIsAdmin || !isPrivateBook);
+    // ★ 管理者なら、公開済みの問題集を「解き直す」場合でもスペシャルライブにできる
+    specialLiveToggleRow.classList.toggle("hidden", !meIsAdmin);
     recruitStartModalTitle.textContent = isPrivateBook ? "みんなで解く" : "みんなで解き直す";
     recruitStartModal.classList.remove("hidden");
   });

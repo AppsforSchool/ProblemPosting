@@ -15,6 +15,50 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 const rtdb = firebase.database();
 
+// ★ 参加者/主催者の名前を、管理者/景品保持者なら虹色で表示するためのキャッシュ・判定ロジック。
+//   appScript.js/profileSystem.js側と同じ考え方(値は揃える)を、このページ用に単体で持たせている
+const userInfoCache = {};
+const PRIZE_DURATION_MS = 10 * 60 * 1000; // 10分間
+
+function toMillisOrNull(value) {
+  if (!value) return null;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value === "number") return value;
+  return null;
+}
+function hasActivePrize(cached) {
+  const grantedAt = cached && cached.prizeGrantedAt;
+  return typeof grantedAt === "number" && grantedAt + PRIZE_DURATION_MS > Date.now();
+}
+async function ensureUserInfo(userId) {
+  if (userInfoCache[userId]) return userInfoCache[userId];
+  try {
+    const snap = await db.collection("users_random").doc(userId).get();
+    const data = snap.exists ? snap.data() : {};
+    userInfoCache[userId] = { isAdmin: !!data.isAdmin, prizeGrantedAt: toMillisOrNull(data.prizeGrantedAt) };
+  } catch (error) {
+    console.error("ユーザー情報の取得に失敗しました:", error);
+    userInfoCache[userId] = { isAdmin: false, prizeGrantedAt: null };
+  }
+  return userInfoCache[userId];
+}
+// ★ 名前を表示する要素に、管理者/景品保持者なら虹色クラスを付与する。
+//   まだ情報が無ければ取得してから改めて反映する(取得完了時にはその要素が無くなっている場合もあるため、
+//   呼び出し側は毎回の再描画でこの関数を呼び直せば十分)
+function applyRainbowNameClass(el, userId) {
+  if (!el || !userId) return;
+  const cached = userInfoCache[userId];
+  if (cached) {
+    el.classList.toggle("admin", cached.isAdmin);
+    el.classList.toggle("prize", !cached.isAdmin && hasActivePrize(cached));
+    return;
+  }
+  ensureUserInfo(userId).then(info => {
+    el.classList.toggle("admin", info.isAdmin);
+    el.classList.toggle("prize", !info.isAdmin && hasActivePrize(info));
+  });
+}
+
 // ★ iPadなどコンソールが見られない環境向けに、想定外のエラーをアラートで表示する
 window.addEventListener("error", event => {
   const message = (event.error && event.error.message) || event.message || "不明なエラー";
@@ -410,7 +454,11 @@ function render() {
     participantIds.forEach(uid => {
       const chip = document.createElement("span");
       chip.classList.add("participant-chip");
-      chip.textContent = participants[uid].name || uid;
+      const nameSpan = document.createElement("span");
+      nameSpan.classList.add("chip-name");
+      nameSpan.textContent = participants[uid].name || uid;
+      applyRainbowNameClass(nameSpan, uid);
+      chip.appendChild(nameSpan);
       waitingParticipantsList.appendChild(chip);
     });
     // ★ 参加者が1人もいない場合はスタートできないようにする
@@ -847,6 +895,7 @@ function buildLeaderboardRow(entry, rank) {
   row.innerHTML = `<span class="leaderboard-rank">${rank}</span><span class="leaderboard-name">${escapeHtml(
     entry.name
   )}</span><span class="leaderboard-score">${entry.score}</span>`;
+  applyRainbowNameClass(row.querySelector(".leaderboard-name"), entry.uid);
   return row;
 }
 
@@ -1362,7 +1411,7 @@ function markParticipantsAsSolved() {
 // ★ スペシャルライブなら、最終順位1位の参加者(0点は対象外)に景品を付与する。
 //   景品の実体は、Firestoreのユーザーデータに「景品の付与日時(タイムスタンプ)」を持たせるだけ。
 //   付与日時からPRIZE_DURATION_MS以内であれば、名前が管理者と同じように光る(ただしアニメーションは半分の速度)。
-const PRIZE_DURATION_MS = 10 * 60 * 1000; // 10分間
+//   (PRIZE_DURATION_MSはファイル冒頭の虹色クラス判定用の定義を共用している)
 function grantSpecialLivePrize() {
   if (!sessionData.isSpecial) return;
 

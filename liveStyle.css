@@ -93,6 +93,28 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+#live-header-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+#live-header-titles #host-title-text {
+  flex: none;
+}
+.host-name-text {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.65);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#live-header #host-name-text {
+  font-size: 0.72rem;
+  font-weight: 400;
+}
 .audio-mute-button {
   flex-shrink: 0;
   width: 2.2rem;
@@ -293,6 +315,30 @@ body {
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--text);
+}
+/* ★ チップ自体の背景(丸ピル)と、文字の虹色グラデーションが競合しないよう、
+   文字だけを内側のspanに分けてグラデーションを適用する。主催者名(.host-name-value)にも同じ効果を使う */
+.participant-chip .chip-name {
+  color: inherit;
+}
+.participant-chip .chip-name.admin,
+.participant-chip .chip-name.prize,
+.host-name-value.admin,
+.host-name-value.prize {
+  background: linear-gradient(90deg, #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.participant-chip .chip-name.admin,
+.host-name-value.admin {
+  animation: wave 2s linear infinite;
+}
+.participant-chip .chip-name.prize,
+.host-name-value.prize {
+  animation: wave 4s linear infinite;
 }
 
 /* ---- buttons ---- */
@@ -834,6 +880,28 @@ button.answer-status-word-row:disabled {
 }
 .leaderboard-rank { font-weight: 700; color: var(--text-muted); }
 .leaderboard-name { font-weight: 700; font-size: 0.9rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboard-name.admin {
+  background: linear-gradient(90deg, #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wave 2s linear infinite;
+}
+.leaderboard-name.prize {
+  background: linear-gradient(90deg, #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wave 4s linear infinite;
+}
+@keyframes wave {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
 .leaderboard-score { font-weight: 700; font-size: 0.95rem; color: var(--primary); }
 .leaderboard-row.rank-1 { border-color: var(--gold); background: rgba(232, 185, 58, 0.15); }
 .leaderboard-row.rank-1 .leaderboard-rank { color: var(--gold); }
