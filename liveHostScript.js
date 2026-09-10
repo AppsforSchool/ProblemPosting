@@ -55,7 +55,7 @@ let hostTitleText;
 let phaseWaiting, phaseCountdown, phaseQuestion, phaseGrading, phaseResults, phaseFinished, phaseSessionMissing;
 
 let waitingParticipantsList, waitingParticipantsCount, waitingTimeLimitOptions, startSessionButton, cancelRecruitmentButton;
-let selectedTimeLimitSeconds = 10;
+let selectedTimeLimitSeconds = 20;
 let userChangedTimeLimit = false;
 let countdownNumberEl;
 let questionIndexText, questionText, questionImage, questionTimerText, questionTimerBar, questionAnsweredCount, cutoffButton;
