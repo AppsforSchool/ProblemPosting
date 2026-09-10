@@ -89,6 +89,12 @@ let liveSessionsInitialLoadDone = false;
 // ★ 初回読み込み時点で既に募集中だったが、まだ bookCache に無い(非公開の他人の問題集など)ものを覚えておき、
 //   一覧に初めて追加されたタイミングで一度だけハイライトするための集合
 let bookIdsToHighlightOnce = new Set();
+// ★ RTDBの child_added は、接続時に既存の全データに対しても発火する仕様のため、
+//   .once("value")の処理より先に child_added 側が動いてしまうことがある(タイミングはSDK内部の実装依存で保証されない)。
+//   そのレース条件で「まだbookIdsToHighlightOnceに登録される前に、既にbookCacheへ追加されてしまい、
+//   結局どちらの分岐でもハイライトされない」という抜け漏れを防ぐため、
+//   実際にハイライトを発火させたbookIdを記録し、二重発火だけを防ぐ
+let highlightedOnceBookIds = new Set();
 
 function isActiveSessionStatus(status) {
   return !!status && status !== "finished" && status !== "cancelled" && status !== "ended";
@@ -416,8 +422,11 @@ function attachLiveSessionsListener() {
       Object.entries(all).forEach(([bookId, session]) => {
         if (isActiveSessionStatus(session && session.status)) {
           liveSessionsCache[bookId] = session;
-          if (bookCache[bookId]) {
+          if (highlightedOnceBookIds.has(bookId)) {
+            // ★ 既にchild_added側のレース条件でハイライト済みなら、ここで重複して発火させない
+          } else if (bookCache[bookId]) {
             highlightNow.add(bookId);
+            highlightedOnceBookIds.add(bookId);
           } else {
             bookIdsToHighlightOnce.add(bookId);
           }
@@ -446,10 +455,17 @@ async function handleLiveSessionUpdate(bookId, session) {
   // ★ 初回読み込みが終わったあとに「非アクティブ→アクティブ」になった時だけ新規開始として扱う
   const justStarted = liveSessionsInitialLoadDone && !wasActive && isActive;
   const justEnded = wasActive && !isActive;
-  // ★ 初回読み込み時点で既に募集中だった問題集が、今まさに一覧へ初めて追加される場合もハイライトする
-  const pendingInitialHighlight = bookIdsToHighlightOnce.has(bookId);
+  // ★ 初回読み込み時点で既に募集中だった問題集が、今まさに一覧へ初めて追加される場合もハイライトする。
+  //   (a) .once("value")側が先に処理を終えてbookIdsToHighlightOnceへ登録済みのケースに加えて、
+  //   (b) child_added が.once("value")より先に発火し、bookIdsToHighlightOnceへの登録が
+  //       まだ間に合っていないケース(初回読み込み中でまだbookCacheに無い)もここで拾う
+  const pendingInitialHighlight =
+    !highlightedOnceBookIds.has(bookId) &&
+    isActive &&
+    (bookIdsToHighlightOnce.has(bookId) || (!liveSessionsInitialLoadDone && !bookCache[bookId]));
   if (pendingInitialHighlight) bookIdsToHighlightOnce.delete(bookId);
   const highlightBookId = justStarted || pendingInitialHighlight ? bookId : null;
+  if (highlightBookId) highlightedOnceBookIds.add(bookId);
 
   if (!bookCache[bookId]) {
     if (isActive) {
