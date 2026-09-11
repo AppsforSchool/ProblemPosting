@@ -11,6 +11,11 @@ const firebaseConfig = {
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// ★ ページ遷移のたびにFirestoreへ再度問い合わせる無駄を減らすため、オフライン永続化(IndexedDBキャッシュ)を有効にする。
+//   同じサイトを複数タブで開いている場合など有効化できないことがあるが、その場合も通常通り(キャッシュ無し)動作するだけなので握りつぶす
+db.enablePersistence({ synchronizeTabs: true }).catch(error => {
+  console.warn("Firestoreのオフライン永続化を有効にできませんでした:", error.code || error);
+});
 
 const subjectIdList = [
   "不明",

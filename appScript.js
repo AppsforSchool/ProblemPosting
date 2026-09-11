@@ -14,6 +14,11 @@ const firebaseConfig = {
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// ★ ページ遷移のたびにFirestoreへ再度問い合わせる無駄を減らすため、オフライン永続化(IndexedDBキャッシュ)を有効にする。
+//   同じサイトを複数タブで開いている場合など有効化できないことがあるが、その場合も通常通り(キャッシュ無し)動作するだけなので握りつぶす
+db.enablePersistence({ synchronizeTabs: true }).catch(error => {
+  console.warn("Firestoreのオフライン永続化を有効にできませんでした:", error.code || error);
+});
 const rtdb = firebase.database();
 const DEFAULT_RECRUIT_TIME_LIMIT_SECONDS = 10; // ★ 初期値。主催者は待機画面(liveHost.html)で変更できる
 
@@ -346,6 +351,8 @@ async function loadProblemBooks() {
       .orderBy("createdAt", "desc")
       .get();
 
+    const userIdsToCache = new Set();
+
     for (const doc of querySnapshot.docs) {
       const data = doc.data();
       const bookId = doc.id;
@@ -382,11 +389,13 @@ async function loadProblemBooks() {
         isPrivate
       ];
 
-      await ensureUserCached(makerUserId);
-      for (const solverId of solvedBy) {
-        await ensureUserCached(solverId);
-      }
+      userIdsToCache.add(makerUserId);
+      solvedBy.forEach(solverId => userIdsToCache.add(solverId));
     }
+
+    // ★ ユーザー情報の取得は、1件ずつ直列で待つと問題集の数だけ通信が積み重なって遅くなるため、
+    //   ここでまとめて並行取得する(ensureUserCached自体はキャッシュがあれば即returnするので重複しても軽い)
+    await Promise.all(Array.from(userIdsToCache).map(userId => ensureUserCached(userId)));
   } catch (error) {
     console.log(error);
     await AppDialog.alert(String(error));
@@ -526,10 +535,7 @@ async function fetchAndAddBookToCache(bookId) {
       !!data.isPrivate
     ];
 
-    await ensureUserCached(makerUserId);
-    for (const solverId of solvedBy) {
-      await ensureUserCached(solverId);
-    }
+    await Promise.all([makerUserId, ...solvedBy].map(userId => ensureUserCached(userId)));
   } catch (error) {
     console.error("問題集の取得に失敗しました:", error);
   }
@@ -543,6 +549,8 @@ async function loadCardDecks() {
       .collection("data")
       .orderBy("createdAt", "desc")
       .get();
+
+    const userIdsToCache = new Set();
 
     for (const doc of querySnapshot.docs) {
       const data = doc.data();
@@ -578,11 +586,12 @@ async function loadCardDecks() {
         isPrivate
       ];
 
-      await ensureUserCached(makerUserId);
-      for (const solverId of solvedBy) {
-        await ensureUserCached(solverId);
-      }
+      userIdsToCache.add(makerUserId);
+      solvedBy.forEach(solverId => userIdsToCache.add(solverId));
     }
+
+    // ★ loadProblemBooks()と同様、ユーザー情報の取得はまとめて並行で行う
+    await Promise.all(Array.from(userIdsToCache).map(userId => ensureUserCached(userId)));
   } catch (error) {
     console.log(error);
     await AppDialog.alert(String(error));
@@ -1916,9 +1925,7 @@ async function openImpressionsModal(bookId, type) {
       return;
     }
 
-    for (const [userId] of entries) {
-      await ensureUserCached(userId);
-    }
+    await Promise.all(entries.map(([userId]) => ensureUserCached(userId)));
 
     entries.forEach(([userId, text]) => {
       const cached = getUserCache(userId) || {};
