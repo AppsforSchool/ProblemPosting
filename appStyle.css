@@ -460,17 +460,17 @@ body {
 
   text-align: left;
 
-  padding-bottom: 1rem;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
-
   gap: 8px;
 }
 #setting-solved-by-container {
-  margin-bottom: 0.8rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
 }
 #setting-solved-by-container:empty {
+  padding-bottom: 0;
   margin-bottom: 0;
+  border-bottom: none;
 }
 #setting-title {
   font-weight: bold;
