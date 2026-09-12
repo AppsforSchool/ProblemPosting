@@ -154,7 +154,7 @@ function createAvatar(name, size, imageUrl) {
 }
 
 // ★ 「解いた人」/「参加者」のアバター一覧を作る(問題集一覧のカードと、問題集モーダルの両方で使う共通部品)
-function buildSolvedByArea(bookId, book, isCurrentlyWaiting, session) {
+function buildSolvedByArea(id, book, isCurrentlyWaiting, session, contentType) {
   const participantIds = isCurrentlyWaiting ? Object.keys((session && session.participants) || {}) : [];
   const solvedBy = isCurrentlyWaiting ? participantIds : (book[6] || []);
 
@@ -187,7 +187,7 @@ function buildSolvedByArea(bookId, book, isCurrentlyWaiting, session) {
     solvedByArea.appendChild(stack);
     solvedByArea.addEventListener("click", e => {
       e.stopPropagation();
-      openSolvedModal(bookId, isCurrentlyWaiting ? "participants" : "book");
+      openSolvedModal(id, isCurrentlyWaiting ? "participants" : (contentType || "book"));
     });
   } else {
     const emptyText = document.createElement("span");
@@ -1445,6 +1445,10 @@ function openCardSettingModal(id) {
   settingModalMadeByName.classList.toggle("prize", !makerCached.isAdmin && hasActivePrize(makerCached));
 
   if (deckCache[id][5] === myUserId || meIsAdmin) settingModalEditButton.classList.remove("hidden");
+
+  // ★ 問題集モーダルと同じく、暗記カードモーダルにも「解いた人」を表示する(暗記カードには募集中の概念が無い)
+  settingSolvedByContainer.innerHTML = "";
+  settingSolvedByContainer.appendChild(buildSolvedByArea(id, deckCache[id], false, null, "card"));
 
   const allowFlip = !!deckCache[id][9];
   flipCardsToggle.checked = false;
