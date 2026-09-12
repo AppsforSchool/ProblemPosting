@@ -153,7 +153,53 @@ function createAvatar(name, size, imageUrl) {
   return avatar;
 }
 
-// ★ 指定したユーザーの情報（name/isAdmin/imageUrl/profileText/prizeGrantedAt）がキャッシュになければ取得する
+// ★ 「解いた人」/「参加者」のアバター一覧を作る(問題集一覧のカードと、問題集モーダルの両方で使う共通部品)
+function buildSolvedByArea(bookId, book, isCurrentlyWaiting, session) {
+  const participantIds = isCurrentlyWaiting ? Object.keys((session && session.participants) || {}) : [];
+  const solvedBy = isCurrentlyWaiting ? participantIds : (book[6] || []);
+
+  const solvedByArea = document.createElement("div");
+  solvedByArea.classList.add("solved-by-area");
+
+  const solvedByLabel = document.createElement("span");
+  solvedByLabel.classList.add("solved-by-label");
+  solvedByLabel.textContent = isCurrentlyWaiting ? "参加者:" : "解いた人:";
+  solvedByArea.appendChild(solvedByLabel);
+
+  if (solvedBy.length > 0) {
+    const stack = document.createElement("div");
+    stack.classList.add("solved-by-stack");
+
+    const MAX_SHOWN = 4;
+    solvedBy.slice(0, MAX_SHOWN).forEach(userId => {
+      const cached = getUserCache(userId) || {};
+      const avatar = createAvatar(cached.name, "small", cached.imageUrl);
+      avatar.classList.add("solved-by-avatar");
+      stack.appendChild(avatar);
+    });
+    if (solvedBy.length > MAX_SHOWN) {
+      const overflow = document.createElement("div");
+      overflow.classList.add("avatar-circle", "small", "solved-by-avatar", "solved-by-overflow");
+      overflow.textContent = "…";
+      stack.appendChild(overflow);
+    }
+
+    solvedByArea.appendChild(stack);
+    solvedByArea.addEventListener("click", e => {
+      e.stopPropagation();
+      openSolvedModal(bookId, isCurrentlyWaiting ? "participants" : "book");
+    });
+  } else {
+    const emptyText = document.createElement("span");
+    emptyText.classList.add("solved-by-empty-text");
+    emptyText.textContent = isCurrentlyWaiting ? "まだ参加者がいません" : "解いた人はまだいません";
+    solvedByArea.appendChild(emptyText);
+  }
+
+  return solvedByArea;
+}
+
+
 async function ensureUserCached(userId) {
   if (getUserCache(userId)) return;
 
@@ -692,47 +738,8 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
     cardMadeBy.appendChild(nameSpan);
       
     const isCurrentlyWaiting = isRecruiting && session.status === "waiting";
-    const participantIds = isCurrentlyWaiting ? Object.keys(session.participants || {}) : [];
-    const solvedBy = isCurrentlyWaiting ? participantIds : (book[6] || []);
-    const solvedByArea = document.createElement("div");
-    solvedByArea.classList.add("solved-by-area");
+    const solvedByArea = buildSolvedByArea(bookId, book, isCurrentlyWaiting, session);
 
-    const solvedByLabel = document.createElement("span");
-    solvedByLabel.classList.add("solved-by-label");
-    solvedByLabel.textContent = isCurrentlyWaiting ? "参加中:" : "解いた人:";
-    solvedByArea.appendChild(solvedByLabel);
-
-    if (solvedBy.length > 0) {
-      const stack = document.createElement("div");
-      stack.classList.add("solved-by-stack");
-
-      const MAX_SHOWN = 4;
-      solvedBy.slice(0, MAX_SHOWN).forEach(userId => {
-        const cached = getUserCache(userId) || {};
-        const avatar = createAvatar(cached.name, "small", cached.imageUrl);
-        avatar.classList.add("solved-by-avatar");
-        stack.appendChild(avatar);
-      });
-      if (solvedBy.length > MAX_SHOWN) {
-        const overflow = document.createElement("div");
-        overflow.classList.add("avatar-circle", "small", "solved-by-avatar", "solved-by-overflow");
-        overflow.textContent = "…";
-        stack.appendChild(overflow);
-      }
-
-      solvedByArea.appendChild(stack);
-      solvedByArea.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openSolvedModal(bookId, isCurrentlyWaiting ? "participants" : "book");
-      });
-    } else {
-      const emptyText = document.createElement("span");
-      emptyText.classList.add("solved-by-empty-text");
-      emptyText.textContent = isCurrentlyWaiting ? "まだ参加者がいません" : "解いた人はまだいません";
-      solvedByArea.appendChild(emptyText);
-    }
-      
-      
     card.addEventListener("click", () => {
       openSettingModal(bookId);
     });
@@ -959,6 +966,7 @@ let settingModalSubject,
   settingModalCount,
   settingModalCountText;
 let settingModalTitle, settingModalDescription, settingModalMadeByName;
+let settingSolvedByContainer;
 let settingModalEditButton, settingModalStartButton, viewImpressionsButton;
 let shuffleProblemsToggle;
 let shuffleToggleRow, flipToggleRow, flipCardsToggle;
@@ -980,6 +988,7 @@ document.addEventListener("DOMContentLoaded", () => {
   settingModalTitle = document.getElementById("setting-title");
   settingModalDescription = document.getElementById("setting-description");
   settingModalMadeByName = document.getElementById("setting-madeBy-name");
+  settingSolvedByContainer = document.getElementById("setting-solved-by-container");
   settingModalStartButton = document.getElementById("start-button");
   settingModalEditButton = document.getElementById("edit-button");
   viewImpressionsButton = document.getElementById("view-impressions-button");
@@ -1029,6 +1038,7 @@ document.addEventListener("DOMContentLoaded", () => {
     settingModalMadeByName.textContent = "loading...";
     settingModalMadeByName.classList.remove("admin");
     settingModalMadeByName.classList.remove("prize");
+    settingSolvedByContainer.innerHTML = "";
 
     settingModalEditButton.classList.add("hidden");
     flipCardsToggle.checked = false;
@@ -1299,6 +1309,11 @@ function applyRecruitModeToSettingModal(id) {
   const isPrivate = !!book[10];
   const session = liveSessionsCache[id];
   const isRecruiting = !!session;
+  const isCurrentlyWaiting = isRecruiting && session.status === "waiting";
+
+  // ★ カード一覧と同じ「解いた人」/「参加者」のアバター一覧を、問題集モーダルにも表示する
+  settingSolvedByContainer.innerHTML = "";
+  settingSolvedByContainer.appendChild(buildSolvedByArea(id, book, isCurrentlyWaiting, session));
 
   recruitCommentArea.classList.add("hidden");
   recruitStartOpenButton.classList.add("hidden");
@@ -1539,7 +1554,7 @@ function openSolvedModal(id, type) {
   if (type === "participants") {
     const session = liveSessionsCache[id];
     userIds = session ? Object.keys(session.participants || {}) : [];
-    solvedModalTitle.textContent = "参加中";
+    solvedModalTitle.textContent = "参加者";
     emptyMessage = "まだ参加者がいません";
   } else {
     const cache = type === "card" ? deckCache : bookCache;

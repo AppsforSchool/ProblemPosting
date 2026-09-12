@@ -466,6 +466,12 @@ body {
 
   gap: 8px;
 }
+#setting-solved-by-container {
+  margin-bottom: 0.8rem;
+}
+#setting-solved-by-container:empty {
+  margin-bottom: 0;
+}
 #setting-title {
   font-weight: bold;
   font-size: 1.05rem;
