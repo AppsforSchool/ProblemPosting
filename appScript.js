@@ -965,6 +965,8 @@ let shuffleToggleRow, flipToggleRow, flipCardsToggle;
 let favoriteOnlyToggleRow, favoriteOnlyToggle, favoriteOnlyToggleLabel;
 let settingModalType = "book";
 let recruitCommentArea, recruitCommentText, recruitStartOpenButton, joinButton, joinDisabledText;
+let recruitCommentEditButton, recruitCommentEditArea, recruitCommentEditInput, recruitCommentSaveButton, recruitCommentCancelButton;
+let isEditingRecruitComment = false;
 let recruitStartModal, recruitStartModalClose, recruitCommentInput, recruitStartConfirmButton, recruitStartModalTitle;
 let specialLiveToggleRow, specialLiveToggle;
 let soloStartButton;
@@ -990,6 +992,11 @@ document.addEventListener("DOMContentLoaded", () => {
   favoriteOnlyToggleLabel = document.getElementById("favorite-only-toggle-label");
   recruitCommentArea = document.getElementById("recruit-comment-area");
   recruitCommentText = document.getElementById("recruit-comment-text");
+  recruitCommentEditButton = document.getElementById("recruit-comment-edit-button");
+  recruitCommentEditArea = document.getElementById("recruit-comment-edit-area");
+  recruitCommentEditInput = document.getElementById("recruit-comment-edit-input");
+  recruitCommentSaveButton = document.getElementById("recruit-comment-save-button");
+  recruitCommentCancelButton = document.getElementById("recruit-comment-cancel-button");
   recruitStartOpenButton = document.getElementById("recruit-start-open-button");
   joinButton = document.getElementById("join-button");
   joinDisabledText = document.getElementById("join-disabled-text");
@@ -1029,6 +1036,10 @@ document.addEventListener("DOMContentLoaded", () => {
     recruitCommentArea.classList.add("hidden");
     recruitStartOpenButton.classList.add("hidden");
     recruitStartOpenButton.textContent = "みんなで解く";
+    isEditingRecruitComment = false;
+    recruitCommentEditButton.classList.add("hidden");
+    recruitCommentEditArea.classList.add("hidden");
+    recruitCommentText.classList.remove("hidden");
     joinButton.classList.add("hidden");
     joinButton.classList.remove("leave-mode");
     joinButton.classList.remove("split-primary");
@@ -1059,6 +1070,42 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   recruitStartModalClose.addEventListener("click", () => {
     recruitStartModal.classList.add("hidden");
+  });
+
+  // ★ 募集中の問題集を、主催者が募集コメントだけ後から編集できるようにする
+  recruitCommentEditButton.addEventListener("click", () => {
+    const session = liveSessionsCache[settingModalBookId];
+    recruitCommentEditInput.value = (session && session.recruitComment) || "";
+    isEditingRecruitComment = true;
+    recruitCommentText.classList.add("hidden");
+    recruitCommentEditButton.classList.add("hidden");
+    recruitCommentEditArea.classList.remove("hidden");
+    recruitCommentEditInput.focus();
+  });
+  recruitCommentCancelButton.addEventListener("click", () => {
+    isEditingRecruitComment = false;
+    recruitCommentEditArea.classList.add("hidden");
+    recruitCommentText.classList.remove("hidden");
+    recruitCommentEditButton.classList.remove("hidden");
+  });
+  recruitCommentSaveButton.addEventListener("click", async () => {
+    const newComment = recruitCommentEditInput.value.trim();
+    recruitCommentSaveButton.disabled = true;
+    recruitCommentCancelButton.disabled = true;
+    try {
+      await rtdb.ref(`liveSessions/${settingModalBookId}/recruitComment`).set(newComment);
+      isEditingRecruitComment = false;
+      recruitCommentText.textContent = newComment || "(コメントはありません)";
+      recruitCommentEditArea.classList.add("hidden");
+      recruitCommentText.classList.remove("hidden");
+      recruitCommentEditButton.classList.remove("hidden");
+    } catch (error) {
+      console.error("募集コメントの更新に失敗しました:", error);
+      await AppDialog.alert("募集コメントの更新に失敗しました。\n" + error);
+    } finally {
+      recruitCommentSaveButton.disabled = false;
+      recruitCommentCancelButton.disabled = false;
+    }
   });
   recruitStartConfirmButton.addEventListener("click", async () => {
     const bookId = settingModalBookId;
@@ -1195,6 +1242,10 @@ function setSettingModalMode(mode) {
   recruitCommentArea.classList.add("hidden");
   recruitStartOpenButton.classList.add("hidden");
   recruitStartOpenButton.textContent = "みんなで解く";
+  isEditingRecruitComment = false;
+  recruitCommentEditButton.classList.add("hidden");
+  recruitCommentEditArea.classList.add("hidden");
+  recruitCommentText.classList.remove("hidden");
   joinButton.classList.add("hidden");
   joinButton.classList.remove("leave-mode");
   joinButton.classList.remove("split-primary");
@@ -1265,6 +1316,12 @@ function applyRecruitModeToSettingModal(id) {
   soloStartButton.classList.remove("split-secondary");
   shuffleToggleRow.classList.remove("hidden");
   favoriteOnlyToggleRow.classList.remove("hidden");
+  // ★ 編集中(isEditingRecruitComment)の場合は、再描画のたびに編集用UIを勝手に閉じてしまわないようにする
+  if (!isEditingRecruitComment) {
+    recruitCommentEditButton.classList.add("hidden");
+    recruitCommentEditArea.classList.add("hidden");
+    recruitCommentText.classList.remove("hidden");
+  }
 
   if (isRecruiting) {
     // 募集中は編集・感想を隠す。シェアは残す
@@ -1272,7 +1329,9 @@ function applyRecruitModeToSettingModal(id) {
     viewImpressionsButton.classList.add("hidden");
 
     recruitCommentArea.classList.remove("hidden");
-    recruitCommentText.textContent = session.recruitComment || "(コメントはありません)";
+    if (!isEditingRecruitComment) {
+      recruitCommentText.textContent = session.recruitComment || "(コメントはありません)";
+    }
 
     // ★ 募集中の「スタート」(一人で解く)は、公開済みの問題集の時だけ出す。
     //   非公開の問題集は元々「みんなで解く」専用の問題集なので、募集中は従来通りライブ関連のボタンのみにする。
@@ -1290,6 +1349,10 @@ function applyRecruitModeToSettingModal(id) {
       settingModalStartButton.classList.remove("hidden");
       settingModalStartButton.textContent = "待機画面へ";
       joinButton.classList.add("hidden");
+      // ★ 主催者なら、募集中でも募集コメントを後から編集できるようにする
+      if (!isEditingRecruitComment) {
+        recruitCommentEditButton.classList.remove("hidden");
+      }
       if (showSoloStart) {
         settingModalStartButton.classList.add("split-primary", "live-gradient-button");
         soloStartButton.classList.add("split-secondary");

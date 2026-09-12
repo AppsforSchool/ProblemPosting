@@ -62,8 +62,18 @@
         <p id="setting-madeBy-p">作成者: <span id="setting-madeBy-name" class="clickable-user">loading...</span></p>
       </div>
       <div id="recruit-comment-area" class="recruit-comment-area hidden">
-        <p class="recruit-comment-label">募集コメント</p>
+        <div class="recruit-comment-header">
+          <p class="recruit-comment-label">募集コメント</p>
+          <button id="recruit-comment-edit-button" type="button" class="recruit-comment-edit-button hidden">編集</button>
+        </div>
         <p id="recruit-comment-text" class="recruit-comment-text"></p>
+        <div id="recruit-comment-edit-area" class="recruit-comment-edit-area hidden">
+          <textarea id="recruit-comment-edit-input" rows="3" maxlength="100" placeholder="例: 今からみんなで解きましょう！"></textarea>
+          <div class="recruit-comment-edit-actions">
+            <button id="recruit-comment-save-button" type="button" class="recruit-comment-save-button">保存する</button>
+            <button id="recruit-comment-cancel-button" type="button" class="recruit-comment-cancel-button">キャンセル</button>
+          </div>
+        </div>
       </div>
       <label class="shuffle-toggle-row" id="shuffle-toggle-row">
         <span>出題順をシャッフル</span>

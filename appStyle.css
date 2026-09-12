@@ -537,6 +537,90 @@ body {
   color: var(--text);
   white-space: pre-line;
 }
+.recruit-comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+.recruit-comment-header .recruit-comment-label {
+  margin-bottom: 0;
+}
+.recruit-comment-edit-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 0.25rem 0.65rem;
+  cursor: pointer;
+  background-color: var(--surface);
+  color: var(--primary-dark);
+  border: 1.5px solid rgba(var(--primary-rgb), 0.4);
+  border-radius: var(--radius-full);
+  transition: background-color 0.2s var(--ease);
+}
+.recruit-comment-edit-button:hover {
+  background-color: var(--primary-soft);
+}
+.recruit-comment-edit-button.hidden {
+  display: none;
+}
+.recruit-comment-edit-area.hidden {
+  display: none;
+}
+#recruit-comment-edit-input {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.6rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+  box-sizing: border-box;
+  resize: vertical;
+}
+#recruit-comment-edit-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.15);
+  outline: none;
+}
+.recruit-comment-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.recruit-comment-save-button,
+.recruit-comment-cancel-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+  flex: 1;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s var(--ease), opacity 0.2s var(--ease);
+}
+.recruit-comment-save-button {
+  background-color: var(--primary);
+  color: #fff;
+  border: none;
+}
+.recruit-comment-save-button:hover:not(:disabled) {
+  background-color: var(--primary-dark);
+}
+.recruit-comment-save-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.recruit-comment-cancel-button {
+  background-color: var(--surface);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+}
+.recruit-comment-cancel-button:hover {
+  background-color: var(--border);
+}
 .recruit-open-button {
   font-family: "BIZ UDGothic", sans-serif;
   font-weight: 700;
