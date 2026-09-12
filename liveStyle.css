@@ -136,6 +136,28 @@ body {
 }
 .audio-mute-button:hover { background: rgba(255, 255, 255, 0.16); }
 .audio-mute-button:active { transform: scale(0.92); }
+.home-icon-button {
+  flex-shrink: 0;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease), transform 0.15s var(--ease);
+}
+.home-icon-button svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
+}
+.home-icon-button:hover { background: rgba(255, 255, 255, 0.16); }
+.home-icon-button:active { transform: scale(0.92); }
 .end-live-early-button {
   flex-shrink: 0;
   font-family: "BIZ UDGothic", sans-serif;

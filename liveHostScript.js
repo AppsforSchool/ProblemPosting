@@ -113,6 +113,7 @@ let resultsCorrectArea, resultsLeaderboardArea, nextQuestionButton;
 let finishedLeaderboardArea, finishedButtonsArea, finishedHomeButton;
 let audioMuteButton;
 let endLiveEarlyButton;
+let homeReturnButton;
 let liveShareModal, liveShareModalClose, liveShareQr, liveShareUrl, waitingShareButton;
 let answerStatusNamesModal, answerStatusNamesModalClose, answerStatusNamesTitle, answerStatusNamesArea;
 let bgmStarted = false;
@@ -243,7 +244,16 @@ document.addEventListener("DOMContentLoaded", () => {
   finishedHomeButton.addEventListener("click", handleEndLiveClick);
 
   endLiveEarlyButton = document.getElementById("end-live-early-button");
+  homeReturnButton = document.getElementById("home-return-button");
   endLiveEarlyButton.addEventListener("click", () => cancelRecruitment(endLiveEarlyButton));
+  // ★ 参加取り消し・中止とは別の、セッションはそのままにして単にホームへ戻るボタン。
+  //   主催者が離脱すると誰も進行できなくなるため、一言確認してから移動する
+  homeReturnButton.addEventListener("click", async () => {
+    const confirmed = await LiveDialog.confirm(
+      "ホームに戻りますか？\nライブはこのまま継続され、あなたがいない間は進行できません。"
+    );
+    if (confirmed) window.location.href = "./app.html";
+  });
 
   audioMuteButton = document.getElementById("audio-mute-button");
   updateAudioMuteButtonLabel();
