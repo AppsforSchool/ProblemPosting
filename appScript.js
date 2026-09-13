@@ -50,6 +50,7 @@ const subjectIdList = [
 const gradeIdList = ["不明", "1年", "2年", "3年", "総合"];
 
 let loadingOverlay;
+let loadingStatusText;
 let myUid = "";
 let myUserId = "";
 let meIsAdmin = false;
@@ -61,6 +62,9 @@ function getUserCache(userId) {
 function setUserCache(userId, data) {
   userDataCache[userId] = Object.assign({}, userDataCache[userId] || {}, data);
   return userDataCache[userId];
+}
+function setLoadingStatus(text) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
 }
 
 // ★ Firestoreのタイムスタンプ(またはミリ秒数値)を、比較に使いやすいミリ秒数値へ揃える
@@ -296,12 +300,14 @@ function closeDrawer() {
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
+  loadingStatusText = document.getElementById("loading-status-text");
 
   auth.onAuthStateChanged(async (user) => {
     if (user) {
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
+      setLoadingStatus("ユーザー情報を確認しています｡");
       const userSnapshot = await db
         .collection("users_random")
         .doc(myUserId)
@@ -327,7 +333,9 @@ document.addEventListener("DOMContentLoaded", () => {
       maybeShowNotice(userData.lastOpenedAt); // ★ 最終確認時刻に応じて、お知らせモーダルを表示する(結果を待たずに進める)
 
       //displayVocabularyBooks();
+      setLoadingStatus("問題集を読み込んでいます｡");
       await loadProblemBooks();
+      setLoadingStatus("暗記カードを読み込んでいます｡");
       await loadCardDecks();
 
       if (window.location.hash) {
@@ -339,6 +347,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       loadingOverlay.classList.add("hidden");
       updateLastChecked();
+      setLoadingStatus("募集状況を確認しています｡");
       attachLiveSessionsListener();
     } else {
       console.log("logout");

@@ -21,6 +21,7 @@ let currentCardIndex = 0;
 let isTransitioning = false; // ★ カード切替アニメーション中は多重操作を防ぐ
 
 let loadingOverlay;
+let loadingStatusText;
 let meIsAdmin = false;
 let drawerOverlay;
 let accountSettingsDrawer;
@@ -57,6 +58,7 @@ let favoriteButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
+  loadingStatusText = document.getElementById("loading-status-text");
   drawerOverlay = document.getElementById("drawerOverlay");
   accountSettingsDrawer = document.getElementById("accountSettingsDrawer");
   drawerCloseButton = document.getElementById("drawerCloseButton");
@@ -187,6 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
+      setLoadingStatus("ユーザー情報を確認しています｡");
       const userSnapshot = await db.collection("users_random").doc(myUserId).get();
       const userData = userSnapshot.data();
       myFavorites = userData.favorites || [];
@@ -214,6 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       currentDeckId = deckId;
 
+      setLoadingStatus("暗記カードを読み込んでいます｡");
       const ok = await loadDeck(deckId);
       if (!ok) {
         loadingOverlay.classList.add("hidden");
@@ -304,6 +308,9 @@ async function handleToggleFavorite() {
 function getParmFromUrl(parm) {
   const params = new URLSearchParams(window.location.search);
   return params.get(parm);
+}
+function setLoadingStatus(text) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
 }
 
 // ★ Fisher-Yatesシャッフル

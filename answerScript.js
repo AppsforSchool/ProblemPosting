@@ -255,6 +255,7 @@ document.addEventListener("DOMContentLoaded", () => {
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
+      setLoadingStatus("ユーザー情報を確認しています｡");
       const userSnapshot = await db
         .collection("users_random")
         .doc(myUserId)
@@ -285,6 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       currentBookId = bookId;
+      setLoadingStatus("問題を読み込んでいます｡");
       const ok = await loadProblemBook(bookId);
       if (!ok) {
         loadingOverlay.classList.add("hidden");
