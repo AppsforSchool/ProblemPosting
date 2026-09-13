@@ -254,7 +254,8 @@ document.addEventListener("DOMContentLoaded", () => {
     waitingCommentEditArea.classList.add("hidden");
     waitingCommentEditButton.classList.remove("hidden");
     const comment = (sessionData && sessionData.recruitComment ? sessionData.recruitComment : "").trim();
-    waitingCommentText.classList.toggle("hidden", comment === "");
+    waitingCommentText.textContent = comment || "(コメントはありません)";
+    waitingCommentText.classList.remove("hidden");
   });
   waitingCommentSaveButton.addEventListener("click", async () => {
     const newComment = waitingCommentEditInput.value.trim();
@@ -263,8 +264,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       await sessionRef.child("recruitComment").set(newComment);
       isEditingWaitingComment = false;
-      waitingCommentText.textContent = newComment;
-      waitingCommentText.classList.toggle("hidden", newComment === "");
+      waitingCommentText.textContent = newComment || "(コメントはありません)";
+      waitingCommentText.classList.remove("hidden");
       waitingCommentEditArea.classList.add("hidden");
       waitingCommentEditButton.classList.remove("hidden");
     } catch (error) {
@@ -500,8 +501,7 @@ function render() {
     setPhase(phaseWaiting);
     if (!isEditingWaitingComment) {
       const comment = (sessionData.recruitComment || "").trim();
-      waitingCommentText.textContent = comment;
-      waitingCommentText.classList.toggle("hidden", comment === "");
+      waitingCommentText.textContent = comment || "(コメントはありません)";
     }
     waitingParticipantsCount.textContent = participantIds.length;
     if (!userChangedTimeLimit) {

@@ -516,8 +516,7 @@ function render() {
 function renderWaitingPhase() {
   const participants = sessionData.participants || {};
   const comment = (sessionData.recruitComment || "").trim();
-  waitingCommentText.textContent = comment;
-  waitingCommentText.classList.toggle("hidden", comment === "");
+  waitingCommentText.textContent = comment || "(コメントはありません)";
   waitingParticipantsList.innerHTML = "";
   Object.entries(participants).forEach(([uid, p]) => {
     const chip = document.createElement("span");
