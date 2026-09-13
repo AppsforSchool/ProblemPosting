@@ -99,6 +99,8 @@ let hostTitleText;
 let phaseWaiting, phaseCountdown, phaseQuestion, phaseGrading, phaseResults, phaseFinished, phaseSessionMissing;
 
 let waitingParticipantsList, waitingParticipantsCount, waitingTimeLimitOptions, startSessionButton, cancelRecruitmentButton;
+let waitingCommentText, waitingCommentEditButton, waitingCommentEditArea, waitingCommentEditInput, waitingCommentSaveButton, waitingCommentCancelButton;
+let isEditingWaitingComment = false;
 let selectedTimeLimitSeconds = 20;
 let userChangedTimeLimit = false;
 let countdownNumberEl;
@@ -189,6 +191,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   waitingParticipantsList = document.getElementById("waiting-participants-list");
   waitingParticipantsCount = document.getElementById("waiting-participants-count");
+  waitingCommentText = document.getElementById("waiting-comment-text");
+  waitingCommentEditButton = document.getElementById("waiting-comment-edit-button");
+  waitingCommentEditArea = document.getElementById("waiting-comment-edit-area");
+  waitingCommentEditInput = document.getElementById("waiting-comment-edit-input");
+  waitingCommentSaveButton = document.getElementById("waiting-comment-save-button");
+  waitingCommentCancelButton = document.getElementById("waiting-comment-cancel-button");
   waitingTimeLimitOptions = document.getElementById("waiting-time-limit-options");
   startSessionButton = document.getElementById("start-session-button");
   cancelRecruitmentButton = document.getElementById("cancel-recruitment-button");
@@ -231,6 +239,43 @@ document.addEventListener("DOMContentLoaded", () => {
   startSessionButton.addEventListener("click", startSession);
   document.getElementById("reset-session-button").addEventListener("click", resetBrokenSessionAndGoHome);
   cancelRecruitmentButton.addEventListener("click", () => cancelRecruitment(cancelRecruitmentButton));
+
+  // ★ 待機画面からも、参加者側と同じ募集コメントを見つつ、その場で編集できるようにする
+  waitingCommentEditButton.addEventListener("click", () => {
+    waitingCommentEditInput.value = (sessionData && sessionData.recruitComment) || "";
+    isEditingWaitingComment = true;
+    waitingCommentText.classList.add("hidden");
+    waitingCommentEditButton.classList.add("hidden");
+    waitingCommentEditArea.classList.remove("hidden");
+    waitingCommentEditInput.focus();
+  });
+  waitingCommentCancelButton.addEventListener("click", () => {
+    isEditingWaitingComment = false;
+    waitingCommentEditArea.classList.add("hidden");
+    waitingCommentEditButton.classList.remove("hidden");
+    const comment = (sessionData && sessionData.recruitComment ? sessionData.recruitComment : "").trim();
+    waitingCommentText.classList.toggle("hidden", comment === "");
+  });
+  waitingCommentSaveButton.addEventListener("click", async () => {
+    const newComment = waitingCommentEditInput.value.trim();
+    waitingCommentSaveButton.disabled = true;
+    waitingCommentCancelButton.disabled = true;
+    try {
+      await sessionRef.child("recruitComment").set(newComment);
+      isEditingWaitingComment = false;
+      waitingCommentText.textContent = newComment;
+      waitingCommentText.classList.toggle("hidden", newComment === "");
+      waitingCommentEditArea.classList.add("hidden");
+      waitingCommentEditButton.classList.remove("hidden");
+    } catch (error) {
+      console.error("募集コメントの更新に失敗しました:", error);
+      LiveDialog.alert("募集コメントの更新に失敗しました。\n" + error);
+    } finally {
+      waitingCommentSaveButton.disabled = false;
+      waitingCommentCancelButton.disabled = false;
+    }
+  });
+
   Array.from(waitingTimeLimitOptions.children).forEach(button => {
     button.addEventListener("click", () => {
       userChangedTimeLimit = true;
@@ -453,6 +498,11 @@ function render() {
 
   if (status === "waiting") {
     setPhase(phaseWaiting);
+    if (!isEditingWaitingComment) {
+      const comment = (sessionData.recruitComment || "").trim();
+      waitingCommentText.textContent = comment;
+      waitingCommentText.classList.toggle("hidden", comment === "");
+    }
     waitingParticipantsCount.textContent = participantIds.length;
     if (!userChangedTimeLimit) {
       selectedTimeLimitSeconds = sessionData.timeLimitSeconds || 0;

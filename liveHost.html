@@ -57,6 +57,17 @@
 
     <section id="phase-waiting" class="live-phase hidden">
       <p class="live-phase-title">参加者を待っています</p>
+      <div id="host-waiting-comment-area" class="host-waiting-comment-area">
+        <p id="waiting-comment-text" class="waiting-comment-text hidden"></p>
+        <button id="waiting-comment-edit-button" type="button" class="waiting-comment-edit-button">募集コメントを編集</button>
+        <div id="waiting-comment-edit-area" class="waiting-comment-edit-area hidden">
+          <textarea id="waiting-comment-edit-input" rows="3" maxlength="100" placeholder="例: 今からみんなで解きましょう！"></textarea>
+          <div class="waiting-comment-edit-actions">
+            <button id="waiting-comment-save-button" type="button" class="waiting-comment-save-button">保存する</button>
+            <button id="waiting-comment-cancel-button" type="button" class="waiting-comment-cancel-button">キャンセル</button>
+          </div>
+        </div>
+      </div>
       <p class="waiting-count-text">参加者 <span id="waiting-participants-count">0</span> 人</p>
 
       <p class="waiting-time-limit-label">1問あたりの制限時間</p>

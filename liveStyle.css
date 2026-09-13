@@ -322,6 +322,81 @@ body {
   border-radius: var(--radius-md);
   width: 100%;
 }
+.host-waiting-comment-area {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.waiting-comment-edit-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  align-self: flex-start;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--surface-alt);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-full);
+  transition: background-color 0.2s var(--ease);
+}
+.waiting-comment-edit-button:hover {
+  background: var(--border);
+}
+.waiting-comment-edit-area.hidden {
+  display: none;
+}
+#waiting-comment-edit-input {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-alt);
+  box-sizing: border-box;
+  resize: vertical;
+}
+#waiting-comment-edit-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.15);
+  outline: none;
+}
+.waiting-comment-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.waiting-comment-save-button,
+.waiting-comment-cancel-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex: 1;
+  padding: 0.55rem;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s var(--ease), opacity 0.2s var(--ease);
+}
+.waiting-comment-save-button {
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  color: #fff;
+  border: none;
+}
+.waiting-comment-save-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.waiting-comment-cancel-button {
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+}
+.waiting-comment-cancel-button:hover {
+  background: var(--border);
+}
 .participants-list {
   display: flex;
   flex-wrap: wrap;
