@@ -322,18 +322,39 @@ body {
   border-radius: var(--radius-md);
   width: 100%;
 }
+/* ★ 主催者の待機画面用: 問題集モーダルの募集コメント欄と同じく、
+   ラベル+編集ボタンをコメントの箱の内側(上部)に収める */
 .host-waiting-comment-area {
   width: 100%;
+  text-align: left;
+  background: rgba(var(--primary-rgb), 0.16);
+  border: 1px solid rgba(var(--primary-rgb), 0.35);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 1rem;
+  box-sizing: border-box;
+}
+.waiting-comment-header {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+.waiting-comment-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.waiting-comment-text-value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
 }
 .waiting-comment-edit-button {
   font-family: "BIZ UDGothic", sans-serif;
   font-weight: 700;
-  font-size: 0.78rem;
-  align-self: flex-start;
-  padding: 0.35rem 0.8rem;
+  font-size: 0.72rem;
+  padding: 0.25rem 0.65rem;
   cursor: pointer;
   color: var(--text);
   background: var(--surface-alt);
@@ -343,6 +364,9 @@ body {
 }
 .waiting-comment-edit-button:hover {
   background: var(--border);
+}
+.waiting-comment-edit-area {
+  margin-top: 0.5rem;
 }
 .waiting-comment-edit-area.hidden {
   display: none;

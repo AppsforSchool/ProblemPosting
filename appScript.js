@@ -15,7 +15,7 @@ const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const rtdb = firebase.database();
-const DEFAULT_RECRUIT_TIME_LIMIT_SECONDS = 10; // ★ 初期値。主催者は待機画面(liveHost.html)で変更できる
+const DEFAULT_RECRUIT_TIME_LIMIT_SECONDS = 20; // ★ 初期値。主催者は待機画面(liveHost.html)で変更できる
 
 // ★ iPadなどコンソールが見られない環境向けに、想定外のエラーをアラートで表示する
 window.addEventListener("error", event => {

@@ -58,8 +58,11 @@
     <section id="phase-waiting" class="live-phase hidden">
       <p class="live-phase-title">参加者を待っています</p>
       <div id="host-waiting-comment-area" class="host-waiting-comment-area">
-        <p id="waiting-comment-text" class="waiting-comment-text"></p>
-        <button id="waiting-comment-edit-button" type="button" class="waiting-comment-edit-button">募集コメントを編集</button>
+        <div class="waiting-comment-header">
+          <p class="waiting-comment-label">募集コメント</p>
+          <button id="waiting-comment-edit-button" type="button" class="waiting-comment-edit-button">編集</button>
+        </div>
+        <p id="waiting-comment-text" class="waiting-comment-text-value"></p>
         <div id="waiting-comment-edit-area" class="waiting-comment-edit-area hidden">
           <textarea id="waiting-comment-edit-input" rows="3" maxlength="100" placeholder="例: 今からみんなで解きましょう！"></textarea>
           <div class="waiting-comment-edit-actions">
@@ -68,7 +71,6 @@
           </div>
         </div>
       </div>
-      <p class="waiting-count-text">参加者 <span id="waiting-participants-count">0</span> 人</p>
 
       <p class="waiting-time-limit-label">1問あたりの制限時間</p>
       <div id="waiting-time-limit-options" class="time-limit-options">
@@ -80,6 +82,7 @@
         <button type="button" class="time-limit-option" data-value="0">∞</button>
       </div>
 
+      <p class="waiting-count-text">参加者 <span id="waiting-participants-count">0</span> 人</p>
       <div id="waiting-participants-list" class="participants-list"></div>
       <button id="start-session-button" class="live-next-button start-button-glow">スタート</button>
       <button id="waiting-share-button" class="live-secondary-button">シェア</button>
