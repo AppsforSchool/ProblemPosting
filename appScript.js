@@ -333,10 +333,8 @@ document.addEventListener("DOMContentLoaded", () => {
       maybeShowNotice(userData.lastOpenedAt); // ★ 最終確認時刻に応じて、お知らせモーダルを表示する(結果を待たずに進める)
 
       //displayVocabularyBooks();
-      setLoadingStatus("問題集を読み込んでいます｡");
-      await loadProblemBooks();
-      setLoadingStatus("暗記カードを読み込んでいます｡");
-      await loadCardDecks();
+      setLoadingStatus("問題集・暗記カードを読み込んでいます｡");
+      await Promise.all([loadProblemBooks(), loadCardDecks()]);
 
       if (window.location.hash) {
         initializeViewFromHash();
@@ -1608,7 +1606,19 @@ function formatContentDate(millis) {
 function buildDatesArea(createdAtMillis, updatedAtMillis) {
   const datesArea = document.createElement("p");
   datesArea.classList.add("card-dates");
-  datesArea.textContent = `作成: ${formatContentDate(createdAtMillis)}　更新: ${formatContentDate(updatedAtMillis)}`;
+
+  const createdLabel = document.createElement("span");
+  createdLabel.classList.add("card-dates-label");
+  createdLabel.textContent = "作成: ";
+  datesArea.appendChild(createdLabel);
+  datesArea.appendChild(document.createTextNode(formatContentDate(createdAtMillis) + "　"));
+
+  const updatedLabel = document.createElement("span");
+  updatedLabel.classList.add("card-dates-label");
+  updatedLabel.textContent = "更新: ";
+  datesArea.appendChild(updatedLabel);
+  datesArea.appendChild(document.createTextNode(formatContentDate(updatedAtMillis)));
+
   return datesArea;
 }
 
