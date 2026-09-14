@@ -1263,6 +1263,34 @@ body {
 .card-area.hidden {
   display: none;
 }
+.load-more-button {
+  font-family: "BIZ UDGothic", sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+
+  display: block;
+  margin: -1.3rem auto 2rem;
+  padding: 0.7rem 1.8rem;
+  cursor: pointer;
+
+  background-color: var(--surface);
+  color: var(--primary-dark);
+  border: 1.5px solid rgba(var(--primary-rgb), 0.4);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  transition: background-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.load-more-button:hover:not(:disabled) {
+  background-color: var(--primary-soft);
+  box-shadow: var(--shadow-md);
+}
+.load-more-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.load-more-button.hidden {
+  display: none;
+}
 .card-area .card {
   font-family: "BIZ UDGothic", sans-serif;
   color: var(--text);
