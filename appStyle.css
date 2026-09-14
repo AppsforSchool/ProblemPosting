@@ -305,6 +305,21 @@ body {
   font-size: 1.05rem;
   letter-spacing: 0.01em;
 }
+#app-header #title-area #header-title .rainbow {
+  background: linear-gradient(
+    90deg,
+    #ff5a5a, #ffbc41, #f5f551, #5eff5e, #84a1ff, #ff45ff, #ff5a5a
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wave 2s linear infinite;
+}
+#app-header #title-area #header-title .header-title-suffix {
+  font-size: 0.9em;
+}
 #user-data {
   display: flex;
   align-items: center;
@@ -463,6 +478,10 @@ body {
   gap: 8px;
 }
 #setting-solved-by-container {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding-bottom: 1rem;
   margin-bottom: 1rem;
   border-bottom: 1px solid var(--border);
@@ -471,6 +490,12 @@ body {
   padding-bottom: 0;
   margin-bottom: 0;
   border-bottom: none;
+}
+#setting-solved-by-container .card-dates {
+  margin-top: 0;
+}
+#setting-solved-by-container .solved-by-area {
+  margin-top: 0;
 }
 #setting-title {
   font-weight: bold;
@@ -1381,6 +1406,9 @@ body {
   font-size: 0.72rem;
   color: var(--text-muted);
   margin-top: -0.3rem;
+}
+.card-dates-label {
+  font-weight: 700;
 }
 .clickable-user {
   cursor: pointer;
