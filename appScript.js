@@ -748,6 +748,7 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
       
     const isCurrentlyWaiting = isRecruiting && session.status === "waiting";
     const solvedByArea = buildSolvedByArea(bookId, book, isCurrentlyWaiting, session);
+    const datesArea = buildDatesArea(book[7], book[8]);
 
     card.addEventListener("click", () => {
       openSettingModal(bookId);
@@ -758,6 +759,7 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
     card.appendChild(cardTitle);
     card.appendChild(cardDescription);
     card.appendChild(cardMadeBy);
+    card.appendChild(datesArea);
     if (solvedByArea) card.appendChild(solvedByArea);
     
     const subjectMatches = subjectFilter === "all" || book[2] === Number(subjectFilter);
@@ -867,43 +869,8 @@ function makeDisplayCards(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
     cardMadeBy.appendChild(nameSpan);
 
     const solvedBy = deck[6] || [];
-    const solvedByArea = document.createElement("div");
-    solvedByArea.classList.add("solved-by-area");
-
-    const solvedByLabel = document.createElement("span");
-    solvedByLabel.classList.add("solved-by-label");
-    solvedByLabel.textContent = "解いた人:";
-    solvedByArea.appendChild(solvedByLabel);
-
-    if (solvedBy.length > 0) {
-      const stack = document.createElement("div");
-      stack.classList.add("solved-by-stack");
-
-      const MAX_SHOWN = 4;
-      solvedBy.slice(0, MAX_SHOWN).forEach(userId => {
-        const cached = getUserCache(userId) || {};
-        const avatar = createAvatar(cached.name, "small", cached.imageUrl);
-        avatar.classList.add("solved-by-avatar");
-        stack.appendChild(avatar);
-      });
-      if (solvedBy.length > MAX_SHOWN) {
-        const overflow = document.createElement("div");
-        overflow.classList.add("avatar-circle", "small", "solved-by-avatar", "solved-by-overflow");
-        overflow.textContent = "…";
-        stack.appendChild(overflow);
-      }
-
-      solvedByArea.appendChild(stack);
-      solvedByArea.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openSolvedModal(deckId, "card");
-      });
-    } else {
-      const emptyText = document.createElement("span");
-      emptyText.classList.add("solved-by-empty-text");
-      emptyText.textContent = "解いた人はまだいません";
-      solvedByArea.appendChild(emptyText);
-    }
+    const solvedByArea = buildSolvedByArea(deckId, deck, false, null, "card");
+    const datesArea = buildDatesArea(deck[7], deck[8]);
 
     card.addEventListener("click", () => {
       openCardSettingModal(deckId);
@@ -913,6 +880,7 @@ function makeDisplayCards(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
     card.appendChild(cardTitle);
     card.appendChild(cardDescription);
     card.appendChild(cardMadeBy);
+    card.appendChild(datesArea);
     card.appendChild(solvedByArea);
 
     const subjectMatches = subjectFilter === "all" || deck[2] === Number(subjectFilter);
@@ -1322,6 +1290,7 @@ function applyRecruitModeToSettingModal(id) {
 
   // ★ カード一覧と同じ「解いた人」/「参加者」のアバター一覧を、問題集モーダルにも表示する
   settingSolvedByContainer.innerHTML = "";
+  settingSolvedByContainer.appendChild(buildDatesArea(book[7], book[8]));
   settingSolvedByContainer.appendChild(buildSolvedByArea(id, book, isCurrentlyWaiting, session));
 
   recruitCommentArea.classList.add("hidden");
@@ -1457,6 +1426,7 @@ function openCardSettingModal(id) {
 
   // ★ 問題集モーダルと同じく、暗記カードモーダルにも「解いた人」を表示する(暗記カードには募集中の概念が無い)
   settingSolvedByContainer.innerHTML = "";
+  settingSolvedByContainer.appendChild(buildDatesArea(deckCache[id][7], deckCache[id][8]));
   settingSolvedByContainer.appendChild(buildSolvedByArea(id, deckCache[id], false, null, "card"));
 
   const allowFlip = !!deckCache[id][9];
@@ -1621,6 +1591,25 @@ function formatDateTime(date) {
   const hh = String(date.getHours()).padStart(2, "0");
   const min = String(date.getMinutes()).padStart(2, "0");
   return `${yyyy}/${mm}/${dd} ${hh}:${min}`;
+}
+
+// ★ 作成日時・更新日時の表示形式。管理者は時刻まで(YYYY/MM/DD HH:MM)、一般ユーザーは日付のみ(YYYY/MM/DD)
+function formatContentDate(millis) {
+  if (!millis) return "不明";
+  const date = new Date(millis);
+  if (meIsAdmin) return formatDateTime(date);
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}/${mm}/${dd}`;
+}
+
+// ★ 問題集一覧のカードと問題集モーダルの両方で使う、作成日時・更新日時の表示部品
+function buildDatesArea(createdAtMillis, updatedAtMillis) {
+  const datesArea = document.createElement("p");
+  datesArea.classList.add("card-dates");
+  datesArea.textContent = `作成: ${formatContentDate(createdAtMillis)}　更新: ${formatContentDate(updatedAtMillis)}`;
+  return datesArea;
 }
 
 let userListModal;
