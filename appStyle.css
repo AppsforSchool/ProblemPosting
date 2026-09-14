@@ -1404,11 +1404,9 @@ body {
 }
 .card-dates {
   font-size: 0.72rem;
+  font-weight: 700;
   color: var(--text-muted);
   margin-top: -0.3rem;
-}
-.card-dates-label {
-  font-weight: 700;
 }
 .clickable-user {
   cursor: pointer;
