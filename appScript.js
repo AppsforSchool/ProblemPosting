@@ -86,12 +86,6 @@ function hasActivePrize(cached) {
 }
 
 let bookCache = {};
-// ★ 一覧の「もっと読み込む」用のページング状態
-const LIST_PAGE_SIZE = 30;
-let bookLastDoc = null;
-let bookHasMore = true;
-let deckLastDoc = null;
-let deckHasMore = true;
 
 // ★ 「募集中」はFirestoreのフィールドではなく、RTDBの liveSessions を唯一の情報源として判定する
 let liveSessionsCache = {}; // bookId -> セッションデータ(status が finished/cancelled 以外のもののみ保持)
@@ -243,7 +237,6 @@ let gradeSelect;
 let sortOrderSelect;
 let solvedFilterSelect;
 let contentTypeSelect;
-let loadMoreButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   drawerOverlay = document.getElementById("drawerOverlay");
@@ -275,7 +268,6 @@ document.addEventListener("DOMContentLoaded", () => {
   sortOrderSelect = document.getElementById("sort-order-select");
   solvedFilterSelect = document.getElementById("solved-filter-select");
   contentTypeSelect = document.getElementById("content-type-select");
-  loadMoreButton = document.getElementById("load-more-button");
 
   subjectSelect.addEventListener("change", handleFilterChange);
   gradeSelect.addEventListener("change", handleFilterChange);
@@ -284,21 +276,6 @@ document.addEventListener("DOMContentLoaded", () => {
   contentTypeSelect.addEventListener("change", () => {
     resetHashToCurrentType();
     handleFilterChange();
-  });
-  loadMoreButton.addEventListener("click", async () => {
-    loadMoreButton.disabled = true;
-    loadMoreButton.textContent = "読み込み中...";
-    try {
-      if (contentTypeSelect.value === "cards") {
-        await loadCardDecks(true);
-      } else {
-        await loadProblemBooks(true);
-      }
-      handleFilterChange();
-    } finally {
-      loadMoreButton.disabled = false;
-      loadMoreButton.textContent = "もっと読み込む";
-    }
   });
 });
 
@@ -310,14 +287,6 @@ function handleFilterChange(animateBookId) {
   } else {
     makeDisplayBooks(subjectSelect.value, gradeSelect.value, sortOrderSelect.value, solvedFilterSelect.value, animateBookId);
   }
-}
-
-// ★ 一覧の描画関数(makeDisplayBooks/makeDisplayCards)の最後から呼ぶ。
-//   現在表示中がbooks/cardsどちらかに応じて「もっと読み込む」ボタンの表示・非表示を切り替える
-function updateLoadMoreButtonVisibility() {
-  if (!loadMoreButton) return;
-  const isCardMode = contentTypeSelect.value === "cards";
-  loadMoreButton.classList.toggle("hidden", isCardMode ? !deckHasMore : !bookHasMore);
 }
 
 function openDrawer() {
@@ -421,18 +390,14 @@ const handleLogout = async () => {
   }
 };
 
-async function loadProblemBooks(loadMore) {
+async function loadProblemBooks() {
   try {
-    let query = db
+    const querySnapshot = await db
       .collection("ProblemPosting")
       .doc("books")
       .collection("data")
       .orderBy("createdAt", "desc")
-      .limit(LIST_PAGE_SIZE);
-    if (loadMore && bookLastDoc) {
-      query = query.startAfter(bookLastDoc);
-    }
-    const querySnapshot = await query.get();
+      .get();
 
     const userIdsToCache = new Set();
 
@@ -475,11 +440,6 @@ async function loadProblemBooks(loadMore) {
       userIdsToCache.add(makerUserId);
       solvedBy.forEach(solverId => userIdsToCache.add(solverId));
     }
-
-    if (querySnapshot.docs.length > 0) {
-      bookLastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
-    }
-    bookHasMore = querySnapshot.docs.length === LIST_PAGE_SIZE;
 
     // ★ ユーザー情報の取得は、1件ずつ直列で待つと問題集の数だけ通信が積み重なって遅くなるため、
     //   ここでまとめて並行取得する(ensureUserCached自体はキャッシュがあれば即returnするので重複しても軽い)
@@ -629,18 +589,14 @@ async function fetchAndAddBookToCache(bookId) {
   }
 }
 
-async function loadCardDecks(loadMore) {
+async function loadCardDecks() {
   try {
-    let query = db
+    const querySnapshot = await db
       .collection("ProblemPosting")
       .doc("cards")
       .collection("data")
       .orderBy("createdAt", "desc")
-      .limit(LIST_PAGE_SIZE);
-    if (loadMore && deckLastDoc) {
-      query = query.startAfter(deckLastDoc);
-    }
-    const querySnapshot = await query.get();
+      .get();
 
     const userIdsToCache = new Set();
 
@@ -681,11 +637,6 @@ async function loadCardDecks(loadMore) {
       userIdsToCache.add(makerUserId);
       solvedBy.forEach(solverId => userIdsToCache.add(solverId));
     }
-
-    if (querySnapshot.docs.length > 0) {
-      deckLastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
-    }
-    deckHasMore = querySnapshot.docs.length === LIST_PAGE_SIZE;
 
     // ★ loadProblemBooks()と同様、ユーザー情報の取得はまとめて並行で行う
     await Promise.all(Array.from(userIdsToCache).map(userId => ensureUserCached(userId)));
@@ -843,7 +794,6 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
     listElement.classList.remove("hidden");
     listElement.appendChild(makeBookButton);
     listElement.appendChild(fragment);
-    updateLoadMoreButtonVisibility();
 }
 
 function makeDisplayCards(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
@@ -965,7 +915,6 @@ function makeDisplayCards(subjectFilter, gradeFilter, sortOrder, solvedFilter) {
   listElement.classList.remove("hidden");
   listElement.appendChild(makeCardDeckButton);
   listElement.appendChild(fragment);
-  updateLoadMoreButtonVisibility();
 }
 
 let shareModalBtn;
