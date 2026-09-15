@@ -737,6 +737,12 @@ body {
   color: var(--text);
   margin-bottom: 1rem;
 }
+.glass-theme-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: -0.6rem;
+  margin-bottom: 0.5rem;
+}
 .toggle-switch {
   position: relative;
   display: inline-block;
@@ -1891,5 +1897,98 @@ footer p {
   .filter-group select {
     width: 100%;
   }
+}
+
+/* =========================================================================
+   新UI(ガラス風) - iPadOS 26風の半透明・すりガラス表現。
+   body.glass-theme が付いている時だけ有効になる、現行UIへの上書きレイヤー。
+   ドロワーの「新しいUI（ガラス風）を試す」トグルで切り替える(既定はオフ=現行UI)。
+   ========================================================================= */
+body.glass-theme {
+  background: linear-gradient(135deg, #f8f2e9 0%, #ecdfcd 30%, #d6bfa2 60%, #b89877 100%);
+  background-attachment: fixed;
+}
+
+body.glass-theme #app-header {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 24px rgba(60, 40, 20, 0.1);
+}
+
+body.glass-theme #share-modal-btn,
+body.glass-theme #setting-button {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  color: var(--text);
+  box-shadow: 0 2px 10px rgba(60, 40, 20, 0.08);
+}
+
+body.glass-theme .narrow-down-area select,
+body.glass-theme .filter-group select {
+  background-color: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+body.glass-theme .card-area .card {
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 8px 30px rgba(60, 40, 20, 0.12);
+}
+body.glass-theme .card-area .card:hover {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 34px rgba(60, 40, 20, 0.16);
+}
+
+body.glass-theme .modal-content {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+body.glass-theme .drawer {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+}
+
+body.glass-theme .answer-next-button,
+body.glass-theme .normal-button,
+body.glass-theme .recruit-open-button,
+body.glass-theme #make-book-button,
+body.glass-theme #make-card-deck-button,
+body.glass-theme .submit-button {
+  background: rgba(255, 255, 255, 0.35) !important;
+  background-image: none !important;
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  color: var(--text) !important;
+  box-shadow: 0 4px 18px rgba(60, 40, 20, 0.1);
+}
+
+body.glass-theme .badge,
+body.glass-theme .private-badge {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  color: var(--text);
+}
+
+body.glass-theme #loading-overlay,
+body.glass-theme .modal-overlay {
+  background: rgba(120, 100, 80, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
