@@ -1959,10 +1959,13 @@ body.glass-theme .card-area .card:hover {
 }
 
 body.glass-theme .modal-content {
-  background: rgba(255, 255, 255, 0.6);
+  /* ★ 背景を白寄りに強め、枠線はグラデーション(白→薄紫→白)にして光の反射感を出す */
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)) padding-box,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(var(--primary-rgb), 0.4), rgba(255, 255, 255, 0.95)) border-box;
   backdrop-filter: blur(30px) saturate(180%);
   -webkit-backdrop-filter: blur(30px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 1.5px solid transparent;
 }
 
 body.glass-theme .drawer {
