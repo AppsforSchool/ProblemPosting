@@ -738,7 +738,7 @@ body {
   margin-bottom: 1rem;
 }
 .glass-theme-hint {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
   margin-top: -0.6rem;
   margin-bottom: 0.5rem;
@@ -1905,7 +1905,7 @@ footer p {
    ドロワーの「新しいUI（ガラス風）を試す」トグルで切り替える(既定はオフ=現行UI)。
    ========================================================================= */
 body.glass-theme {
-  background: linear-gradient(135deg, #f8f2e9 0%, #ecdfcd 30%, #d6bfa2 60%, #b89877 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f3ecfb 30%, #e3d3f5 60%, #c9a6ea 100%);
   background-attachment: fixed;
 }
 
@@ -1914,7 +1914,7 @@ body.glass-theme #app-header {
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 4px 24px rgba(60, 40, 20, 0.1);
+  box-shadow: 0 4px 24px rgba(var(--primary-rgb), 0.12);
 }
 
 body.glass-theme #share-modal-btn,
@@ -1926,7 +1926,7 @@ body.glass-theme #setting-button {
   color: var(--primary-dark);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 2px 10px rgba(60, 40, 20, 0.1);
+    0 2px 10px rgba(var(--primary-rgb), 0.12);
 }
 body.glass-theme #share-modal-btn:hover,
 body.glass-theme #setting-button:hover {
@@ -1942,16 +1942,18 @@ body.glass-theme .filter-group select {
 }
 
 body.glass-theme .card-area .card {
-  background: rgba(255, 255, 255, 0.42);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow: 0 8px 30px rgba(60, 40, 20, 0.12);
+  /* ★ カードは枚数が多くスクロールもされるため、ぼかしを弱くして負荷を抑える。
+     背景を少し濃いめの半透明にすることで、ぼかしが弱くてもガラス感が出るようにしている */
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(6px) saturate(140%);
+  -webkit-backdrop-filter: blur(6px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 30px rgba(var(--primary-rgb), 0.14);
 }
 body.glass-theme .card-area .card:hover {
-  background: rgba(255, 255, 255, 0.55);
-  border-color: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 10px 34px rgba(60, 40, 20, 0.16);
+  background: rgba(255, 255, 255, 0.68);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10px 34px rgba(var(--primary-rgb), 0.18);
 }
 
 body.glass-theme .modal-content {
@@ -1972,7 +1974,13 @@ body.glass-theme .normal-button,
 body.glass-theme .recruit-open-button,
 body.glass-theme #make-book-button,
 body.glass-theme #make-card-deck-button,
-body.glass-theme .submit-button {
+body.glass-theme .submit-button,
+body.glass-theme .buttons-area button,
+body.glass-theme .recruit-confirm-button,
+body.glass-theme .impression-save-button,
+body.glass-theme #impression-edit-save-button,
+body.glass-theme #profile-edit-button,
+body.glass-theme #app-dialog-ok-button {
   background: rgba(var(--primary-rgb), 0.72) !important;
   background-image: none !important;
   backdrop-filter: blur(14px) saturate(160%);
@@ -1982,21 +1990,63 @@ body.glass-theme .submit-button {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.5),
     inset 0 -2px 6px rgba(0, 0, 0, 0.1),
-    0 4px 18px rgba(60, 40, 20, 0.18);
+    0 4px 18px rgba(var(--primary-rgb), 0.2);
 }
 body.glass-theme .answer-next-button:hover:not(:disabled),
 body.glass-theme .normal-button:hover:not(:disabled),
 body.glass-theme .recruit-open-button:hover:not(:disabled),
 body.glass-theme #make-book-button:hover,
 body.glass-theme #make-card-deck-button:hover,
-body.glass-theme .submit-button:hover:not(:disabled) {
+body.glass-theme .submit-button:hover:not(:disabled),
+body.glass-theme .buttons-area button:hover:not(:disabled),
+body.glass-theme .recruit-confirm-button:hover:not(:disabled),
+body.glass-theme .impression-save-button:hover:not(:disabled),
+body.glass-theme #impression-edit-save-button:hover:not(:disabled),
+body.glass-theme #profile-edit-button:hover:not(:disabled),
+body.glass-theme #app-dialog-ok-button:hover:not(:disabled) {
   background: rgba(var(--primary-rgb), 0.85) !important;
+}
+
+/* ★ 淡い色(surface-alt系)の副次的なボタンも、色味の方向性はそのまま半透明+ガラス感に */
+body.glass-theme #edit-button,
+body.glass-theme #solo-start-button,
+body.glass-theme .view-impressions-button,
+body.glass-theme .recruit-comment-cancel-button,
+body.glass-theme #profile-cancel-button,
+body.glass-theme #app-dialog-cancel-button {
+  background: rgba(255, 255, 255, 0.4) !important;
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 2px 10px rgba(var(--primary-rgb), 0.1);
+}
+body.glass-theme #edit-button:hover:not(:disabled),
+body.glass-theme #solo-start-button:hover:not(:disabled),
+body.glass-theme .view-impressions-button:hover,
+body.glass-theme .recruit-comment-cancel-button:hover,
+body.glass-theme #profile-cancel-button:hover,
+body.glass-theme #app-dialog-cancel-button:hover {
+  background: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* ★ 主催者用「待機画面へ」「参加する」など、グラデーション系のボタンも同じ考え方で半透明に
+   (--accentのRGB値 91, 110, 232 を直接使用。--accent-rgbという変数は無いため) */
+body.glass-theme .buttons-area #join-button,
+body.glass-theme #start-button.live-gradient-button {
+  background: linear-gradient(120deg, rgba(var(--primary-rgb), 0.75), rgba(91, 110, 232, 0.75)) !important;
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 4px 18px rgba(var(--primary-rgb), 0.2);
 }
 
 body.glass-theme .badge,
 body.glass-theme .private-badge {
-  backdrop-filter: blur(10px) saturate(160%);
-  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  /* ★ 1枚のカードに複数付き、数が多くなるためぼかしは使わずハイライトだけで質感を出す */
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
     inset 0 -1px 3px rgba(0, 0, 0, 0.08);
@@ -2004,7 +2054,7 @@ body.glass-theme .private-badge {
 
 body.glass-theme #loading-overlay,
 body.glass-theme .modal-overlay {
-  background: rgba(120, 100, 80, 0.35);
+  background: rgba(var(--primary-rgb), 0.28);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
