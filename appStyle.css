@@ -1919,41 +1919,42 @@ body.glass-theme #app-header {
 
 body.glass-theme #share-modal-btn,
 body.glass-theme #setting-button {
-  background: rgba(var(--primary-rgb), 0.22) !important;
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
   color: var(--primary-dark);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 2px 10px rgba(var(--primary-rgb), 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 body.glass-theme #share-modal-btn:hover,
 body.glass-theme #setting-button:hover {
-  background: rgba(var(--primary-rgb), 0.32) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
 }
 
 body.glass-theme .narrow-down-area select,
 body.glass-theme .filter-group select {
-  background-color: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(10px) saturate(160%);
-  -webkit-backdrop-filter: blur(10px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1.5px solid rgba(var(--primary-rgb), 0.35);
 }
 
 body.glass-theme .card-area .card {
-  /* ★ カードは枚数が多くスクロールもされるため、ぼかしを弱くして負荷を抑える。
-     背景を少し濃いめの半透明にすることで、ぼかしが弱くてもガラス感が出るようにしている */
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(6px) saturate(140%);
-  -webkit-backdrop-filter: blur(6px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 8px 30px rgba(var(--primary-rgb), 0.14);
+  /* ★ このUIの本質は枠線。背景・ぼかしは使わず、透明な背景+枠線だけで表現する(負荷もゼロになる) */
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1.5px solid rgba(var(--primary-rgb), 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 4px 16px rgba(var(--primary-rgb), 0.08);
 }
 body.glass-theme .card-area .card:hover {
-  background: rgba(255, 255, 255, 0.68);
-  border-color: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 10px 34px rgba(var(--primary-rgb), 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(var(--primary-rgb), 0.65);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 6px 20px rgba(var(--primary-rgb), 0.12);
 }
 
 body.glass-theme .modal-content {
@@ -1981,16 +1982,14 @@ body.glass-theme .impression-save-button,
 body.glass-theme #impression-edit-save-button,
 body.glass-theme #profile-edit-button,
 body.glass-theme #app-dialog-ok-button {
-  background: rgba(var(--primary-rgb), 0.72) !important;
+  /* ★ このUIの本質は枠線。塗り・ぼかしは使わず、透明な背景+枠線+文字色の変更だけで表現する */
+  background: transparent !important;
   background-image: none !important;
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.45) !important;
-  color: #fff !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.1),
-    0 4px 18px rgba(var(--primary-rgb), 0.2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1.5px solid rgba(var(--primary-rgb), 0.6) !important;
+  color: var(--primary-dark) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 body.glass-theme .answer-next-button:hover:not(:disabled),
 body.glass-theme .normal-button:hover:not(:disabled),
@@ -2004,23 +2003,22 @@ body.glass-theme .impression-save-button:hover:not(:disabled),
 body.glass-theme #impression-edit-save-button:hover:not(:disabled),
 body.glass-theme #profile-edit-button:hover:not(:disabled),
 body.glass-theme #app-dialog-ok-button:hover:not(:disabled) {
-  background: rgba(var(--primary-rgb), 0.85) !important;
+  background: rgba(var(--primary-rgb), 0.1) !important;
+  border-color: rgba(var(--primary-rgb), 0.85) !important;
 }
 
-/* ★ 淡い色(surface-alt系)の副次的なボタンも、色味の方向性はそのまま半透明+ガラス感に */
+/* ★ 淡い色系の副次的なボタンも、同じく透明背景+枠線に */
 body.glass-theme #edit-button,
 body.glass-theme #solo-start-button,
 body.glass-theme .view-impressions-button,
 body.glass-theme .recruit-comment-cancel-button,
 body.glass-theme #profile-cancel-button,
 body.glass-theme #app-dialog-cancel-button {
-  background: rgba(255, 255, 255, 0.4) !important;
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.5) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 2px 10px rgba(var(--primary-rgb), 0.1);
+  background: transparent !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.75) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 body.glass-theme #edit-button:hover:not(:disabled),
 body.glass-theme #solo-start-button:hover:not(:disabled),
@@ -2028,20 +2026,19 @@ body.glass-theme .view-impressions-button:hover,
 body.glass-theme .recruit-comment-cancel-button:hover,
 body.glass-theme #profile-cancel-button:hover,
 body.glass-theme #app-dialog-cancel-button:hover {
-  background: rgba(255, 255, 255, 0.55) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
 }
 
-/* ★ 主催者用「待機画面へ」「参加する」など、グラデーション系のボタンも同じ考え方で半透明に
-   (--accentのRGB値 91, 110, 232 を直接使用。--accent-rgbという変数は無いため) */
+/* ★ 主催者用「待機画面へ」「参加する」も同じく透明背景+枠線に(グラデーションは枠線の色でほのめかす程度に) */
 body.glass-theme .buttons-area #join-button,
 body.glass-theme #start-button.live-gradient-button {
-  background: linear-gradient(120deg, rgba(var(--primary-rgb), 0.75), rgba(91, 110, 232, 0.75)) !important;
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.45) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 4px 18px rgba(var(--primary-rgb), 0.2);
+  background: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1.5px solid rgba(var(--primary-rgb), 0.6) !important;
+  color: var(--primary-dark) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 body.glass-theme .badge,
@@ -2050,12 +2047,5 @@ body.glass-theme .private-badge {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
     inset 0 -1px 3px rgba(0, 0, 0, 0.08);
-}
-
-body.glass-theme #loading-overlay,
-body.glass-theme .modal-overlay {
-  background: rgba(var(--primary-rgb), 0.28);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 
