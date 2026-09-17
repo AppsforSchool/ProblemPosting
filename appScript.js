@@ -231,9 +231,6 @@ let drawerUsername;
 let drawerLogoutButton;
 let drawerEditProfileButton;
 let drawerUserListButton;
-let glassThemeToggle;
-
-const GLASS_THEME_STORAGE_KEY = "uiTheme"; // ★ "glass" ならガラス風UI、それ以外(未設定含む)なら現行UI
 
 let subjectSelect;
 let gradeSelect;
@@ -252,7 +249,6 @@ document.addEventListener("DOMContentLoaded", () => {
   drawerLogoutButton = document.getElementById("logout-button");
   drawerEditProfileButton = document.getElementById("drawer-edit-profile-button");
   drawerUserListButton = document.getElementById("drawer-user-list-button");
-  glassThemeToggle = document.getElementById("glass-theme-toggle");
 
   accountSettingsButton.addEventListener("click", openDrawer);
   drawerCloseButton.addEventListener("click", closeDrawer);
@@ -265,23 +261,6 @@ document.addEventListener("DOMContentLoaded", () => {
   drawerUserListButton.addEventListener("click", () => {
     closeDrawer();
     openUserListModal();
-  });
-
-  // ★ 新UI(ガラス風)の切り替え。初期設定は現UI(オフ)。この端末のこのブラウザだけの設定として保存する
-  let savedTheme = "";
-  try {
-    savedTheme = localStorage.getItem(GLASS_THEME_STORAGE_KEY) || "";
-  } catch (error) {
-    console.error("UIテーマ設定の読み込みに失敗しました:", error);
-  }
-  applyGlassTheme(savedTheme === "glass");
-  glassThemeToggle.addEventListener("change", () => {
-    applyGlassTheme(glassThemeToggle.checked);
-    try {
-      localStorage.setItem(GLASS_THEME_STORAGE_KEY, glassThemeToggle.checked ? "glass" : "current");
-    } catch (error) {
-      console.error("UIテーマ設定の保存に失敗しました:", error);
-    }
   });
 
   subjectSelect = document.getElementById("subject-select");
@@ -308,12 +287,6 @@ function handleFilterChange(animateBookId) {
   } else {
     makeDisplayBooks(subjectSelect.value, gradeSelect.value, sortOrderSelect.value, solvedFilterSelect.value, animateBookId);
   }
-}
-
-// ★ 新UI(ガラス風)のオン/オフを切り替える。実体は<body>にクラスを付け外しするだけ
-function applyGlassTheme(enabled) {
-  document.body.classList.toggle("glass-theme", enabled);
-  if (glassThemeToggle) glassThemeToggle.checked = enabled;
 }
 
 function openDrawer() {
