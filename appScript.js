@@ -158,6 +158,27 @@ function createAvatar(name, size, imageUrl) {
 }
 
 // ★ 「解いた人」/「参加者」のアバター一覧を作る(問題集一覧のカードと、問題集モーダルの両方で使う共通部品)
+// ★ 募集中の問題集を、吹き出し風のバブルで表示する(ラベル+参加人数を上部、募集メッセージを下部に)
+function buildRecruitBubble(session) {
+  const bubble = document.createElement("div");
+  bubble.classList.add("recruit-bubble");
+
+  const participantCount = Object.keys(session.participants || {}).length;
+  const baseLabel = session.isSpecial ? "スペシャルライブ・募集中" : "募集中";
+
+  const label = document.createElement("p");
+  label.classList.add("recruit-bubble-label");
+  label.textContent = `${baseLabel}（${participantCount}人が参加中）`;
+  bubble.appendChild(label);
+
+  const message = document.createElement("p");
+  message.classList.add("recruit-bubble-message");
+  message.textContent = (session.recruitComment || "").trim() || "(コメントはありません)";
+  bubble.appendChild(message);
+
+  return bubble;
+}
+
 function buildSolvedByArea(id, book, isCurrentlyWaiting, session, contentType) {
   const participantIds = isCurrentlyWaiting ? Object.keys((session && session.participants) || {}) : [];
   const solvedBy = isCurrentlyWaiting ? participantIds : (book[6] || []);
@@ -679,19 +700,16 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
     const isPrivate = !!book[10];
     const session = liveSessionsCache[bookId];
     const isRecruiting = !!session;
-    if (isPrivate || isRecruiting) {
+    const isWaiting = isRecruiting && session.status === "waiting";
+    if (isWaiting) {
+      // ★ 募集中は、吹き出し風のバブルでラベル(募集中/人数)と募集メッセージをまとめて表示する
+      card.appendChild(buildRecruitBubble(session));
+    } else if (isPrivate || isRecruiting) {
       const privateBadge = document.createElement("span");
       privateBadge.classList.add("private-badge");
       if (isRecruiting) {
-        const isWaiting = session.status === "waiting";
-        privateBadge.classList.add(isWaiting ? "recruiting-badge" : "started-badge");
-        if (isWaiting) {
-          const participantCount = Object.keys(session.participants || {}).length;
-          const baseLabel = session.isSpecial ? "スペシャルライブ・募集中" : "募集中";
-          privateBadge.textContent = `${baseLabel}(${participantCount}人が参加中)`;
-        } else {
-          privateBadge.textContent = "開始済み";
-        }
+        privateBadge.classList.add("started-badge");
+        privateBadge.textContent = "開始済み";
       } else {
         privateBadge.textContent = "非公開";
       }
@@ -744,8 +762,7 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
     cardMadeBy.appendChild(madeByTextContent);
     cardMadeBy.appendChild(nameSpan);
       
-    const isCurrentlyWaiting = isRecruiting && session.status === "waiting";
-    const solvedByArea = buildSolvedByArea(bookId, book, isCurrentlyWaiting, session);
+    const solvedByArea = buildSolvedByArea(bookId, book, isWaiting, session);
     const datesArea = buildDatesArea(book[7], book[8]);
 
     card.addEventListener("click", () => {

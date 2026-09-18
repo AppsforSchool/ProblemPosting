@@ -815,9 +815,6 @@ body {
   box-shadow: none;
   cursor: not-allowed;
 }
-.private-badge.recruiting-badge {
-  background: linear-gradient(120deg, var(--primary), var(--accent));
-}
 .private-badge.started-badge {
   background: var(--text-muted);
 }
@@ -1286,6 +1283,41 @@ body {
   box-shadow: var(--shadow-md);
   border-color: rgba(var(--primary-rgb), 0.35);
   transform: translateY(-1px);
+}
+.recruit-bubble {
+  position: relative;
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.75rem 0.65rem;
+  margin-bottom: 0.2rem;
+  box-shadow: var(--shadow-sm);
+}
+.recruit-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  left: 18px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid var(--primary);
+}
+.recruit-bubble-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-align: left;
+  margin-bottom: 0.25rem;
+}
+.recruit-bubble-message {
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #fff;
+  text-align: left;
+  white-space: pre-line;
+  overflow-wrap: break-word;
 }
 .private-badge {
   position: absolute;
