@@ -701,9 +701,10 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
     const session = liveSessionsCache[bookId];
     const isRecruiting = !!session;
     const isWaiting = isRecruiting && session.status === "waiting";
+    let recruitBubble = null;
     if (isWaiting) {
-      // ★ 募集中は、吹き出し風のバブルでラベル(募集中/人数)と募集メッセージをまとめて表示する
-      card.appendChild(buildRecruitBubble(session));
+      // ★ 募集中は、カードの外側(上)に吹き出し風のバブルを添える形で表示する
+      recruitBubble = buildRecruitBubble(session);
     } else if (isPrivate || isRecruiting) {
       const privateBadge = document.createElement("span");
       privateBadge.classList.add("private-badge");
@@ -786,7 +787,15 @@ function makeDisplayBooks(subjectFilter, gradeFilter, sortOrder, solvedFilter, a
       (solvedFilter === "solved" && hasSolved) ||
       (solvedFilter === "unsolved" && !hasSolved);
     if (subjectMatches && gradeMatches && solvedMatches) {
-      fragment.appendChild(card);
+      if (recruitBubble) {
+        const cardWrapper = document.createElement("div");
+        cardWrapper.classList.add("card-wrapper");
+        cardWrapper.appendChild(recruitBubble);
+        cardWrapper.appendChild(card);
+        fragment.appendChild(cardWrapper);
+      } else {
+        fragment.appendChild(card);
+      }
     }
   });
   

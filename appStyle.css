@@ -1284,24 +1284,31 @@ body {
   border-color: rgba(var(--primary-rgb), 0.35);
   transform: translateY(-1px);
 }
+.card-wrapper {
+  display: flex;
+  flex-direction: column;
+}
 .recruit-bubble {
   position: relative;
+  width: 88%;
+  align-self: flex-start;
+  box-sizing: border-box;
   background: linear-gradient(120deg, var(--primary), var(--accent));
   border-radius: var(--radius-md);
   padding: 0.55rem 0.75rem 0.65rem;
-  margin-bottom: 0.2rem;
+  margin-bottom: 16px;
   box-shadow: var(--shadow-sm);
 }
 .recruit-bubble::after {
   content: "";
   position: absolute;
-  bottom: -7px;
-  left: 18px;
+  bottom: -10px;
+  left: 24px;
   width: 0;
   height: 0;
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  border-top: 7px solid var(--primary);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 10px solid var(--primary);
 }
 .recruit-bubble-label {
   font-size: 0.72rem;
