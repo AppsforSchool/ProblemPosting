@@ -1300,17 +1300,17 @@ body {
   box-shadow: var(--shadow-sm);
 }
 .recruit-bubble::after {
-  /* ★ 矢印もバブル本体と中央揃え。単色三角形(border-trick)だとグラデーションを表現できないため、
-       本体と同じグラデーションを持つ正方形を45度回転させて三角形に見せることで、繋ぎ目の色を一致させている */
+  /* ★ 矢印はバブル中央下に配置。グラデーションだと繋ぎ目が不自然になったため単色に変更 */
   content: "";
   position: absolute;
-  bottom: -6px;
+  bottom: -8px;
   left: 50%;
-  width: 16px;
-  height: 16px;
-  background: linear-gradient(120deg, var(--primary), var(--accent));
-  border-radius: 0 0 3px 0;
-  transform: translateX(-50%) rotate(45deg);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 10px solid #9163C4;
+  transform: translateX(-50%);
 }
 .recruit-bubble-label {
   font-size: 0.72rem;
