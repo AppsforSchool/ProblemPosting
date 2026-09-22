@@ -1180,7 +1180,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem; /* ★ 絞り込みエリアとの間隔を少し広げた(元は1.5rem) */
   border-bottom: 1px solid var(--border);
   padding-bottom: 1rem;
 }
@@ -1252,7 +1252,8 @@ body {
 .card-area {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1.2rem;
+  row-gap: 1.8rem; /* ★ カード同士の縦の間隔を少し広げた(元はgap:1.2remで縦横共通だった) */
+  column-gap: 1.2rem;
   max-width: 1200px;
   margin: 0 auto;
   padding: 1rem 1.5rem 2.5rem;
