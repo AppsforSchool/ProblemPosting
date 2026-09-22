@@ -1180,7 +1180,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  margin-bottom: 2rem; /* ★ 絞り込みエリアとの間隔を少し広げた(元は1.5rem) */
+  margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--border);
   padding-bottom: 1rem;
 }
@@ -1189,7 +1189,7 @@ body {
   display: flex;
   gap: 10px;
   align-items: stretch;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem; /* ★ 問題集一覧エリアとの間隔を少し広げた(元は1rem) */
 }
 .narrow-down-area p {
   font-weight: bold;
