@@ -1252,6 +1252,9 @@ body {
 .card-area {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  align-items: start; /* ★ デフォルトのstretchのままだと、募集中カード(吹き出し込みで背が高い)に合わせて
+                            同じ行の隣のカードまで引き伸ばされてしまうため、各カードは自身の内容分の高さ
+                            (吹き出しを除いた高さ)で表示されるようにする */
   gap: 1.2rem;
   max-width: 1200px;
   margin: 0 auto;
