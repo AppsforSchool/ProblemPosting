@@ -1287,6 +1287,12 @@ body {
 }
 .card-wrapper {
   position: relative; /* ★ 吹き出しをabsoluteで浮かせるための基準にする */
+  height: 100%; /* グリッドの行の高さいっぱいまで自身を伸ばす(デフォルトのstretchを効かせる) */
+}
+.card-wrapper .card {
+  height: 100%; /* ★ card-wrapperは行の高さいっぱいに伸びるが、中のcard本体は自分の内容分の高さしか
+                     取らないため余白ができてしまっていた。card側にも高さ100%を指定して、隣の
+                     非募集中カード(本体そのものがグリッドの行いっぱいに伸びる)と本体の高さを揃える */
 }
 .recruit-bubble {
   /* ★ absoluteにしてカードの上に少し重ねる形にすることで、吹き出しの分の高さが
