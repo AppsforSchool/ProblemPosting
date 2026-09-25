@@ -55,6 +55,7 @@ function getParmFromUrl(parm) {
 
 let loadingOverlay;
 let loadingStatusText;
+let loadingProgressBarFill;
 let noPermissionOverlay;
 let noPermissionHomeButton;
 let problemsListEl;
@@ -78,6 +79,8 @@ let exportJsonButton;
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 10);
   noPermissionOverlay = document.getElementById("no-permission-overlay");
   noPermissionHomeButton = document.getElementById("no-permission-home-button");
   problemsListEl = document.getElementById("problems-list");
@@ -117,7 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged(async (user) => {
     if (user) {
-      setLoadingStatus("ユーザー情報を確認しています｡");
+      setLoadingStage("ユーザー情報を確認しています｡", 25);
       myUserId = user.email.split("@")[0];
 
       const mySnapshot = await db.collection("users_random").doc(myUserId).get();
@@ -140,8 +143,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ★ ローディングオーバーレイ下部の小さいテキストを更新する
-function setLoadingStatus(text) {
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
   if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
 }
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
@@ -252,7 +260,7 @@ async function checkForBackup() {
 
 async function loadBookData(bookId) {
   try {
-    setLoadingStatus("問題集の情報を読み込んでいます｡");
+    setLoadingStage("問題集の情報を読み込んでいます｡", 45);
 
     const bookRef = db
       .collection("ProblemPosting")
@@ -300,7 +308,7 @@ async function loadBookData(bookId) {
 
     const problemsSnap = await bookRef.collection("problems").orderBy("no").get();
     problemsListEl.innerHTML = "";
-    setLoadingStatus("問題を読み込んでいます｡");
+    setLoadingStage("問題を読み込んでいます｡", 70);
 
     problemsSnap.forEach(doc => {
       const data = doc.data();
@@ -323,6 +331,7 @@ async function loadBookData(bookId) {
       addProblemBlock();
     }
 
+    setLoadingStage("読み込みが完了しました｡", 100);
     loadingOverlay.classList.add("hidden");
 
     // ★ 前回の作業データが残っていれば復元するか確認する（このbookId専用のバックアップ枠）
@@ -842,8 +851,7 @@ async function handleUpdate() {
   submitButton.disabled = true;
   deleteBookButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
-  const loadingText = loadingOverlay.querySelector("p");
-  if (loadingText) loadingText.textContent = "問題集を更新しています｡";
+  setLoadingStage("問題集を更新しています｡", 10);
 
   try {
     const imageCount = problemsPayload.filter(p => p.imageFile).length;
@@ -852,7 +860,7 @@ async function handleUpdate() {
       for (const p of problemsPayload) {
         if (p.imageFile) {
           uploadedCount++;
-          if (loadingText) loadingText.textContent = `画像をアップロードしています (${uploadedCount}/${imageCount})｡`;
+          setLoadingStage(`画像をアップロードしています (${uploadedCount}/${imageCount})｡`, 10 + (uploadedCount / imageCount) * 60);
           p.imageUrl = await uploadImageToImgbb(p.imageFile);
         } else if (p.imageRemoved) {
           p.imageUrl = "";
@@ -860,7 +868,7 @@ async function handleUpdate() {
           p.imageUrl = p.existingImageUrl;
         }
       }
-      if (loadingText) loadingText.textContent = "保存しています｡";
+      setLoadingStage("保存しています｡", 75);
     } else {
       problemsPayload.forEach(p => {
         p.imageUrl = p.imageRemoved ? "" : p.existingImageUrl;
@@ -908,6 +916,7 @@ async function handleUpdate() {
     });
     await batch.commit();
 
+    setLoadingStage("読み込みが完了しました｡", 100);
     await AppDialog.alert("問題集を更新しました！");
     clearBackup();
     window.location.href = "./app.html";
@@ -930,8 +939,7 @@ async function handleDeleteBook() {
   submitButton.disabled = true;
   deleteBookButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
-  const loadingText = loadingOverlay.querySelector("p");
-  if (loadingText) loadingText.textContent = "削除しています｡";
+  setLoadingStage("削除しています｡", 30);
 
   try {
     const bookRef = db
@@ -946,6 +954,7 @@ async function handleDeleteBook() {
     batch.delete(bookRef);
     await batch.commit();
 
+    setLoadingStage("読み込みが完了しました｡", 100);
     await AppDialog.alert("削除しました。");
     clearBackup();
     window.location.href = "./app.html";

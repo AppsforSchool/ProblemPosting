@@ -51,6 +51,7 @@ const gradeIdList = ["不明", "1年", "2年", "3年", "総合"];
 
 let loadingOverlay;
 let loadingStatusText;
+let loadingProgressBarFill;
 let myUid = "";
 let myUserId = "";
 let meIsAdmin = false;
@@ -63,8 +64,13 @@ function setUserCache(userId, data) {
   userDataCache[userId] = Object.assign({}, userDataCache[userId] || {}, data);
   return userDataCache[userId];
 }
-function setLoadingStatus(text) {
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
   if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
 }
 
 // ★ Firestoreのタイムスタンプ(またはミリ秒数値)を、比較に使いやすいミリ秒数値へ揃える
@@ -322,13 +328,15 @@ function closeDrawer() {
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 10);
 
   auth.onAuthStateChanged(async (user) => {
     if (user) {
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
-      setLoadingStatus("ユーザー情報を確認しています｡");
+      setLoadingStage("ユーザー情報を確認しています｡", 20);
       const userSnapshot = await db
         .collection("users_random")
         .doc(myUserId)
@@ -354,9 +362,26 @@ document.addEventListener("DOMContentLoaded", () => {
       maybeShowNotice(userData.lastOpenedAt); // ★ 最終確認時刻に応じて、お知らせモーダルを表示する(結果を待たずに進める)
 
       //displayVocabularyBooks();
-      setLoadingStatus("問題集・暗記カードを読み込んでいます｡");
-      await Promise.all([loadProblemBooks(), loadCardDecks()]);
+      // ★ 問題集・暗記カードの読み込みは並行実行のため、片方が終わるごとに進捗を進める(30%〜85%の区間)
+      let booksLoaded = false;
+      let cardsLoaded = false;
+      const advanceListLoadProgress = () => {
+        const doneCount = (booksLoaded ? 1 : 0) + (cardsLoaded ? 1 : 0);
+        setLoadingStage("問題集・暗記カードを読み込んでいます｡", 30 + (doneCount / 2) * 55);
+      };
+      setLoadingStage("問題集・暗記カードを読み込んでいます｡", 30);
+      await Promise.all([
+        loadProblemBooks().then(() => {
+          booksLoaded = true;
+          advanceListLoadProgress();
+        }),
+        loadCardDecks().then(() => {
+          cardsLoaded = true;
+          advanceListLoadProgress();
+        })
+      ]);
 
+      setLoadingStage("表示を準備しています｡", 90);
       if (window.location.hash) {
         initializeViewFromHash();
       } else {
@@ -364,9 +389,9 @@ document.addEventListener("DOMContentLoaded", () => {
         makeDisplayBooks("all", "all", sortOrderSelect.value, "all");
         resetHashToCurrentType(); // ★ 履歴を汚さないよう置き換えで #books を補っておく
       }
+      setLoadingStage("読み込みが完了しました｡", 100);
       loadingOverlay.classList.add("hidden");
       updateLastChecked();
-      setLoadingStatus("募集状況を確認しています｡");
       attachLiveSessionsListener();
     } else {
       console.log("logout");

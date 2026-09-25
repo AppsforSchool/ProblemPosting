@@ -87,6 +87,7 @@ let impressionSaveButton;
 
 let loadingOverlay;
 let loadingStatusText;
+let loadingProgressBarFill;
 let drawerOverlay;
 let accountSettingsDrawer;
 let drawerCloseButton;
@@ -99,6 +100,8 @@ let drawerUserListButton;
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 5);
   drawerOverlay = document.getElementById("drawerOverlay");
   accountSettingsDrawer = document.getElementById("accountSettingsDrawer");
   drawerCloseButton = document.getElementById("drawerCloseButton");
@@ -255,7 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
-      setLoadingStatus("ユーザー情報を確認しています｡");
+      setLoadingStage("ユーザー情報を確認しています｡", 15);
       const userSnapshot = await db
         .collection("users_random")
         .doc(myUserId)
@@ -286,7 +289,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       currentBookId = bookId;
-      setLoadingStatus("問題を読み込んでいます｡");
+      setLoadingStage("問題を読み込んでいます｡", 40);
       const ok = await loadProblemBook(bookId);
       if (!ok) {
         loadingOverlay.classList.add("hidden");
@@ -294,6 +297,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       await preloadAllProblemImages();
+      setLoadingStage("読み込みが完了しました｡", 100);
       loadingOverlay.classList.add("hidden");
       document.getElementById("problem-area").classList.remove("hidden");
       
@@ -493,9 +497,13 @@ async function loadProblemBook(bookId) {
   }
 }
 
-// ★ ローディングオーバーレイ下部の小さいテキストを更新する
-function setLoadingStatus(text) {
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
   if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
 }
 
 // ★ 1枚の画像を読み込む。失敗しても他の画像の読み込みを止めないよう、常にresolveする
@@ -519,12 +527,14 @@ async function preloadAllProblemImages() {
   if (imageUrls.length === 0) return;
 
   let loadedCount = 0;
-  setLoadingStatus(`画像を読み込んでいます (${loadedCount}/${imageUrls.length})｡`);
+  // ★ 画像読み込みの進捗は、全体の進捗バーのうち70%〜95%の区間にマッピングする
+  const percentFor = count => 70 + (count / imageUrls.length) * 25;
+  setLoadingStage(`画像を読み込んでいます (${loadedCount}/${imageUrls.length})｡`, percentFor(loadedCount));
 
   await Promise.all(imageUrls.map(url =>
     preloadImage(url).then(() => {
       loadedCount++;
-      setLoadingStatus(`画像を読み込んでいます (${loadedCount}/${imageUrls.length})｡`);
+      setLoadingStage(`画像を読み込んでいます (${loadedCount}/${imageUrls.length})｡`, percentFor(loadedCount));
     })
   ));
 }

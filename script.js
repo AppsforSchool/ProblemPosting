@@ -14,9 +14,21 @@ window.auth = firebase.auth();
 window.db = firebase.firestore();
 
 let loadingOverlay;
+let loadingStatusText;
+let loadingProgressBarFill;
+// ★ ローディングオーバーレイ下部のテキストと進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
+}
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
-  
+  loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 25);
 });
 
 let qrLoginButton;
@@ -136,7 +148,9 @@ function updateLoginButtonState() {
 
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged(async (user) => {
+    setLoadingStage("ログイン状態を確認しています｡", 65);
     if (user) {
+      setLoadingStage("ページを移動しています｡", 100);
       window.location.href = './app.html';
       loginContainer.classList.add("hidden");
     } else {

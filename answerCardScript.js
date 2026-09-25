@@ -22,6 +22,7 @@ let isTransitioning = false; // ★ カード切替アニメーション中は�
 
 let loadingOverlay;
 let loadingStatusText;
+let loadingProgressBarFill;
 let meIsAdmin = false;
 let drawerOverlay;
 let accountSettingsDrawer;
@@ -59,6 +60,8 @@ let favoriteButton;
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 5);
   drawerOverlay = document.getElementById("drawerOverlay");
   accountSettingsDrawer = document.getElementById("accountSettingsDrawer");
   drawerCloseButton = document.getElementById("drawerCloseButton");
@@ -189,7 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
-      setLoadingStatus("ユーザー情報を確認しています｡");
+      setLoadingStage("ユーザー情報を確認しています｡", 20);
       const userSnapshot = await db.collection("users_random").doc(myUserId).get();
       const userData = userSnapshot.data();
       myFavorites = userData.favorites || [];
@@ -217,13 +220,14 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       currentDeckId = deckId;
 
-      setLoadingStatus("暗記カードを読み込んでいます｡");
+      setLoadingStage("暗記カードを読み込んでいます｡", 55);
       const ok = await loadDeck(deckId);
       if (!ok) {
         loadingOverlay.classList.add("hidden");
         document.getElementById("no-permission-overlay").classList.remove("hidden");
         return;
       }
+      setLoadingStage("読み込みが完了しました｡", 100);
       loadingOverlay.classList.add("hidden");
       cardContainer.classList.remove("hidden");
 
@@ -309,8 +313,13 @@ function getParmFromUrl(parm) {
   const params = new URLSearchParams(window.location.search);
   return params.get(parm);
 }
-function setLoadingStatus(text) {
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
   if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
 }
 
 // ★ Fisher-Yatesシャッフル

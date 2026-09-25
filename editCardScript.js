@@ -26,6 +26,7 @@ function getParmFromUrl(parm) {
 
 let loadingOverlay;
 let loadingStatusText;
+let loadingProgressBarFill;
 let noPermissionOverlay;
 let noPermissionHomeButton;
 let cardsListEl;
@@ -47,6 +48,8 @@ let exportJsonButton;
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 10);
   noPermissionOverlay = document.getElementById("no-permission-overlay");
   noPermissionHomeButton = document.getElementById("no-permission-home-button");
   cardsListEl = document.getElementById("cards-list");
@@ -84,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged(async (user) => {
     if (user) {
-      setLoadingStatus("ユーザー情報を確認しています｡");
+      setLoadingStage("ユーザー情報を確認しています｡", 25);
       myUserId = user.email.split("@")[0];
 
       const mySnapshot = await db.collection("users_random").doc(myUserId).get();
@@ -107,8 +110,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ★ ローディングオーバーレイ下部の小さいテキストを更新する
-function setLoadingStatus(text) {
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
   if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
 }
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
@@ -222,7 +230,7 @@ async function checkForBackup() {
 
 async function loadDeckData(deckId) {
   try {
-    setLoadingStatus("暗記カードの情報を読み込んでいます｡");
+    setLoadingStage("暗記カードの情報を読み込んでいます｡", 55);
 
     const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(deckId);
     const deckSnap = await deckRef.get();
@@ -274,6 +282,7 @@ async function loadDeckData(deckId) {
       addCardBlock();
     }
 
+    setLoadingStage("読み込みが完了しました｡", 100);
     loadingOverlay.classList.add("hidden");
 
     // ★ 前回の作業データが残っていれば復元するか確認する（このdeckId専用のバックアップ枠）
@@ -468,7 +477,7 @@ async function handleUpdate() {
   submitButton.disabled = true;
   deleteDeckButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
-  setLoadingStatus("暗記カードを更新しています｡");
+  setLoadingStage("暗記カードを更新しています｡", 40);
 
   try {
     const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(currentDeckId);
@@ -490,6 +499,7 @@ async function handleUpdate() {
 
     await deckRef.update(updateData);
 
+    setLoadingStage("読み込みが完了しました｡", 100);
     await AppDialog.alert("暗記カードを更新しました！");
     clearBackup();
     window.location.href = "./app.html#cards";
@@ -512,12 +522,13 @@ async function handleDeleteDeck() {
   submitButton.disabled = true;
   deleteDeckButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
-  setLoadingStatus("暗記カードを削除しています｡");
+  setLoadingStage("暗記カードを削除しています｡", 40);
 
   try {
     const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(currentDeckId);
     await deckRef.delete();
 
+    setLoadingStage("読み込みが完了しました｡", 100);
     await AppDialog.alert("削除しました。");
     clearBackup();
     window.location.href = "./app.html#cards";

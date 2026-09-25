@@ -21,6 +21,7 @@ const BACKUP_KEY = "cardDeckBackup_create";
 
 let loadingOverlay;
 let loadingStatusText;
+let loadingProgressBarFill;
 let cardsListEl;
 let addCardButton;
 let submitButton;
@@ -37,6 +38,8 @@ let exportJsonButton;
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 20);
   cardsListEl = document.getElementById("cards-list");
   addCardButton = document.getElementById("add-card-button");
   submitButton = document.getElementById("submit-button");
@@ -72,9 +75,10 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged((user) => {
     if (user) {
-      setLoadingStatus("ユーザー情報を確認しています｡");
+      setLoadingStage("ユーザー情報を確認しています｡", 70);
       myUserId = user.email.split("@")[0];
       updateLastChecked();
+      setLoadingStage("読み込みが完了しました｡", 100);
       loadingOverlay.classList.add("hidden");
     } else {
       console.log("logout");
@@ -84,8 +88,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ★ ローディングオーバーレイ下部の小さいテキストを更新する
-function setLoadingStatus(text) {
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
   if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
 }
 
 // ★ ローカルストレージへのバックアップ機能
@@ -346,7 +355,7 @@ async function handleSubmit() {
 
   submitButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
-  setLoadingStatus("暗記カードを保存しています｡");
+  setLoadingStage("暗記カードを保存しています｡", 50);
 
   try {
     await db

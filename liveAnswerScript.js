@@ -90,6 +90,7 @@ let problemsData = []; // [problem, choices, answer, explanation, imageUrl, answ
 
 let loadingOverlay;
 let loadingStatusText;
+let loadingProgressBarFill;
 let liveHeaderTitle;
 let hostNameText;
 let hostNameFetched = false;
@@ -169,6 +170,8 @@ function openLiveShareModal(targetBookId) {
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 10);
   liveHeaderTitle = document.getElementById("host-title-text");
   hostNameText = document.getElementById("host-name-text");
 
@@ -278,7 +281,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      loadingStatusText.textContent = "ユーザー情報を確認しています｡";
+      setLoadingStage("ユーザー情報を確認しています｡", 20);
       const userSnap = await db.collection("users_random").doc(myUserId).get();
       myUserName = (userSnap.exists && userSnap.data().name) || myUserId;
 
@@ -287,11 +290,11 @@ document.addEventListener("DOMContentLoaded", () => {
         liveHeaderTitle.textContent = bookDoc.data().title || "";
       }
 
-      loadingStatusText.textContent = "問題を読み込んでいます｡";
+      setLoadingStage("問題を読み込んでいます｡", 40);
       await Promise.all([ensureJoined(), loadProblems()]);
-      loadingStatusText.textContent = "画像を読み込んでいます｡";
+      setLoadingStage("画像を読み込んでいます｡", 60);
       await preloadProblemImages();
-      loadingStatusText.textContent = "進行状況に接続しています｡";
+      setLoadingStage("進行状況に接続しています｡", 85);
       attachSessionListener();
     } catch (error) {
       if (error && error.message === "ALREADY_STARTED") return;
@@ -301,6 +304,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
+}
 
 function getParmFromUrl(parm) {
   const params = new URLSearchParams(window.location.search);
@@ -393,6 +405,7 @@ function attachSessionListener() {
     "value",
     snap => {
       sessionData = snap.val();
+      setLoadingStage("読み込みが完了しました｡", 100);
       loadingOverlay.classList.add("hidden");
       if (!sessionData) {
         showCancelledMessage("セッション情報が見つかりません", "主催者側で募集がリセットされた可能性があります。");

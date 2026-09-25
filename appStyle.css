@@ -76,6 +76,23 @@ body {
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.75);
 }
+
+.loading-progress-bar {
+  width: 200px;
+  max-width: 70vw;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background-color: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+  margin-top: 0.3rem;
+}
+.loading-progress-bar-fill {
+  width: 0%;
+  height: 100%;
+  background-color: #fff;
+  border-radius: var(--radius-full);
+  transition: width 0.25s var(--ease);
+}
 #loading-overlay.hidden {
   display: none;
 }
@@ -1287,12 +1304,14 @@ body {
 }
 .card-wrapper {
   position: relative; /* ★ 吹き出しをabsoluteで浮かせるための基準にする */
-  height: 100%; /* グリッドの行の高さいっぱいまで自身を伸ばす(デフォルトのstretchを効かせる) */
+  /* ★ ここにheight:100%を書くとグリッドのデフォルトのstretch(高さautoの要素にのみ効く)が
+       むしろ効かなくなってしまうため、高さ指定はせずautoのままにしておく */
 }
 .card-wrapper .card {
-  height: 100%; /* ★ card-wrapperは行の高さいっぱいに伸びるが、中のcard本体は自分の内容分の高さしか
-                     取らないため余白ができてしまっていた。card側にも高さ100%を指定して、隣の
-                     非募集中カード(本体そのものがグリッドの行いっぱいに伸びる)と本体の高さを揃える */
+  height: 100%; /* ★ card-wrapperはグリッドのstretchで行の高さいっぱいに伸びるが、中のcard本体は
+                     自分の内容分の高さしか取らないため余白ができてしまっていた。card側にも高さ100%を
+                     指定して、隣の非募集中カード(本体そのものがグリッドの行いっぱいに伸びる)と
+                     本体の高さを揃える */
 }
 .recruit-bubble {
   /* ★ absoluteにしてカードの上に少し重ねる形にすることで、吹き出しの分の高さが

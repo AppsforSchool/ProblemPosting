@@ -50,6 +50,7 @@ async function uploadImageToImgbb(file) {
 
 let loadingOverlay;
 let loadingStatusText;
+let loadingProgressBarFill;
 let problemsListEl;
 let addProblemButton;
 let submitButton;
@@ -68,6 +69,8 @@ let exportJsonButton;
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 20);
   problemsListEl = document.getElementById("problems-list");
   addProblemButton = document.getElementById("add-problem-button");
   submitButton = document.getElementById("submit-button");
@@ -104,9 +107,10 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged((user) => {
     if (user) {
-      setLoadingStatus("ユーザー情報を確認しています｡");
+      setLoadingStage("ユーザー情報を確認しています｡", 70);
       myUserId = user.email.split("@")[0];
       updateLastChecked();
+      setLoadingStage("読み込みが完了しました｡", 100);
       loadingOverlay.classList.add("hidden");
     } else {
       console.log("logout");
@@ -116,8 +120,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ★ ローディングオーバーレイ下部の小さいテキストを更新する
-function setLoadingStatus(text) {
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
   if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
 }
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
@@ -691,7 +700,7 @@ async function handleSubmit() {
 
   submitButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
-  setLoadingStatus("問題集を保存しています｡");
+  setLoadingStage("問題集を保存しています｡", 10);
 
   try {
     const imageCount = problemsPayload.filter(p => p.imageFile).length;
@@ -700,13 +709,13 @@ async function handleSubmit() {
       for (const p of problemsPayload) {
         if (p.imageFile) {
           uploadedCount++;
-          setLoadingStatus(`画像をアップロードしています (${uploadedCount}/${imageCount})｡`);
+          setLoadingStage(`画像をアップロードしています (${uploadedCount}/${imageCount})｡`, 10 + (uploadedCount / imageCount) * 70);
           p.imageUrl = await uploadImageToImgbb(p.imageFile);
         } else {
           p.imageUrl = "";
         }
       }
-      setLoadingStatus("問題集を保存しています｡");
+      setLoadingStage("問題集を保存しています｡", 85);
     } else {
       problemsPayload.forEach(p => { p.imageUrl = ""; });
     }

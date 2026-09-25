@@ -93,6 +93,7 @@ let countdownIntervalHandle = null;
 
 let loadingOverlay;
 let loadingStatusText;
+let loadingProgressBarFill;
 let noPermissionOverlay;
 let hostTitleText;
 
@@ -178,6 +179,8 @@ function openLiveShareModal(targetBookId) {
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
+  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  setLoadingStage("Firebaseに接続しています｡", 10);
   noPermissionOverlay = document.getElementById("no-permission-overlay");
   hostTitleText = document.getElementById("host-title-text");
 
@@ -348,18 +351,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      loadingStatusText.textContent = "問題集の情報を確認しています｡";
+      setLoadingStage("問題集の情報を確認しています｡", 20);
       const ok = await loadBookAndVerifyHost();
       if (!ok) {
         loadingOverlay.classList.add("hidden");
         noPermissionOverlay.classList.remove("hidden");
         return;
       }
-      loadingStatusText.textContent = "問題を読み込んでいます｡";
+      setLoadingStage("問題を読み込んでいます｡", 40);
       await loadProblems();
-      loadingStatusText.textContent = "画像を読み込んでいます｡";
+      setLoadingStage("画像を読み込んでいます｡", 60);
       await preloadProblemImages();
-      loadingStatusText.textContent = "進行状況に接続しています｡";
+      setLoadingStage("進行状況に接続しています｡", 85);
       attachSessionListener();
     } catch (error) {
       console.error(error);
@@ -368,6 +371,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
+function setLoadingStage(text, percent) {
+  if (loadingStatusText) loadingStatusText.textContent = text;
+  if (loadingProgressBarFill && typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, percent));
+    loadingProgressBarFill.style.width = `${clamped}%`;
+  }
+}
 
 function getParmFromUrl(parm) {
   const params = new URLSearchParams(window.location.search);
@@ -438,6 +450,7 @@ function attachSessionListener() {
     "value",
     snap => {
       sessionData = snap.val();
+      setLoadingStage("読み込みが完了しました｡", 100);
       loadingOverlay.classList.add("hidden");
       if (!sessionData) {
         setPhase(phaseSessionMissing);
