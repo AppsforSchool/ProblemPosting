@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
   loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
-  setLoadingStage("Firebaseに接続しています｡", 5);
+  setLoadingStage("Firebaseに接続しています｡", 5, 15);
   drawerOverlay = document.getElementById("drawerOverlay");
   accountSettingsDrawer = document.getElementById("accountSettingsDrawer");
   drawerCloseButton = document.getElementById("drawerCloseButton");
@@ -192,7 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
-      setLoadingStage("ユーザー情報を確認しています｡", 20);
+      setLoadingStage("ユーザー情報を確認しています｡", 20, 50);
       const userSnapshot = await db.collection("users_random").doc(myUserId).get();
       const userData = userSnapshot.data();
       myFavorites = userData.favorites || [];
@@ -213,6 +213,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       drawerUserListButton.classList.toggle("hidden", !meIsAdmin);
 
+      // ★ 通知の初期化は結果を待たず、ページ本来の処理をブロックしないようにする
+      Notify.initPush(db, myUserId);
+      Notify.setupPushButton("enable-push-button");
+
       const deckId = getParmFromUrl("id");
       if (!deckId) {
         await AppDialog.alert("暗記カードが指定されていません。");
@@ -220,7 +224,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       currentDeckId = deckId;
 
-      setLoadingStage("暗記カードを読み込んでいます｡", 55);
+      setLoadingStage("暗記カードを読み込んでいます｡", 55, 95);
       const ok = await loadDeck(deckId);
       if (!ok) {
         loadingOverlay.classList.add("hidden");
@@ -244,6 +248,7 @@ const handleLogout = async () => {
   const isConfirmed = await AppDialog.confirm("ログアウトしますか？", { okText: "ログアウトする", danger: true });
   if (isConfirmed) {
     try {
+      await Notify.logoutPush();
       await auth.signOut(auth);
       await AppDialog.alert("ログアウトしました。");
       window.location.href = "./index.html";
@@ -314,11 +319,31 @@ function getParmFromUrl(parm) {
   return params.get(parm);
 }
 // ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-function setLoadingStage(text, percent) {
+let loadingProgressCreepTimer = null;
+let loadingProgressCreepCurrent = 0;
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
+//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
+//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
+//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
+function setLoadingStage(text, percent, ceilingPercent) {
+  if (loadingProgressCreepTimer) {
+    clearInterval(loadingProgressCreepTimer);
+    loadingProgressCreepTimer = null;
+  }
   if (loadingStatusText) loadingStatusText.textContent = text;
   if (loadingProgressBarFill && typeof percent === "number") {
     const clamped = Math.max(0, Math.min(100, percent));
     loadingProgressBarFill.style.width = `${clamped}%`;
+    loadingProgressCreepCurrent = clamped;
+
+    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
+      loadingProgressCreepTimer = setInterval(() => {
+        const remaining = ceilingPercent - loadingProgressCreepCurrent;
+        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
+        loadingProgressCreepCurrent += remaining * 0.06;
+        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
+      }, 200);
+    }
   }
 }
 

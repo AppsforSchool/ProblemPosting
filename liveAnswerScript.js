@@ -171,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
   loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
-  setLoadingStage("Firebaseに接続しています｡", 10);
+  setLoadingStage("Firebaseに接続しています｡", 10, 20);
   liveHeaderTitle = document.getElementById("host-title-text");
   hostNameText = document.getElementById("host-name-text");
 
@@ -272,6 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     myUserId = user.email.split("@")[0];
+    Notify.initPush(db, myUserId); // ★ 通知の初期化は結果を待たない
 
     bookId = getParmFromUrl("id");
     if (!bookId) {
@@ -281,7 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      setLoadingStage("ユーザー情報を確認しています｡", 20);
+      setLoadingStage("ユーザー情報を確認しています｡", 20, 40);
       const userSnap = await db.collection("users_random").doc(myUserId).get();
       myUserName = (userSnap.exists && userSnap.data().name) || myUserId;
 
@@ -290,11 +291,11 @@ document.addEventListener("DOMContentLoaded", () => {
         liveHeaderTitle.textContent = bookDoc.data().title || "";
       }
 
-      setLoadingStage("問題を読み込んでいます｡", 40);
+      setLoadingStage("問題を読み込んでいます｡", 40, 60);
       await Promise.all([ensureJoined(), loadProblems()]);
-      setLoadingStage("画像を読み込んでいます｡", 60);
+      setLoadingStage("画像を読み込んでいます｡", 60, 84);
       await preloadProblemImages();
-      setLoadingStage("進行状況に接続しています｡", 85);
+      setLoadingStage("進行状況に接続しています｡", 85, 98);
       attachSessionListener();
     } catch (error) {
       if (error && error.message === "ALREADY_STARTED") return;
@@ -306,11 +307,31 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-function setLoadingStage(text, percent) {
+let loadingProgressCreepTimer = null;
+let loadingProgressCreepCurrent = 0;
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
+//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
+//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
+//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
+function setLoadingStage(text, percent, ceilingPercent) {
+  if (loadingProgressCreepTimer) {
+    clearInterval(loadingProgressCreepTimer);
+    loadingProgressCreepTimer = null;
+  }
   if (loadingStatusText) loadingStatusText.textContent = text;
   if (loadingProgressBarFill && typeof percent === "number") {
     const clamped = Math.max(0, Math.min(100, percent));
     loadingProgressBarFill.style.width = `${clamped}%`;
+    loadingProgressCreepCurrent = clamped;
+
+    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
+      loadingProgressCreepTimer = setInterval(() => {
+        const remaining = ceilingPercent - loadingProgressCreepCurrent;
+        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
+        loadingProgressCreepCurrent += remaining * 0.06;
+        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
+      }, 200);
+    }
   }
 }
 

@@ -65,11 +65,31 @@ function setUserCache(userId, data) {
   return userDataCache[userId];
 }
 // ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-function setLoadingStage(text, percent) {
+let loadingProgressCreepTimer = null;
+let loadingProgressCreepCurrent = 0;
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
+//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
+//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
+//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
+function setLoadingStage(text, percent, ceilingPercent) {
+  if (loadingProgressCreepTimer) {
+    clearInterval(loadingProgressCreepTimer);
+    loadingProgressCreepTimer = null;
+  }
   if (loadingStatusText) loadingStatusText.textContent = text;
   if (loadingProgressBarFill && typeof percent === "number") {
     const clamped = Math.max(0, Math.min(100, percent));
     loadingProgressBarFill.style.width = `${clamped}%`;
+    loadingProgressCreepCurrent = clamped;
+
+    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
+      loadingProgressCreepTimer = setInterval(() => {
+        const remaining = ceilingPercent - loadingProgressCreepCurrent;
+        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
+        loadingProgressCreepCurrent += remaining * 0.06;
+        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
+      }, 200);
+    }
   }
 }
 
@@ -329,14 +349,14 @@ document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
   loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
-  setLoadingStage("Firebaseに接続しています｡", 10);
+  setLoadingStage("Firebaseに接続しています｡", 10, 20);
 
   auth.onAuthStateChanged(async (user) => {
     if (user) {
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
-      setLoadingStage("ユーザー情報を確認しています｡", 20);
+      setLoadingStage("ユーザー情報を確認しています｡", 20, 30);
       const userSnapshot = await db
         .collection("users_random")
         .doc(myUserId)
@@ -361,25 +381,37 @@ document.addEventListener("DOMContentLoaded", () => {
       myUid = userData.uid;
       maybeShowNotice(userData.lastOpenedAt); // ★ 最終確認時刻に応じて、お知らせモーダルを表示する(結果を待たずに進める)
 
+      // ★ 通知の初期化は結果を待たず、ページ本来の処理をブロックしないようにする
+      Notify.initPush(db, myUserId);
+      Notify.setupPushButton("enable-push-button");
+
       //displayVocabularyBooks();
-      // ★ 問題集・暗記カードの読み込みは並行実行のため、片方が終わるごとに進捗を進める(30%〜85%の区間)
-      let booksLoaded = false;
-      let cardsLoaded = false;
-      const advanceListLoadProgress = () => {
-        const doneCount = (booksLoaded ? 1 : 0) + (cardsLoaded ? 1 : 0);
-        setLoadingStage("問題集・暗記カードを読み込んでいます｡", 30 + (doneCount / 2) * 55);
-      };
-      setLoadingStage("問題集・暗記カードを読み込んでいます｡", 30);
-      await Promise.all([
-        loadProblemBooks().then(() => {
-          booksLoaded = true;
-          advanceListLoadProgress();
-        }),
-        loadCardDecks().then(() => {
-          cardsLoaded = true;
-          advanceListLoadProgress();
-        })
-      ]);
+      // ★ 問題集・暗記カード一覧のクエリ自体はFirestore SDKに進捗イベントが無いため、
+      //   ここは天井85%までの演出(擬似進捗)にとどめる。
+      //   一覧クエリ完了後のユーザー情報の並行取得(ensureUserCached)は、実際に完了した人数を
+      //   数えられるので、55%〜85%の区間は「何人中何人終わったか」の本物の進捗にしている
+      setLoadingStage("問題集・暗記カードを読み込んでいます｡", 30, 55);
+      const [bookUserIds, cardUserIds] = await Promise.all([loadProblemBooks(), loadCardDecks()]);
+
+      const allUserIdsToCache = new Set([...bookUserIds, ...cardUserIds]);
+      const totalUserFetches = allUserIdsToCache.size;
+      if (totalUserFetches === 0) {
+        setLoadingStage("問題集・暗記カードを読み込んでいます｡", 85);
+      } else {
+        let cachedCount = 0;
+        setLoadingStage(`ユーザー情報を読み込んでいます (0/${totalUserFetches})｡`, 55);
+        await Promise.all(
+          Array.from(allUserIdsToCache).map(userId =>
+            ensureUserCached(userId).then(() => {
+              cachedCount++;
+              setLoadingStage(
+                `ユーザー情報を読み込んでいます (${cachedCount}/${totalUserFetches})｡`,
+                55 + (cachedCount / totalUserFetches) * 30
+              );
+            })
+          )
+        );
+      }
 
       setLoadingStage("表示を準備しています｡", 90);
       if (window.location.hash) {
@@ -425,6 +457,7 @@ const handleLogout = async () => {
   const isConfirmed = await AppDialog.confirm("ログアウトしますか？", { okText: "ログアウトする", danger: true });
   if (isConfirmed) {
     try {
+      await Notify.logoutPush();
       await auth.signOut(auth);
       console.log("ログアウトしました！");
       await AppDialog.alert("ログアウトしました。");
@@ -487,12 +520,14 @@ async function loadProblemBooks() {
       solvedBy.forEach(solverId => userIdsToCache.add(solverId));
     }
 
-    // ★ ユーザー情報の取得は、1件ずつ直列で待つと問題集の数だけ通信が積み重なって遅くなるため、
-    //   ここでまとめて並行取得する(ensureUserCached自体はキャッシュがあれば即returnするので重複しても軽い)
-    await Promise.all(Array.from(userIdsToCache).map(userId => ensureUserCached(userId)));
+    // ★ ユーザー情報の並行取得は、呼び出し元(DOMContentLoaded)でloadCardDecks()の分とまとめて行う。
+    //   ここで完結させず呼び出し元に委譲することで、実際に完了したユーザー数に基づいた
+    //   本物の進捗表示(何人中何人終わったか)ができるようにしている
+    return userIdsToCache;
   } catch (error) {
     console.log(error);
     await AppDialog.alert(String(error));
+    return new Set();
   }
 }
 
@@ -684,11 +719,12 @@ async function loadCardDecks() {
       solvedBy.forEach(solverId => userIdsToCache.add(solverId));
     }
 
-    // ★ loadProblemBooks()と同様、ユーザー情報の取得はまとめて並行で行う
-    await Promise.all(Array.from(userIdsToCache).map(userId => ensureUserCached(userId)));
+    // ★ loadProblemBooks()と同様、ユーザー情報の並行取得は呼び出し元に委譲する
+    return userIdsToCache;
   } catch (error) {
     console.log(error);
     await AppDialog.alert(String(error));
+    return new Set();
   }
 }
 
@@ -1183,6 +1219,18 @@ document.addEventListener("DOMContentLoaded", () => {
       recruitStartModal.classList.add("hidden");
       openSettingModal(bookId);
       handleFilterChange();
+
+      // ★ 通知の送信は結果を待たず(awaitせず)、本来の処理を遅らせないようにする
+      const recruitBookTitle = (bookCache[bookId] && bookCache[bookId][0]) || "問題集";
+      Notify.getAllOtherUserIds(db, myUserId).then(targetIds => {
+        Notify.sendPush(db, {
+          targetIds,
+          title: "みんなで解く・募集開始",
+          body: `${(getUserCache(myUserId) && getUserCache(myUserId).name) || myUserId}さんが「${recruitBookTitle}」の募集を開始しました。`,
+          url: "./app.html",
+          topic: `live-recruit-${bookId}`
+        });
+      });
     } catch (error) {
       console.error(error);
       await AppDialog.alert("募集の開始に失敗しました。");

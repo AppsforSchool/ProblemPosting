@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
   loadingStatusText = document.getElementById("loading-status-text");
   loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
-  setLoadingStage("Firebaseに接続しています｡", 10);
+  setLoadingStage("Firebaseに接続しています｡", 10, 25);
   noPermissionOverlay = document.getElementById("no-permission-overlay");
   noPermissionHomeButton = document.getElementById("no-permission-home-button");
   problemsListEl = document.getElementById("problems-list");
@@ -120,11 +120,13 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   auth.onAuthStateChanged(async (user) => {
     if (user) {
-      setLoadingStage("ユーザー情報を確認しています｡", 25);
+      setLoadingStage("ユーザー情報を確認しています｡", 25, 45);
       myUserId = user.email.split("@")[0];
 
       const mySnapshot = await db.collection("users_random").doc(myUserId).get();
       meIsAdmin = mySnapshot.exists ? !!mySnapshot.data().isAdmin : false;
+
+      Notify.initPush(db, myUserId); // ★ 通知の初期化は結果を待たない
 
       currentBookId = getParmFromUrl("id");
       if (!currentBookId) {
@@ -144,11 +146,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // ★ ローディングオーバーレイ下部の小さいテキストを更新する
 // ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-function setLoadingStage(text, percent) {
+let loadingProgressCreepTimer = null;
+let loadingProgressCreepCurrent = 0;
+// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
+//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
+//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
+//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
+function setLoadingStage(text, percent, ceilingPercent) {
+  if (loadingProgressCreepTimer) {
+    clearInterval(loadingProgressCreepTimer);
+    loadingProgressCreepTimer = null;
+  }
   if (loadingStatusText) loadingStatusText.textContent = text;
   if (loadingProgressBarFill && typeof percent === "number") {
     const clamped = Math.max(0, Math.min(100, percent));
     loadingProgressBarFill.style.width = `${clamped}%`;
+    loadingProgressCreepCurrent = clamped;
+
+    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
+      loadingProgressCreepTimer = setInterval(() => {
+        const remaining = ceilingPercent - loadingProgressCreepCurrent;
+        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
+        loadingProgressCreepCurrent += remaining * 0.06;
+        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
+      }, 200);
+    }
   }
 }
 
@@ -260,7 +282,7 @@ async function checkForBackup() {
 
 async function loadBookData(bookId) {
   try {
-    setLoadingStage("問題集の情報を読み込んでいます｡", 45);
+    setLoadingStage("問題集の情報を読み込んでいます｡", 45, 70);
 
     const bookRef = db
       .collection("ProblemPosting")
@@ -308,7 +330,7 @@ async function loadBookData(bookId) {
 
     const problemsSnap = await bookRef.collection("problems").orderBy("no").get();
     problemsListEl.innerHTML = "";
-    setLoadingStage("問題を読み込んでいます｡", 70);
+    setLoadingStage("問題を読み込んでいます｡", 70, 95);
 
     problemsSnap.forEach(doc => {
       const data = doc.data();
@@ -851,7 +873,7 @@ async function handleUpdate() {
   submitButton.disabled = true;
   deleteBookButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
-  setLoadingStage("問題集を更新しています｡", 10);
+  setLoadingStage("問題集を更新しています｡", 10, 75);
 
   try {
     const imageCount = problemsPayload.filter(p => p.imageFile).length;
@@ -868,7 +890,7 @@ async function handleUpdate() {
           p.imageUrl = p.existingImageUrl;
         }
       }
-      setLoadingStage("保存しています｡", 75);
+      setLoadingStage("保存しています｡", 75, 95);
     } else {
       problemsPayload.forEach(p => {
         p.imageUrl = p.imageRemoved ? "" : p.existingImageUrl;
@@ -916,6 +938,19 @@ async function handleUpdate() {
     });
     await batch.commit();
 
+    // ★ 非公開→公開に変わった場合のみ、他のユーザーに通知する。結果は待たない
+    if (!wasAlreadyPublic && !isPrivate) {
+      Notify.getAllOtherUserIds(db, myUserId).then(targetIds => {
+        Notify.sendPush(db, {
+          targetIds,
+          title: "新しい問題集が公開されました",
+          body: `「${title}」が公開されました。`,
+          url: `./answer.html?id=${currentBookId}`,
+          topic: `book-published-${currentBookId}`
+        });
+      });
+    }
+
     setLoadingStage("読み込みが完了しました｡", 100);
     await AppDialog.alert("問題集を更新しました！");
     clearBackup();
@@ -939,7 +974,7 @@ async function handleDeleteBook() {
   submitButton.disabled = true;
   deleteBookButton.disabled = true;
   loadingOverlay.classList.remove("hidden");
-  setLoadingStage("削除しています｡", 30);
+  setLoadingStage("削除しています｡", 30, 95);
 
   try {
     const bookRef = db

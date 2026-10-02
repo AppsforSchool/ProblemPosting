@@ -1,0 +1,12 @@
+{
+  "name": "問題投稿",
+  "short_name": "問題投稿",
+  "start_url": "./app.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef1f5",
+  "theme_color": "#CE579B",
+  "icons": [
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
