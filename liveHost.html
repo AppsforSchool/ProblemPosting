@@ -141,6 +141,7 @@
       <div id="grading-submissions-area" class="grading-submissions-area"></div>
       <p id="grading-error-text" class="grading-error-text hidden"></p>
       <button id="request-ai-grading-button" class="live-next-button">AIに一括採点を依頼</button>
+      <button id="manual-grading-button" class="live-secondary-button">手動で採点する</button>
     </section>
 
     <section id="phase-results" class="live-phase hidden">
@@ -181,6 +182,44 @@
         <span id="answer-status-names-modal-close" class="close-button">&times;</span>
       </div>
       <div id="answer-status-names-area" class="answer-status-names-area"></div>
+    </div>
+  </div>
+
+  <div id="manual-grading-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="title">手動採点</p>
+        <span id="manual-grading-modal-close" class="close-button">&times;</span>
+      </div>
+
+      <div id="manual-grading-ai-ready-banner" class="manual-grading-ai-ready-banner hidden">
+        <p>AI採点が終了しました。AIによる採点結果を返却しますか？</p>
+        <button id="manual-grading-use-ai-result-button" class="live-next-button">AI採点結果を返却</button>
+      </div>
+
+      <div class="manual-grading-reference-area">
+        <p class="manual-grading-label">採点基準</p>
+        <p id="manual-grading-criteria-text" class="manual-grading-reference-text"></p>
+        <p class="manual-grading-label">模範解答</p>
+        <p id="manual-grading-model-answer-text" class="manual-grading-reference-text"></p>
+      </div>
+
+      <p id="manual-grading-progress-text" class="manual-grading-progress-text"></p>
+
+      <div class="manual-grading-submission-area">
+        <p id="manual-grading-submission-name" class="manual-grading-submission-name"></p>
+        <p id="manual-grading-submission-text" class="manual-grading-submission-text"></p>
+      </div>
+
+      <div class="manual-grading-score-area">
+        <p class="manual-grading-score-label">点数: <span id="manual-grading-score-value">5</span> / 10</p>
+        <input type="range" id="manual-grading-score-slider" class="manual-grading-score-slider" min="0" max="10" step="1" value="5">
+      </div>
+
+      <div class="manual-grading-nav-actions">
+        <button id="manual-grading-prev-button" class="live-secondary-button">戻る</button>
+        <button id="manual-grading-next-button" class="live-next-button">次へ</button>
+      </div>
     </div>
   </div>
 

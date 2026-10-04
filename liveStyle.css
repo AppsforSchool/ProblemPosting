@@ -945,6 +945,87 @@ button.answer-status-word-row:disabled {
 .grading-submission-text { display: block; font-size: 0.85rem; color: var(--text); white-space: pre-line; }
 .grading-error-text { font-size: 0.85rem; color: var(--bad); white-space: pre-line; }
 
+/* ---- manual grading modal ---- */
+.manual-grading-ai-ready-banner {
+  text-align: left;
+  background: rgba(var(--primary-rgb), 0.1);
+  border: 1.5px solid rgba(var(--primary-rgb), 0.35);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 1rem;
+}
+.manual-grading-ai-ready-banner p {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.6rem;
+}
+.manual-grading-ai-ready-banner .live-next-button {
+  width: 100%;
+  padding: 0.6rem;
+  font-size: 0.9rem;
+}
+.manual-grading-reference-area {
+  text-align: left;
+  background: var(--surface-alt);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 1rem;
+}
+.manual-grading-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+.manual-grading-label:first-child { margin-top: 0; }
+.manual-grading-reference-text {
+  font-size: 0.88rem;
+  color: var(--text);
+  white-space: pre-line;
+  margin-top: 0.2rem;
+}
+.manual-grading-progress-text {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-align: left;
+  margin-bottom: 0.4rem;
+}
+.manual-grading-submission-area {
+  text-align: left;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 1.2rem;
+  min-height: 4.5rem;
+}
+.manual-grading-submission-name { display: block; font-weight: 700; font-size: 0.85rem; color: var(--primary); margin-bottom: 0.3rem; }
+.manual-grading-submission-text { display: block; font-size: 0.92rem; color: var(--text); white-space: pre-line; }
+.manual-grading-score-area { margin-bottom: 1.2rem; }
+.manual-grading-score-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+.manual-grading-score-label span { color: var(--primary); font-size: 1.1rem; }
+.manual-grading-score-slider {
+  width: 100%;
+  accent-color: var(--primary);
+  height: 1.4rem;
+}
+.manual-grading-nav-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+.manual-grading-nav-actions .live-secondary-button,
+.manual-grading-nav-actions .live-next-button {
+  flex: 1;
+}
+
 /* ---- results ---- */
 .results-correct-area {
   width: 100%;

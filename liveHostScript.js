@@ -112,6 +112,18 @@ let showAnswerStatusToggle, showCorrectAnswerToggle;
 let showAnswerStatusEnabled = false;
 let showCorrectAnswerEnabled = false;
 let gradingHintText, gradingSubmissionsArea, requestAiGradingButton, gradingErrorText;
+let manualGradingButton, manualGradingModal, manualGradingModalClose;
+let manualGradingCriteriaText, manualGradingModelAnswerText, manualGradingProgressText;
+let manualGradingSubmissionName, manualGradingSubmissionText;
+let manualGradingScoreSlider, manualGradingScoreValue;
+let manualGradingPrevButton, manualGradingNextButton;
+let manualGradingAiReadyBanner, manualGradingUseAiResultButton;
+let manualGradingEntries = []; // [[uid, ans], ...] ★ 手動採点中の解答一覧(今回の問題分)
+let manualGradingScores = {}; // uid -> 0〜10点 ★ 手動採点中にスライダーで決めた点数を一時保持
+let manualGradingCurrentIndex = 0;
+// ★ 手動採点中にAIの採点が裏で終わった場合、勝手に確定せずここに一旦保留しておく
+let pendingAiGradingResult = null; // uid -> {score, reason}
+let pendingAiGradingResultIndex = -1; // どの問題に対する結果かを覚えておく(問題がずれて誤適用されないように)
 let resultsCorrectArea, resultsLeaderboardArea, nextQuestionButton;
 let finishedLeaderboardArea, finishedButtonsArea, finishedHomeButton;
 let audioMuteButton;
@@ -231,6 +243,21 @@ document.addEventListener("DOMContentLoaded", () => {
   requestAiGradingButton = document.getElementById("request-ai-grading-button");
   gradingErrorText = document.getElementById("grading-error-text");
 
+  manualGradingButton = document.getElementById("manual-grading-button");
+  manualGradingModal = document.getElementById("manual-grading-modal");
+  manualGradingModalClose = document.getElementById("manual-grading-modal-close");
+  manualGradingCriteriaText = document.getElementById("manual-grading-criteria-text");
+  manualGradingModelAnswerText = document.getElementById("manual-grading-model-answer-text");
+  manualGradingProgressText = document.getElementById("manual-grading-progress-text");
+  manualGradingSubmissionName = document.getElementById("manual-grading-submission-name");
+  manualGradingSubmissionText = document.getElementById("manual-grading-submission-text");
+  manualGradingScoreSlider = document.getElementById("manual-grading-score-slider");
+  manualGradingScoreValue = document.getElementById("manual-grading-score-value");
+  manualGradingPrevButton = document.getElementById("manual-grading-prev-button");
+  manualGradingNextButton = document.getElementById("manual-grading-next-button");
+  manualGradingAiReadyBanner = document.getElementById("manual-grading-ai-ready-banner");
+  manualGradingUseAiResultButton = document.getElementById("manual-grading-use-ai-result-button");
+
   resultsCorrectArea = document.getElementById("results-correct-area");
   resultsLeaderboardArea = document.getElementById("results-leaderboard-area");
   nextQuestionButton = document.getElementById("next-question-button");
@@ -289,6 +316,17 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   cutoffButton.addEventListener("click", () => lockQuestion());
   requestAiGradingButton.addEventListener("click", requestAiGrading);
+  manualGradingButton.addEventListener("click", openManualGradingModal);
+  manualGradingModalClose.addEventListener("click", closeManualGradingModal);
+  manualGradingModal.addEventListener("click", event => {
+    if (event.target === manualGradingModal) closeManualGradingModal();
+  });
+  manualGradingScoreSlider.addEventListener("input", () => {
+    manualGradingScoreValue.textContent = manualGradingScoreSlider.value;
+  });
+  manualGradingPrevButton.addEventListener("click", () => stepManualGrading(-1));
+  manualGradingNextButton.addEventListener("click", () => stepManualGrading(1));
+  manualGradingUseAiResultButton.addEventListener("click", useAiGradingResult);
   nextQuestionButton.addEventListener("click", handleNextButton);
   finishedHomeButton.addEventListener("click", handleEndLiveClick);
 
@@ -849,6 +887,134 @@ function renderGradingPhase() {
     )}</span>`;
     gradingSubmissionsArea.appendChild(row);
   });
+
+  // ★ AIの採点が長時間終わらない時のために、手動採点ボタンも用意しておく(解答が無ければ出す意味が無い)
+  manualGradingButton.classList.toggle("hidden", entries.length === 0);
+
+  // ★ 問題が変わったら、前の問題用に保留していたAI結果は無効化する
+  if (pendingAiGradingResultIndex !== index) {
+    pendingAiGradingResult = null;
+    pendingAiGradingResultIndex = -1;
+  }
+}
+
+// ---- 手動採点(AIの採点が長すぎて進まない時の代替手段) ----
+
+function openManualGradingModal() {
+  const index = sessionData.currentQuestionIndex;
+  const answers = (sessionData.answers && sessionData.answers[index]) || {};
+  manualGradingEntries = Object.entries(answers);
+  if (manualGradingEntries.length === 0) return;
+
+  manualGradingScores = {};
+  manualGradingEntries.forEach(([uid]) => {
+    manualGradingScores[uid] = 5; // ★ 初期値は10点満点中5点にしておく(未採点のまま送信されるのを避けるため)
+  });
+  manualGradingCurrentIndex = 0;
+
+  const problem = problemsData[index];
+  manualGradingCriteriaText.textContent = problem[8] || "(採点基準は設定されていません)";
+  manualGradingModelAnswerText.textContent = problem[7] || "(模範解答は設定されていません)";
+
+  renderManualGradingStep();
+  // ★ モーダルを開く前に既にAIの採点が終わっていた場合(一度モーダルを閉じて開き直した場合など)は
+  //   最初からバナーを出しておく
+  if (pendingAiGradingResult && pendingAiGradingResultIndex === index) {
+    showManualGradingAiReadyBanner();
+  } else {
+    hideManualGradingAiReadyBanner();
+  }
+  manualGradingModal.classList.remove("hidden");
+}
+
+function closeManualGradingModal() {
+  manualGradingModal.classList.add("hidden");
+}
+
+function showManualGradingAiReadyBanner() {
+  manualGradingAiReadyBanner.classList.remove("hidden");
+}
+function hideManualGradingAiReadyBanner() {
+  manualGradingAiReadyBanner.classList.add("hidden");
+}
+
+function renderManualGradingStep() {
+  const [uid, ans] = manualGradingEntries[manualGradingCurrentIndex];
+  const participants = sessionData.participants || {};
+  const name = (participants[uid] && participants[uid].name) || uid;
+  const total = manualGradingEntries.length;
+  const current = manualGradingCurrentIndex + 1;
+
+  manualGradingProgressText.textContent = `${current} / ${total} 人目`;
+  manualGradingSubmissionName.textContent = name;
+  manualGradingSubmissionText.textContent = ans.raw || "(解答がありません)";
+
+  const score = manualGradingScores[uid] !== undefined ? manualGradingScores[uid] : 5;
+  manualGradingScoreSlider.value = score;
+  manualGradingScoreValue.textContent = score;
+
+  manualGradingPrevButton.disabled = manualGradingCurrentIndex === 0;
+  manualGradingNextButton.textContent = current === total ? "採点を確定する" : "次へ";
+}
+
+// ★ direction: -1で前へ、+1で次へ(最後の人の時は確定処理に入る)
+async function stepManualGrading(direction) {
+  const [uid] = manualGradingEntries[manualGradingCurrentIndex];
+  manualGradingScores[uid] = Number(manualGradingScoreSlider.value);
+
+  const isLast = manualGradingCurrentIndex === manualGradingEntries.length - 1;
+  if (direction > 0 && isLast) {
+    await finalizeManualGrading();
+    return;
+  }
+
+  manualGradingCurrentIndex = Math.max(0, Math.min(manualGradingEntries.length - 1, manualGradingCurrentIndex + direction));
+  renderManualGradingStep();
+}
+
+async function finalizeManualGrading() {
+  manualGradingNextButton.disabled = true;
+  manualGradingPrevButton.disabled = true;
+  try {
+    const index = sessionData.currentQuestionIndex;
+    const problem = problemsData[index];
+    const scoreMap = {};
+    manualGradingEntries.forEach(([uid]) => {
+      scoreMap[uid] = { score: manualGradingScores[uid], reason: "主催者による手動採点" };
+    });
+    await finalizeDescriptiveGrading(index, problem, scoreMap);
+    // ★ 手動採点を確定したので、同じ問題に対して裏で終わっていたかもしれないAI結果はもう不要
+    pendingAiGradingResult = null;
+    pendingAiGradingResultIndex = -1;
+    closeManualGradingModal();
+  } catch (error) {
+    console.error(error);
+    await LiveDialog.alert("手動採点の確定に失敗しました。\n" + (error.message || error));
+  } finally {
+    manualGradingNextButton.disabled = false;
+    manualGradingPrevButton.disabled = false;
+  }
+}
+
+// ★ 手動採点中にAIの採点が裏で終わった場合、バナーの「AI採点結果を返却」ボタンから呼ばれる。
+//   手動採点は中止し、AIの結果をそのまま採用して確定する
+async function useAiGradingResult() {
+  if (!pendingAiGradingResult) return;
+  const index = sessionData.currentQuestionIndex;
+  const problem = problemsData[index];
+
+  manualGradingUseAiResultButton.disabled = true;
+  try {
+    await finalizeDescriptiveGrading(index, problem, pendingAiGradingResult);
+    pendingAiGradingResult = null;
+    pendingAiGradingResultIndex = -1;
+    closeManualGradingModal();
+  } catch (error) {
+    console.error(error);
+    await LiveDialog.alert("AI採点結果の返却に失敗しました。\n" + (error.message || error));
+  } finally {
+    manualGradingUseAiResultButton.disabled = false;
+  }
 }
 
 // ★ 前回の問題までの累計点数を基準にした、今回加算する前の順位
@@ -1271,23 +1437,32 @@ async function requestAiGrading() {
     const answers = answersSnap.exists() ? answersSnap.val() : {};
     const entries = Object.entries(answers);
 
-    if (entries.length === 0) {
-      await finalizeDescriptiveGrading(index, problem, {});
-      return;
+    let scoreMap = {};
+    if (entries.length > 0) {
+      const results = await gradeDescriptiveBatch({
+        problem: problem[0],
+        modelAnswer: problem[7],
+        gradingCriteria: problem[8],
+        imageUrl: problem[4],
+        submissions: entries.map(([uid, ans]) => ({ userId: uid, text: ans.raw || "" }))
+      });
+      results.forEach(r => {
+        scoreMap[r.userId] = { score: r.score, reason: r.reason };
+      });
     }
 
-    const results = await gradeDescriptiveBatch({
-      problem: problem[0],
-      modelAnswer: problem[7],
-      gradingCriteria: problem[8],
-      imageUrl: problem[4],
-      submissions: entries.map(([uid, ans]) => ({ userId: uid, text: ans.raw || "" }))
-    });
-
-    const scoreMap = {};
-    results.forEach(r => {
-      scoreMap[r.userId] = { score: r.score, reason: r.reason };
-    });
+    // ★ 手動採点中(モーダルを開いている間)にAIの結果が返ってきた場合は、
+    //   勝手に確定して画面(採点中→結果発表)を切り替えてしまわないよう、一旦保留してバナーで知らせる。
+    //   手動採点の進行自体は止めない(裏でAI採点を続けさせたいという要望のため)
+    const manualModalOpen = manualGradingModal && !manualGradingModal.classList.contains("hidden");
+    if (manualModalOpen) {
+      pendingAiGradingResult = scoreMap;
+      pendingAiGradingResultIndex = index;
+      showManualGradingAiReadyBanner();
+      requestAiGradingButton.disabled = false;
+      requestAiGradingButton.textContent = "AIに一括採点を依頼";
+      return;
+    }
 
     await finalizeDescriptiveGrading(index, problem, scoreMap);
   } catch (error) {
