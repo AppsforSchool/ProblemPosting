@@ -790,10 +790,13 @@ function incrementMonthlyProblemCount() {
     .catch(error => console.error("月間解答数の更新エラー:", error));
 }
 
-// ★ まず問題画面の上に大きく「正解！」/「不正解...」を表示し、その後で結果画面(得点・ランキング)へ切り替える
+// ★ まず問題画面の上に大きく「正解！」/「不正解...」を表示し、その後で結果画面(得点・ランキング)へ切り替える。
+//   記述式は正誤の二択ではなく点数のばらつきがあるので、「正解/不正解」ではなく「n点/10点」の形式で見せる
 function showAnswerRevealBanner() {
   const index = sessionData.currentQuestionIndex;
   const myAnswer = sessionData.answers && sessionData.answers[index] && sessionData.answers[index][myUserId];
+  const problem = problemsData[index];
+  const isDescriptive = problem && problem[5] === "descriptive";
 
   // 問題画面(選んだ答えが読み取り専用でハイライトされた状態)をそのまま裏に表示し続ける
   setPhase(phaseQuestion);
@@ -802,6 +805,11 @@ function showAnswerRevealBanner() {
   answerRevealBanner.classList.remove("hidden");
   if (!myAnswer) {
     answerRevealText.textContent = "未回答...";
+  } else if (isDescriptive) {
+    const aiScore = typeof myAnswer.aiScore === "number" ? myAnswer.aiScore : 0;
+    answerRevealText.textContent = `${aiScore}点 / 10点`;
+    if (myAnswer.correct) LiveAudio.playCorrect();
+    else LiveAudio.playIncorrect();
   } else if (myAnswer.correct) {
     answerRevealText.textContent = "正解！";
     LiveAudio.playCorrect();
@@ -930,12 +938,20 @@ function renderResultsPhase() {
     resultCorrectArea.appendChild(exp);
   }
 
+  const resultsProblem = problemsData[index];
+  const isDescriptiveResult = resultsProblem && resultsProblem[5] === "descriptive";
+
   if (myAnswer && myAnswer.graded) {
     resultWaitingHint.classList.add("hidden");
     resultMyScoreText.classList.remove("hidden");
-    resultMyScoreText.textContent = myAnswer.correct
-      ? `正解！ +${myAnswer.score} 点`
-      : `不正解... +${myAnswer.score} 点`;
+    if (isDescriptiveResult) {
+      const aiScore = typeof myAnswer.aiScore === "number" ? myAnswer.aiScore : 0;
+      resultMyScoreText.textContent = `${aiScore}点 / 10点`;
+    } else {
+      resultMyScoreText.textContent = myAnswer.correct
+        ? `正解！ +${myAnswer.score} 点`
+        : `不正解... +${myAnswer.score} 点`;
+    }
     resultMyScoreText.classList.toggle("correct-text", !!myAnswer.correct);
     resultMyScoreText.classList.toggle("incorrect-text", !myAnswer.correct);
   } else if (!myAnswer) {
