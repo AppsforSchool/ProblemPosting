@@ -1,15 +1,9 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyAqIiNj0N4WruPSOkWbeo5gxzsNyeMkuLo",
-  authDomain: "appsforschool-study.firebaseapp.com",
-  projectId: "appsforschool-study",
-  storageBucket: "appsforschool-study.firebasestorage.app",
-  messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:a1363adbab57f1ceec60e5"
-};
+import { hedged, auth, db, onAuthStateChanged, collection, doc, getDoc, addDoc, setDoc, writeBatch, serverTimestamp } from "./firebase.js";
+import { setLoadingStage, watchLoadingStall, finishLoading } from "./loading.js";
+import { perfMark, perfStart } from "./perf.js";
+import { initPush, sendPushToAllOthers } from "./notify.js";
 
-const app = firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+perfMark("JSモジュールの読み込み・実行開始（HTML解析・Firebase等の取得）");
 
 const MIN_CHOICES = 2;
 const MAX_CHOICES = 6;
@@ -26,8 +20,8 @@ const BACKUP_KEY = "problemBookBackup_create";
 // ★ ImgBBへの画像アップロード（チャットサイトと同じ仕様：system_keys/imgbb からAPIキーを取得してアップロードし、URLを保存する）
 async function uploadImageToImgbb(file) {
   if (!imgbbApiKeyCache) {
-    const keyDoc = await db.collection("system_keys").doc("imgbb").get();
-    if (!keyDoc.exists) {
+    const keyDoc = await hedged(() => getDoc(doc(db, "system_keys", "imgbb")));
+    if (!keyDoc.exists()) {
       throw new Error("APIキーの設定が見つかりません。セキュリティルールかドキュメントを確認してください。");
     }
     imgbbApiKeyCache = keyDoc.data().apiKey;
@@ -49,8 +43,6 @@ async function uploadImageToImgbb(file) {
 }
 
 let loadingOverlay;
-let loadingStatusText;
-let loadingProgressBarFill;
 let problemsListEl;
 let addProblemButton;
 let submitButton;
@@ -68,9 +60,9 @@ let exportJsonButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
-  loadingStatusText = document.getElementById("loading-status-text");
-  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  perfMark("DOMContentLoaded（DOM構築完了まで）");
   setLoadingStage("Firebaseに接続しています｡", 20, 65);
+  watchLoadingStall(); // ★ 読み込みが長引いたら、止まっている段階と復旧ボタンを表示する
   problemsListEl = document.getElementById("problems-list");
   addProblemButton = document.getElementById("add-problem-button");
   submitButton = document.getElementById("submit-button");
@@ -105,14 +97,16 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  auth.onAuthStateChanged((user) => {
+  onAuthStateChanged(auth, (user) => {
     if (user) {
       setLoadingStage("ユーザー情報を確認しています｡", 70);
       myUserId = user.email.split("@")[0];
       updateLastChecked();
-      Notify.initPush(db, myUserId); // ★ 通知の初期化は結果を待たない
-      setLoadingStage("読み込みが完了しました｡", 100);
-      loadingOverlay.classList.add("hidden");
+      // ★ プッシュ通知の初期化（失敗してもページの表示には影響させない。結果は待たない）
+      const endPushPerf = perfStart("OneSignal初期化（キー取得・SDK・login）");
+      Promise.resolve(initPush(db, myUserId)).then(endPushPerf, endPushPerf);
+      perfMark("ログイン状態の確定（Firebase Auth）");
+      finishLoading({ isAdmin: false, page: "make.html（問題集の作成）", myUserId }); // ★ このページはユーザー文書を読まないので、計測レポートは出さない
     } else {
       console.log("logout");
       window.location.href = "./index.html";
@@ -122,39 +116,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // ★ ローディングオーバーレイ下部の小さいテキストを更新する
 // ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-let loadingProgressCreepTimer = null;
-let loadingProgressCreepCurrent = 0;
-// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
-//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
-//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
-//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
-function setLoadingStage(text, percent, ceilingPercent) {
-  if (loadingProgressCreepTimer) {
-    clearInterval(loadingProgressCreepTimer);
-    loadingProgressCreepTimer = null;
-  }
-  if (loadingStatusText) loadingStatusText.textContent = text;
-  if (loadingProgressBarFill && typeof percent === "number") {
-    const clamped = Math.max(0, Math.min(100, percent));
-    loadingProgressBarFill.style.width = `${clamped}%`;
-    loadingProgressCreepCurrent = clamped;
-
-    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
-      loadingProgressCreepTimer = setInterval(() => {
-        const remaining = ceilingPercent - loadingProgressCreepCurrent;
-        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
-        loadingProgressCreepCurrent += remaining * 0.06;
-        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
-      }, 200);
-    }
-  }
-}
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
-  db.collection("users_random")
-    .doc(myUserId)
-    .set({ lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+  setDoc(doc(db, "users_random", myUserId), { lastOpenedAt: serverTimestamp() }, { merge: true })
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
@@ -741,11 +706,7 @@ async function handleSubmit() {
       problemsPayload.forEach(p => { p.imageUrl = ""; });
     }
 
-    const bookRef = await db
-      .collection("ProblemPosting")
-      .doc("books")
-      .collection("data")
-      .add({
+    const bookRef = await addDoc(collection(db, "ProblemPosting", "books", "data"), {
         title,
         description,
         subjectId,
@@ -754,13 +715,13 @@ async function handleSubmit() {
         problemCount: problemsPayload.length,
         shuffleProblems,
         isPrivate,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
 
-    const batch = db.batch();
+    const batch = writeBatch(db);
     problemsPayload.forEach((p, index) => {
-      const problemRef = bookRef.collection("problems").doc();
+      const problemRef = doc(collection(bookRef, "problems"));
       batch.set(problemRef, {
         no: index + 1,
         problem: p.problem,
@@ -778,14 +739,12 @@ async function handleSubmit() {
 
     // ★ 公開で作成された場合のみ、他のユーザーに通知する(非公開なら送らない)。結果は待たない
     if (!isPrivate) {
-      Notify.getAllOtherUserIds(db, myUserId).then(targetIds => {
-        Notify.sendPush(db, {
-          targetIds,
-          title: "新しい問題集が公開されました",
-          body: `「${title}」が公開されました。`,
-          url: `./answer.html?id=${bookRef.id}`,
-          topic: `book-published-${bookRef.id}`
-        });
+      sendPushToAllOthers(db, {
+        senderId: myUserId,
+        title: "新しい問題集が公開されました",
+        body: `「${title}」が公開されました。`,
+        url: `./answer.html?id=${bookRef.id}`,
+        topic: `book-published-${bookRef.id}`
       });
     }
 

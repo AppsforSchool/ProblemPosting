@@ -1,34 +1,10 @@
-// Firebase 設定
-const firebaseConfig = {
-  apiKey: "AIzaSyAqIiNj0N4WruPSOkWbeo5gxzsNyeMkuLo",
-  authDomain: "appsforschool-study.firebaseapp.com",
-  projectId: "appsforschool-study",
-  storageBucket: "appsforschool-study.firebasestorage.app",
-  messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:a1363adbab57f1ceec60e5"
-};
-
-// Firebase 初期化とサービス取得
-window.app = firebase.initializeApp(firebaseConfig);
-window.auth = firebase.auth();
-window.db = firebase.firestore();
+import { auth, onAuthStateChanged, signInWithEmailAndPassword } from "./firebase.js";
+import { setLoadingStage } from "./loading.js";
 
 let loadingOverlay;
-let loadingStatusText;
-let loadingProgressBarFill;
-// ★ ローディングオーバーレイ下部のテキストと進捗バーをまとめて更新する
-function setLoadingStage(text, percent) {
-  if (loadingStatusText) loadingStatusText.textContent = text;
-  if (loadingProgressBarFill && typeof percent === "number") {
-    const clamped = Math.max(0, Math.min(100, percent));
-    loadingProgressBarFill.style.width = `${clamped}%`;
-  }
-}
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
-  loadingStatusText = document.getElementById("loading-status-text");
-  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
-  setLoadingStage("Firebaseに接続しています｡", 25);
+  setLoadingStage("Firebaseに接続しています｡", 25, 60);
 });
 
 let qrLoginButton;
@@ -147,8 +123,8 @@ function updateLoginButtonState() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  auth.onAuthStateChanged(async (user) => {
-    setLoadingStage("ログイン状態を確認しています｡", 65);
+  onAuthStateChanged(auth, async (user) => {
+    setLoadingStage("ログイン状態を確認しています｡", 65, 95);
     if (user) {
       setLoadingStage("ページを移動しています｡", 100);
       window.location.href = './app.html';
@@ -169,7 +145,7 @@ const handleLogin = async () => {
 
   try {
     const loginEmail = `${idInput.value}@appsforschool.com`;
-    await auth.signInWithEmailAndPassword(loginEmail, passwordInput.value);
+    await signInWithEmailAndPassword(auth, loginEmail, passwordInput.value);
   } catch (error) {
     errorMessage.textContent = 'ログインに失敗しました。IDとパスワードを確認してください。';
     console.error("ログインエラー:", error);

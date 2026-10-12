@@ -1,15 +1,10 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyAqIiNj0N4WruPSOkWbeo5gxzsNyeMkuLo",
-  authDomain: "appsforschool-study.firebaseapp.com",
-  projectId: "appsforschool-study",
-  storageBucket: "appsforschool-study.firebasestorage.app",
-  messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:a1363adbab57f1ceec60e5"
-};
+import { hedged, auth, db, onAuthStateChanged, signOut, doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion, arrayRemove } from "./firebase.js";
+import { setLoadingStage, watchLoadingStall, finishLoading, createReadTracker } from "./loading.js";
+import { perfMark, perfStart } from "./perf.js";
+import { initPush, logoutPush, setupPushButton } from "./notify.js";
+import { initProfileSystem, getUserCache, setUserCache, toMillisOrNull, hasActivePrize, openUserListModal, openProfileModal } from "./profileSystem.js";
 
-const app = firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+perfMark("JSモジュールの読み込み・実行開始（HTML解析・Firebase等の取得）");
 
 let myUid = "";
 let myUserId = "";
@@ -21,9 +16,8 @@ let currentCardIndex = 0;
 let isTransitioning = false; // ★ カード切替アニメーション中は多重操作を防ぐ
 
 let loadingOverlay;
-let loadingStatusText;
-let loadingProgressBarFill;
 let meIsAdmin = false;
+initProfileSystem({ getMyUserId: () => myUserId, getIsAdmin: () => meIsAdmin });
 let drawerOverlay;
 let accountSettingsDrawer;
 let drawerCloseButton;
@@ -59,9 +53,9 @@ let favoriteButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
-  loadingStatusText = document.getElementById("loading-status-text");
-  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  perfMark("DOMContentLoaded（DOM構築完了まで）");
   setLoadingStage("Firebaseに接続しています｡", 5, 15);
+  watchLoadingStall(); // ★ 読み込みが長引いたら、止まっている段階と復旧ボタンを表示する
   drawerOverlay = document.getElementById("drawerOverlay");
   accountSettingsDrawer = document.getElementById("accountSettingsDrawer");
   drawerCloseButton = document.getElementById("drawerCloseButton");
@@ -136,13 +130,8 @@ async function openImpressionModal() {
   impressionModal.classList.remove("hidden");
 
   try {
-    const deckSnap = await db
-      .collection("ProblemPosting")
-      .doc("cards")
-      .collection("data")
-      .doc(currentDeckId)
-      .get();
-    const impressions = (deckSnap.exists && deckSnap.data().impressions) || {};
+    const deckSnap = await getDoc(doc(db, "ProblemPosting", "cards", "data", currentDeckId));
+    const impressions = (deckSnap.exists() && deckSnap.data().impressions) || {};
     impressionInput.value = impressions[myUserId] || "";
   } catch (error) {
     console.error("感想の取得エラー:", error);
@@ -158,12 +147,7 @@ async function saveImpression() {
   impressionSaveButton.textContent = "保存中...";
 
   try {
-    await db
-      .collection("ProblemPosting")
-      .doc("cards")
-      .collection("data")
-      .doc(currentDeckId)
-      .update({
+    await updateDoc(doc(db, "ProblemPosting", "cards", "data", currentDeckId), {
         [`impressions.${myUserId}`]: text
       });
     await AppDialog.alert("感想を保存しました。");
@@ -187,14 +171,34 @@ function closeDrawer() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  auth.onAuthStateChanged(async (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
+      perfMark("ログイン状態の確定（Firebase Auth）");
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
-      setLoadingStage("ユーザー情報を確認しています｡", 20, 50);
-      const userSnapshot = await db.collection("users_random").doc(myUserId).get();
+      // ★ プッシュ通知の初期化（失敗してもカードの表示には影響させない。結果は待たない）
+      const endPushPerf = perfStart("OneSignal初期化（キー取得・SDK・login）");
+      Promise.resolve(initPush(db, myUserId)).then(endPushPerf, endPushPerf);
+      setupPushButton("enable-push-button");
+
+      const deckId = getParmFromUrl("id");
+      if (!deckId) {
+        await AppDialog.alert("暗記カードが指定されていません。");
+        return;
+      }
+      currentDeckId = deckId;
+
+      // ★ 自分のユーザー情報と暗記カードは互いに依存しない（権限の判定は取得後に行う）ので、同時に発行する
+      setLoadingStage("ユーザー情報・暗記カードを読み込んでいます｡", 15, 80);
+      const trackRead = createReadTracker(2, 15, 80);
+      const userSnapshotPromise = trackRead("ユーザー情報", hedged(() => getDoc(doc(db, "users_random", myUserId))));
+      const deckSnapshotPromise = trackRead("暗記カード", hedged(() => getDoc(doc(db, "ProblemPosting", "cards", "data", deckId))));
+      deckSnapshotPromise.catch(() => {}); // ★ 権限が無くて使われないまま失敗しても、未処理のエラーとして残さない
+
+      const userSnapshot = await userSnapshotPromise;
       const userData = userSnapshot.data();
+      perfMark("自分のユーザー情報の取得（Firestore）");
       myFavorites = userData.favorites || [];
       myUid = userData.uid;
       meIsAdmin = !!userData.isAdmin;
@@ -213,29 +217,18 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       drawerUserListButton.classList.toggle("hidden", !meIsAdmin);
 
-      // ★ 通知の初期化は結果を待たず、ページ本来の処理をブロックしないようにする
-      Notify.initPush(db, myUserId);
-      Notify.setupPushButton("enable-push-button");
-
-      const deckId = getParmFromUrl("id");
-      if (!deckId) {
-        await AppDialog.alert("暗記カードが指定されていません。");
-        return;
-      }
-      currentDeckId = deckId;
-
-      setLoadingStage("暗記カードを読み込んでいます｡", 55, 95);
-      const ok = await loadDeck(deckId);
+      const ok = await loadDeck(deckId, deckSnapshotPromise);
+      perfMark("暗記カードの到着待ちと整理（Firestore）");
       if (!ok) {
         loadingOverlay.classList.add("hidden");
         document.getElementById("no-permission-overlay").classList.remove("hidden");
         return;
       }
-      setLoadingStage("読み込みが完了しました｡", 100);
-      loadingOverlay.classList.add("hidden");
       cardContainer.classList.remove("hidden");
 
       showCard(0);
+      perfMark("最初のカードの表示");
+      finishLoading({ isAdmin: meIsAdmin, page: "answerCard.html（暗記カードを解く）", myUserId }); // ★ 管理者にだけ計測結果を表示
       updateLastChecked();
     } else {
       console.log("logout");
@@ -248,8 +241,8 @@ const handleLogout = async () => {
   const isConfirmed = await AppDialog.confirm("ログアウトしますか？", { okText: "ログアウトする", danger: true });
   if (isConfirmed) {
     try {
-      await Notify.logoutPush();
-      await auth.signOut(auth);
+      await logoutPush();
+      await signOut(auth);
       await AppDialog.alert("ログアウトしました。");
       window.location.href = "./index.html";
     } catch (error) {
@@ -261,9 +254,7 @@ const handleLogout = async () => {
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
-  db.collection("users_random")
-    .doc(myUserId)
-    .set({ lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+  setDoc(doc(db, "users_random", myUserId), { lastOpenedAt: serverTimestamp() }, { merge: true })
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
@@ -282,17 +273,12 @@ async function handleToggleFavorite() {
   favoriteButton.textContent = isFavorited ? "削除中..." : "追加中...";
 
   try {
-    await db
-      .collection("users_random")
-      .doc(myUserId)
-      .set(
-        {
+    await setDoc(doc(db, "users_random", myUserId), {
           favorites: isFavorited
-            ? firebase.firestore.FieldValue.arrayRemove(favoriteEntry)
-            : firebase.firestore.FieldValue.arrayUnion(favoriteEntry)
+            ? arrayRemove(favoriteEntry)
+            : arrayUnion(favoriteEntry)
         },
-        { merge: true }
-      );
+        { merge: true });
     if (isFavorited) {
       myFavorites = myFavorites.filter(
         f => !(f && f.type === "card" && f.bookId === currentDeckId && f.index === originalIndex)
@@ -319,33 +305,6 @@ function getParmFromUrl(parm) {
   return params.get(parm);
 }
 // ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-let loadingProgressCreepTimer = null;
-let loadingProgressCreepCurrent = 0;
-// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
-//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
-//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
-//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
-function setLoadingStage(text, percent, ceilingPercent) {
-  if (loadingProgressCreepTimer) {
-    clearInterval(loadingProgressCreepTimer);
-    loadingProgressCreepTimer = null;
-  }
-  if (loadingStatusText) loadingStatusText.textContent = text;
-  if (loadingProgressBarFill && typeof percent === "number") {
-    const clamped = Math.max(0, Math.min(100, percent));
-    loadingProgressBarFill.style.width = `${clamped}%`;
-    loadingProgressCreepCurrent = clamped;
-
-    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
-      loadingProgressCreepTimer = setInterval(() => {
-        const remaining = ceilingPercent - loadingProgressCreepCurrent;
-        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
-        loadingProgressCreepCurrent += remaining * 0.06;
-        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
-      }, 200);
-    }
-  }
-}
 
 // ★ Fisher-Yatesシャッフル
 function shuffleArray(array) {
@@ -357,15 +316,14 @@ function shuffleArray(array) {
   return result;
 }
 
-async function loadDeck(deckId) {
+async function loadDeck(deckId, deckSnapshotPromise) {
   try {
     const titleAreaTitle = document.getElementById("title-area-title");
     const allCardsCount = document.getElementById("all-problems-count");
 
-    const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(deckId);
-    const deckSnap = await deckRef.get();
+    const deckSnap = await deckSnapshotPromise;
 
-    if (!deckSnap.exists) {
+    if (!deckSnap.exists()) {
       await AppDialog.alert("暗記カードが見つかりません。");
       return;
     }
@@ -713,12 +671,8 @@ function onSwipePointerUp(event) {
 }
 
 function recordDeckSolved() {
-  db.collection("ProblemPosting")
-    .doc("cards")
-    .collection("data")
-    .doc(currentDeckId)
-    .update({
-      solvedBy: firebase.firestore.FieldValue.arrayUnion(myUserId)
+  updateDoc(doc(db, "ProblemPosting", "cards", "data", currentDeckId), {
+      solvedBy: arrayUnion(myUserId)
     })
     .catch(error => console.error("解答済み記録エラー:", error));
 }

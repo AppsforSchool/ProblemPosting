@@ -1,15 +1,9 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyAqIiNj0N4WruPSOkWbeo5gxzsNyeMkuLo",
-  authDomain: "appsforschool-study.firebaseapp.com",
-  projectId: "appsforschool-study",
-  storageBucket: "appsforschool-study.firebasestorage.app",
-  messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:a1363adbab57f1ceec60e5"
-};
+import { auth, db, onAuthStateChanged, collection, doc, addDoc, setDoc, serverTimestamp } from "./firebase.js";
+import { setLoadingStage, watchLoadingStall, finishLoading } from "./loading.js";
+import { perfMark, perfStart } from "./perf.js";
+import { initPush, sendPushToAllOthers } from "./notify.js";
 
-const app = firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+perfMark("JSモジュールの読み込み・実行開始（HTML解析・Firebase等の取得）");
 
 const MIN_CARDS = 1;
 const MAX_CARDS = 100;
@@ -20,8 +14,6 @@ let myUserId = "";
 const BACKUP_KEY = "cardDeckBackup_create";
 
 let loadingOverlay;
-let loadingStatusText;
-let loadingProgressBarFill;
 let cardsListEl;
 let addCardButton;
 let submitButton;
@@ -37,9 +29,9 @@ let exportJsonButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
-  loadingStatusText = document.getElementById("loading-status-text");
-  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  perfMark("DOMContentLoaded（DOM構築完了まで）");
   setLoadingStage("Firebaseに接続しています｡", 20, 65);
+  watchLoadingStall(); // ★ 読み込みが長引いたら、止まっている段階と復旧ボタンを表示する
   cardsListEl = document.getElementById("cards-list");
   addCardButton = document.getElementById("add-card-button");
   submitButton = document.getElementById("submit-button");
@@ -73,14 +65,16 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  auth.onAuthStateChanged((user) => {
+  onAuthStateChanged(auth, (user) => {
     if (user) {
       setLoadingStage("ユーザー情報を確認しています｡", 70);
       myUserId = user.email.split("@")[0];
       updateLastChecked();
-      Notify.initPush(db, myUserId); // ★ 通知の初期化は結果を待たない
-      setLoadingStage("読み込みが完了しました｡", 100);
-      loadingOverlay.classList.add("hidden");
+      // ★ プッシュ通知の初期化（失敗してもページの表示には影響させない。結果は待たない）
+      const endPushPerf = perfStart("OneSignal初期化（キー取得・SDK・login）");
+      Promise.resolve(initPush(db, myUserId)).then(endPushPerf, endPushPerf);
+      perfMark("ログイン状態の確定（Firebase Auth）");
+      finishLoading({ isAdmin: false, page: "makeCard.html（暗記カードの作成）", myUserId }); // ★ このページはユーザー文書を読まないので、計測レポートは出さない
     } else {
       console.log("logout");
       window.location.href = "./index.html";
@@ -90,33 +84,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // ★ ローディングオーバーレイ下部の小さいテキストを更新する
 // ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-let loadingProgressCreepTimer = null;
-let loadingProgressCreepCurrent = 0;
-// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
-//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
-//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
-//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
-function setLoadingStage(text, percent, ceilingPercent) {
-  if (loadingProgressCreepTimer) {
-    clearInterval(loadingProgressCreepTimer);
-    loadingProgressCreepTimer = null;
-  }
-  if (loadingStatusText) loadingStatusText.textContent = text;
-  if (loadingProgressBarFill && typeof percent === "number") {
-    const clamped = Math.max(0, Math.min(100, percent));
-    loadingProgressBarFill.style.width = `${clamped}%`;
-    loadingProgressCreepCurrent = clamped;
-
-    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
-      loadingProgressCreepTimer = setInterval(() => {
-        const remaining = ceilingPercent - loadingProgressCreepCurrent;
-        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
-        loadingProgressCreepCurrent += remaining * 0.06;
-        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
-      }, 200);
-    }
-  }
-}
 
 // ★ ローカルストレージへのバックアップ機能
 
@@ -206,9 +173,7 @@ async function checkForBackup() {
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
-  db.collection("users_random")
-    .doc(myUserId)
-    .set({ lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+  setDoc(doc(db, "users_random", myUserId), { lastOpenedAt: serverTimestamp() }, { merge: true })
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
@@ -379,11 +344,7 @@ async function handleSubmit() {
   setLoadingStage("暗記カードを保存しています｡", 50, 95);
 
   try {
-    const deckRef = await db
-      .collection("ProblemPosting")
-      .doc("cards")
-      .collection("data")
-      .add({
+    const deckRef = await addDoc(collection(db, "ProblemPosting", "cards", "data"), {
         title,
         description,
         subjectId,
@@ -393,20 +354,18 @@ async function handleSubmit() {
         isPrivate,
         cardCount: cardsPayload.length,
         cards: cardsPayload,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
 
     // ★ 公開で作成された場合のみ、他のユーザーに通知する(非公開なら送らない)。結果は待たない
     if (!isPrivate) {
-      Notify.getAllOtherUserIds(db, myUserId).then(targetIds => {
-        Notify.sendPush(db, {
-          targetIds,
-          title: "新しい暗記カードが公開されました",
-          body: `「${title}」が公開されました。`,
-          url: `./answerCard.html?id=${deckRef.id}`,
-          topic: `card-published-${deckRef.id}`
-        });
+      sendPushToAllOthers(db, {
+        senderId: myUserId,
+        title: "新しい暗記カードが公開されました",
+        body: `「${title}」が公開されました。`,
+        url: `./answerCard.html?id=${deckRef.id}`,
+        topic: `card-published-${deckRef.id}`
       });
     }
 

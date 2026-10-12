@@ -1,250 +1,286 @@
-// ★ プッシュ通知(OneSignal + Firebase)まわりの処理を1か所にまとめたモジュール。
-//   通知を使う各ページから <script src="notify.js"></script> で読み込み、グローバルの Notify として使う。
-//   push-notification-spec_2.md(高校見学サイトの仕組みを移植したもの)に基づく実装。
-const Notify = (() => {
-  // ★ サイトごとにOneSignalのアプリを分けているため、Firestore上のキーの保管場所もサイトごとに変える
-  const KEY_DOC_ID = "onesignal_ProblemPosting";
-  const INIT_TIMEOUT_MS = 15000;
-  const LOGOUT_TIMEOUT_MS = 3000;
-  const BUTTON_ACTION_TIMEOUT_MS = 15000;
+// ★ OneSignalによるプッシュ通知の共通処理（問題投稿サイト版）。各ページから import して使う。
+//   APIキーは imgbb と同じく Firestore の system_keys/{KEY_DOC_ID} に保存する:
+//     { appId: "OneSignalのApp ID", restApiKey: "OneSignalのREST APIキー" }
+//   ★ サイトごとにOneSignalのアプリを分けているため、ここのドキュメントIDだけをサイトごとに変える
+//     （チャットサイト: "onesignal" / 問題投稿サイト: "onesignal_ProblemPosting"）
+import { collection, doc, getDoc, getDocs, hedged } from "./firebase.js";
 
-  let cachedKeys = null; // { appId, restApiKey } ★ 初回取得後はメモリにキャッシュし、以後は再取得しない
-  let initPromise = null;
+const KEY_DOC_ID = "onesignal_ProblemPosting";
 
-  function withTimeout(promise, ms, stageLabel) {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`止まった段階: ${stageLabel}`)), ms);
-      })
-    ]);
-  }
+let keysCache = null;
+let initPromise = null;
+let initError = null;      // 直近の初期化エラー（iPhoneではConsoleが見られないので画面に出す用）
+let ctx = null;            // { db, userId }（再試行用）
+let initStep = "";         // 初期化のどの段階か（エラー表示用）
 
-  async function fetchKeys(db) {
-    if (cachedKeys) return cachedKeys;
-    const snap = await db.collection("system_keys").doc(KEY_DOC_ID).get();
-    const data = snap.exists ? snap.data() : null;
-    if (!data || !data.appId || !data.restApiKey) {
-      throw new Error("OneSignalのキーがFirestoreに設定されていません。");
-    }
-    cachedKeys = { appId: data.appId, restApiKey: data.restApiKey };
-    return cachedKeys;
-  }
+async function loadKeys(db) {
+  if (keysCache) return keysCache;
+  const snap = await hedged(() => getDoc(doc(db, "system_keys", KEY_DOC_ID)));
+  if (!snap.exists()) throw new Error(`Firestoreの system_keys/${KEY_DOC_ID} が見つかりません。`);
+  const data = snap.data();
+  if (!data.appId || !data.restApiKey) throw new Error(`system_keys/${KEY_DOC_ID} に appId / restApiKey がありません。`);
+  keysCache = data;
+  return keysCache;
+}
 
-  function runOnOneSignal(task) {
-    return new Promise((resolve, reject) => {
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      window.OneSignalDeferred.push(async OneSignal => {
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(typeof message === "function" ? message() : message)), ms))
+  ]);
+}
+
+// ★ ログイン後に1回呼ぶ。OneSignalを初期化し、Firebaseのユーザー名(userId)と端末を紐づける
+export function initPush(db, userId) {
+  ctx = { db, userId };
+  if (initPromise) return initPromise;
+  initError = null;
+  initPromise = (async () => {
+    initStep = "Firestoreからキーを取得中";
+    const { appId } = await loadKeys(db);
+    // ★ キー取得は終わったので、段階の表示を進める（以前はここが更新されず、SDKが読み込めない場合でも
+    //   「Firestoreからキーを取得中」と表示されて、原因を見誤りやすかった）
+    initStep = "OneSignal SDK（OneSignalSDK.page.js）の読み込み待ち";
+    // GitHub Pagesのサブパス公開でも動くよう、現在のページのフォルダをService Workerの範囲にする
+    const base = location.pathname.replace(/[^/]*$/, "");
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    const sdkReady = new Promise((resolve, reject) => {
+      window.OneSignalDeferred.push(async (OneSignal) => {
         try {
-          const result = await task(OneSignal);
-          resolve(result);
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
-  }
-
-  // ★ ログイン完了後(ユーザーIDが確定した時点)で1回呼ぶ。
-  //   MPA構成でページ遷移のたびにJSの状態がリセットされるため、認証済みの全ページそれぞれで呼ぶ必要がある。
-  //   通知の初期化に失敗しても、ページ本来の機能(一覧表示など)を止めてはいけないので、
-  //   呼び出し側は結果を待たず(awaitせず)、ここで例外を外に投げない。
-  function initPush(db, userId) {
-    initPromise = (async () => {
-      const keys = await withTimeout(fetchKeys(db), INIT_TIMEOUT_MS, "Firestoreからキーを取得中");
-
-      const base = location.pathname.replace(/[^/]*$/, "");
-
-      await withTimeout(
-        runOnOneSignal(async OneSignal => {
+          initStep = "OneSignalの初期化中（Service Workerの登録など）";
           await OneSignal.init({
-            appId: keys.appId,
+            appId,
             serviceWorkerPath: base + "OneSignalSDKWorker.js",
             serviceWorkerParam: { scope: base },
             allowLocalhostAsSecureOrigin: true,
-            notifyButton: { enable: false } // OneSignal標準のベルボタンは使わない
+            notifyButton: { enable: false }
           });
+          initStep = "ユーザーの紐づけ中";
           await OneSignal.login(userId);
-        }),
-        INIT_TIMEOUT_MS,
-        "OneSignalの初期化中"
-      );
-    })();
-
-    initPromise.catch(error => {
-      console.warn("通知の初期化に失敗しました:", error);
+          initStep = "";
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
+    await withTimeout(sdkReady, 15000, () => "OneSignalの準備が終わりませんでした。\n止まった段階: " + (initStep || "SDKの読み込み待ち（SDKが読み込めていない可能性）"));
+  })().catch((e) => {
+    initError = e;
+    initPromise = null;   // 次回押したときに再試行できるようにする
+    console.warn("プッシュ通知の初期化に失敗:", e);
+  });
+  return initPromise;
+}
 
-    return initPromise;
+// ★ 診断用：OneSignal初期化の現在の状態（失敗していれば、止まった段階を含むメッセージ）
+export function getPushInitStatus() {
+  if (initError) return "失敗: " + (initError.message || String(initError)).replace(/\n/g, " ") + " / window.OneSignal: " + typeof window.OneSignal;
+  if (initPromise) return (initStep ? "初期化中（段階: " + initStep + "）" : "完了、または初期化中") + " / window.OneSignal: " + typeof window.OneSignal;
+  return "未開始";
+}
+
+// ★ ログアウト前に呼ぶ（この端末に前のユーザー宛の通知が届き続けないようにする）
+export async function logoutPush() {
+  try {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    await new Promise((resolve) => {
+      window.OneSignalDeferred.push(async (OneSignal) => {
+        try { await OneSignal.logout(); } catch (e) { console.warn(e); }
+        resolve();
+      });
+      setTimeout(resolve, 3000); // 初期化されていない場合に固まらないように
+    });
+  } catch (e) {
+    console.warn(e);
   }
+}
 
-  // ★ 初期化の完了(または失敗)を待つ。setupPushButton内の再試行用
-  async function ensureInitialized() {
-    if (!initPromise) return false;
-    try {
-      await initPromise;
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  function isPushEnabled() {
-    return typeof Notification !== "undefined" && Notification.permission === "granted";
-  }
-
-  async function isOptedIn() {
-    try {
-      return await withTimeout(
-        runOnOneSignal(OneSignal => !!(OneSignal.User && OneSignal.User.PushSubscription && OneSignal.User.PushSubscription.optedIn)),
-        5000,
-        "購読状態の確認中"
-      );
-    } catch (error) {
-      return false;
-    }
-  }
-
-  // ★ 「通知をオンにする」ボタンの動作一式を設定する。initPushの直後に呼ぶ
-  function setupPushButton(buttonId) {
-    const btn = document.getElementById(buttonId);
-    if (!btn) return;
-
-    // ★ .hidden の詳細度の問題(spec 7.3)を避けるため、表示切り替えはinline styleで行う
-    function setVisible(visible) {
-      btn.style.display = visible ? "" : "none";
-    }
-
-    async function refreshButtonState() {
-      if (typeof Notification === "undefined") {
-        setVisible(true);
-        btn.textContent = "通知をオンにする";
-        return;
-      }
-      if (Notification.permission !== "granted") {
-        setVisible(true);
-        btn.textContent = "通知をオンにする";
-        return;
-      }
-      // ★「許可済み」というだけでは隠さない。購読が実際に完了した時だけ隠す
-      const optedIn = await isOptedIn();
-      if (optedIn) {
-        setVisible(false);
-      } else {
-        setVisible(true);
-        btn.textContent = "通知の登録をやり直す";
-      }
-    }
-
-    btn.addEventListener("click", async () => {
-      if (typeof Notification === "undefined") {
-        const message = "この端末では通知を使えません。iPhoneの場合は、ホーム画面に追加して、そのアイコンから開いてください。";
-        if (window.AppDialog) await AppDialog.alert(message);
-        else alert(message);
-        return;
-      }
-      if (Notification.permission === "denied") {
-        const message = "通知がブロックされています。端末の設定アプリから、このサイトの通知を許可してください。";
-        if (window.AppDialog) await AppDialog.alert(message);
-        else alert(message);
-        return;
-      }
-
-      const originalText = btn.textContent;
-      btn.disabled = true;
+// ★ この端末が実際にOneSignalで購読済みかどうかを取得する
+function getSubscription() {
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  return withTimeout(new Promise((resolve, reject) => {
+    window.OneSignalDeferred.push(async (OneSignal) => {
       try {
-        // ★ ボタンを押した直後に、まずブラウザ標準のrequestPermission()を呼ぶ。
-        //   OneSignalの初期化を待ってから呼ぶと、iPhoneではユーザー操作と見なされず無反応になる
+        resolve({
+          optedIn: !!OneSignal.User.PushSubscription.optedIn,
+          id: OneSignal.User.PushSubscription.id || ""
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }), 5000, "購読状態を取得できませんでした。");
+}
+
+// ★ 現在の通知許可状態（true/false）
+export function isPushEnabled() {
+  return typeof Notification !== "undefined" && Notification.permission === "granted";
+}
+
+// ★ 「通知をオンにする」ボタンの初期化（talk.html / app.html 共通）
+//   ボタンは「実際に購読まで完了したとき」だけ隠す（許可済みでも登録が未完了なら再試行できるようにする）
+export function setupPushButton(buttonId) {
+  const btn = document.getElementById(buttonId);
+  if (!btn || btn.dataset.pushBound) return;
+  btn.dataset.pushBound = "1";
+  const defaultText = btn.textContent;
+
+  // ★ .normal-button の display:block が .hidden より後に定義されていて .hidden が効かないため、
+  //   このボタンの表示/非表示は inline style で直接切り替える
+  const setVisible = (visible) => { btn.style.display = visible ? "" : "none"; };
+
+  // ★ AppDialog は appDialog.js の最上位の const なので window.AppDialog では参照できない（typeof で判定する）
+  const say = async (msg) => {
+    if (typeof AppDialog !== "undefined") await AppDialog.alert(msg);
+    else alert(msg);
+  };
+
+  const updateVisibility = async () => {
+    try {
+      if (!isPushEnabled()) { setVisible(true); return; }
+      if (initPromise) await initPromise;
+      const sub = await getSubscription();
+      setVisible(!sub.optedIn);
+      if (!sub.optedIn) btn.textContent = "通知の登録をやり直す";
+    } catch (e) {
+      console.warn(e);
+      setVisible(true);
+      btn.textContent = "通知の登録をやり直す";
+    }
+  };
+  updateVisibility();
+
+  btn.addEventListener("click", async () => {
+    if (typeof Notification === "undefined") {
+      await say("この環境では通知を利用できません。\niPhoneの場合は、Safariの共有ボタンから「ホーム画面に追加」して、追加したアイコンから開いてください。");
+      return;
+    }
+    if (Notification.permission === "denied") {
+      await say("通知がブロックされています。\n端末（またはブラウザ）の設定から、このサイトの通知を許可してください。");
+      return;
+    }
+
+    btn.disabled = true;
+    let subscribed = false;
+    try {
+      // ① ユーザー操作の直後に、まずブラウザ標準の許可ダイアログを出す（iOSはこの順序が重要）
+      if (Notification.permission !== "granted") {
         btn.textContent = "許可を確認中...";
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
+          await say("通知が許可されませんでした。");
           return;
         }
-
-        btn.textContent = "OneSignalを準備中...";
-        const ok = await withTimeout(ensureInitialized(), BUTTON_ACTION_TIMEOUT_MS, "OneSignalの初期化中");
-        if (!ok) throw new Error("通知の初期化に失敗しています。ページを再読み込みしてもう一度お試しください。");
-
-        btn.textContent = "購読を登録中...";
-        await withTimeout(
-          runOnOneSignal(OneSignal => OneSignal.User.PushSubscription.optIn()),
-          BUTTON_ACTION_TIMEOUT_MS,
-          "購読を登録中"
-        );
-
-        await refreshButtonState();
-      } catch (error) {
-        console.warn("通知の登録に失敗しました:", error);
-        const message = "通知の登録に失敗しました。\n" + (error && error.message ? error.message : error);
-        if (window.AppDialog) await AppDialog.alert(message);
-        else alert(message);
-        btn.textContent = originalText;
-      } finally {
-        btn.disabled = false;
       }
-    });
 
-    refreshButtonState();
-  }
+      // ② OneSignal側の初期化を待つ（前回失敗していれば再試行）
+      btn.textContent = "OneSignalを準備中...";
+      if (!initPromise && ctx) initPush(ctx.db, ctx.userId);
+      if (initPromise) await initPromise;
+      if (initError) throw initError;
 
-  // ★ ログアウト処理で auth.signOut() の直前に呼ぶ。呼ばないと、端末に前のユーザー宛の通知が届き続ける
-  async function logoutPush() {
-    try {
-      await withTimeout(runOnOneSignal(OneSignal => OneSignal.logout()), LOGOUT_TIMEOUT_MS, "通知のログアウト処理中");
-    } catch (error) {
-      console.warn("通知のログアウト処理に失敗しました:", error);
-    }
-  }
+      // ③ この端末を購読状態にする
+      btn.textContent = "購読を登録中...";
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      await withTimeout(new Promise((resolve, reject) => {
+        window.OneSignalDeferred.push(async (OneSignal) => {
+          try {
+            await OneSignal.User.PushSubscription.optIn();
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }), 15000, "購読の登録が終わりませんでした（optIn待ち）。");
 
-  // ★ 通知を送信する操作が成功した直後に呼ぶ想定。送信失敗が本来の操作を止めてはいけないため、
-  //   呼び出し側はawaitせず、ここで例外を外に投げない
-  async function sendPush(db, { targetIds, title, body, url, topic }) {
-    try {
-      if (!targetIds || targetIds.length === 0) return;
-      const keys = await fetchKeys(db);
-      const absoluteUrl = url ? new URL(url, location.href).href : undefined;
+      const sub = await getSubscription();
+      subscribed = sub.optedIn;
 
-      const res = await fetch("https://api.onesignal.com/notifications", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Authorization": `Key ${keys.restApiKey}`
-        },
-        body: JSON.stringify({
-          app_id: keys.appId,
-          target_channel: "push",
-          include_aliases: { external_id: targetIds },
-          headings: { en: title, ja: title },
-          contents: { en: body, ja: body },
-          web_push_topic: topic || "default",
-          url: absoluteUrl
-        })
-      });
+      // ★ ダイアログを出す前にボタンの見た目を確定させる
+      btn.disabled = false;
+      setVisible(!subscribed);
+      btn.textContent = isPushEnabled() ? "通知の登録をやり直す" : defaultText;
 
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        console.warn("通知送信に失敗しました:", res.status, text);
+      await say(subscribed
+        ? "通知をオンにしました。"
+        : "許可はされましたが、購読の登録が完了していません。\nもう一度ボタンを押してください。");
+    } catch (e) {
+      console.error(e);
+      btn.disabled = false;
+      setVisible(true);
+      btn.textContent = isPushEnabled() ? "通知の登録をやり直す" : defaultText;
+      await say("通知の設定に失敗しました。\n\n" + (e && e.message ? e.message : String(e)));
+    } finally {
+      // 途中で return した場合（許可されなかった等）の後始末
+      btn.disabled = false;
+      if (!subscribed) {
+        setVisible(true);
+        btn.textContent = isPushEnabled() ? "通知の登録をやり直す" : defaultText;
       }
-    } catch (error) {
-      console.warn("通知送信に失敗しました:", error);
     }
-  }
+  });
+}
 
-  // ★ 送信対象を決めるための補助関数。身内だけの小規模サイトなので、全ユーザーを取得して
-  //   送信者本人を除外する、という単純な方式で十分
-  async function getAllOtherUserIds(db, excludeUserId) {
-    try {
-      const snap = await db.collection("users_random").get();
-      const ids = [];
-      snap.forEach(doc => {
-        if (doc.id !== excludeUserId) ids.push(doc.id);
-      });
-      return ids;
-    } catch (error) {
-      console.warn("通知対象ユーザーの取得に失敗しました:", error);
-      return [];
-    }
-  }
+// ★ OneSignalのREST APIで、指定したユーザーID宛に通知を1件送る（内部共通処理）
+async function postNotification({ appId, restApiKey, ids, title, body, url, topic }) {
+  const payload = {
+    app_id: appId,
+    target_channel: "push",
+    include_aliases: { external_id: ids },
+    headings: { en: title, ja: title },
+    contents: { en: body, ja: body },
+    url
+  };
+  if (topic) payload.web_push_topic = topic;   // 同じトピックの通知は最新1件にまとまる
 
-  return { initPush, setupPushButton, logoutPush, isPushEnabled, sendPush, getAllOtherUserIds };
-})();
+  const res = await fetch("https://api.onesignal.com/notifications", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Authorization": `Key ${restApiKey}`
+    },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) console.warn("通知送信エラー:", res.status, await res.text());
+}
+
+// ★ 特定のユーザー宛に、任意のタイトル・本文で通知を送る（アンケート回答の通知など）。
+//   失敗しても呼び出し元の処理には影響させない
+export async function sendPushToUsers(db, { targetIds, title, body, url, topic }) {
+  try {
+    const ids = (targetIds || []).filter(Boolean);
+    if (ids.length === 0) return;
+    const { appId, restApiKey } = await loadKeys(db);
+    const absoluteUrl = new URL(url || "", location.href).href;
+    await postNotification({ appId, restApiKey, ids, title, body, url: absoluteUrl, topic });
+  } catch (e) {
+    console.warn("通知送信に失敗:", e);
+  }
+}
+
+// ★ サイトの全ユーザー（送信者本人と、isActive が false の人は除く）のIDを返す。
+//   身内だけの小規模サイトなので、users_random の全件を1回読む単純な方式にしている
+export async function getAllOtherUserIds(db, excludeUserId) {
+  try {
+    const snapshot = await hedged(() => getDocs(collection(db, "users_random")));
+    return snapshot.docs
+      .filter((d) => (d.data() || {}).isActive !== false)
+      .map((d) => d.id)
+      .filter((id) => id !== excludeUserId);
+  } catch (e) {
+    console.warn("通知の宛先ユーザーの取得に失敗:", e);
+    return [];
+  }
+}
+
+// ★ 送信者本人以外の全ユーザーへ通知する（新しい問題集の公開・「みんなで解く」の募集開始など）。
+//   失敗しても呼び出し元の処理には影響させない（呼び出し側は await しなくてよい）
+export async function sendPushToAllOthers(db, { senderId, title, body, url, topic }) {
+  try {
+    const targetIds = await getAllOtherUserIds(db, senderId);
+    await sendPushToUsers(db, { targetIds, title, body, url, topic });
+  } catch (e) {
+    console.warn("通知の一斉送信に失敗:", e);
+  }
+}

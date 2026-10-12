@@ -1,20 +1,30 @@
 // ★ app.htmlの「プロフィールを編集」「ユーザー一覧」機能を、他のページ(answer.html/answerCard.html等)でも
-//   同じ見た目・同じ挙動で使えるようにした共通モジュール。
-//   このファイルを読み込むページは、あらかじめ以下のグローバルが用意されている前提で動く：
-//   - db (firebase.firestore())
-//   - myUserId, meIsAdmin
-//   - drawerUsername (要素。無ければ自分の名前欄への反映はスキップされる)
-//   - AppDialog (alert/confirm用の共通ダイアログ)
+//   同じ見た目・同じ挙動で使えるようにした共通モジュール(ES module)。
+//   使う側のページでは、読み込んだあとに initProfileSystem() で「自分のユーザーID・管理者かどうか」を返す関数を渡す：
+//     initProfileSystem({ getMyUserId: () => myUserId, getIsAdmin: () => meIsAdmin });
+//   このほか、以下が用意されている前提で動く：
+//   - drawerUsername (#drawerUsername の要素。無ければ自分の名前欄への反映はスキップされる)
+//   - AppDialog (appDialog.js のグローバル。alert/confirm用の共通ダイアログ)
 //   - HTML側に #profile-modal / #user-list-modal / #drawer-edit-profile-button / #drawer-user-list-button
 //     が app.html と同じ構造で用意されていること
+import { db, doc, getDoc, getDocs, setDoc, collection, query, orderBy, hedged } from "./firebase.js";
+
+// ★ ページ側の「ログイン中のユーザー情報」は、ページごとの変数(非同期で後から確定する)なので、取得用の関数で受け取る
+const ctx = {
+  getMyUserId: () => "",
+  getIsAdmin: () => false
+};
+export function initProfileSystem(options) {
+  Object.assign(ctx, options);
+}
 
 let imgbbApiKeyCache = null;
 
 // ★ ImgBBへの画像アップロード（system_keys/imgbb からAPIキーを取得してアップロードし、URLを保存する）
-async function uploadImageToImgbb(file) {
+export async function uploadImageToImgbb(file) {
   if (!imgbbApiKeyCache) {
-    const keyDoc = await db.collection("system_keys").doc("imgbb").get();
-    if (!keyDoc.exists) {
+    const keyDoc = await hedged(() => getDoc(doc(db, "system_keys", "imgbb")));
+    if (!keyDoc.exists()) {
       throw new Error("APIキーの設定が見つかりません。セキュリティルールかドキュメントを確認してください。");
     }
     imgbbApiKeyCache = keyDoc.data().apiKey;
@@ -36,15 +46,17 @@ async function uploadImageToImgbb(file) {
 }
 
 // ★ アバターの頭文字を安全に取り出すヘルパー
-function getInitial(name) {
+export function getInitial(name) {
   if (!name) return "?";
   return Array.from(name.trim())[0] || "?";
 }
 
 // ★ 頭文字アバター、または画像アバターを生成するヘルパー（size: "small" | "large" | 省略で通常サイズ）
-function createAvatar(name, size, imageUrl) {
+export function createAvatar(name, size, imageUrl) {
   if (imageUrl) {
     const img = document.createElement("img");
+    img.loading = "lazy"; // ★ 一覧の下のほうのアバターまで、初回表示で待たない
+    img.decoding = "async";
     img.classList.add("avatar-circle");
     if (size === "small") img.classList.add("small");
     if (size === "large") img.classList.add("large");
@@ -62,16 +74,16 @@ function createAvatar(name, size, imageUrl) {
 
 // ★ ユーザー情報のキャッシュ（name/isAdmin/imageUrl/profileText/prizeGrantedAt）
 let userDataCache = {};
-function getUserCache(userId) {
+export function getUserCache(userId) {
   return userDataCache[userId] || null;
 }
-function setUserCache(userId, data) {
+export function setUserCache(userId, data) {
   userDataCache[userId] = Object.assign({}, userDataCache[userId] || {}, data);
   return userDataCache[userId];
 }
 
 // ★ Firestoreのタイムスタンプ(またはミリ秒数値)を、比較に使いやすいミリ秒数値へ揃える
-function toMillisOrNull(value) {
+export function toMillisOrNull(value) {
   if (!value) return null;
   if (typeof value.toMillis === "function") return value.toMillis();
   if (typeof value === "number") return value;
@@ -79,21 +91,21 @@ function toMillisOrNull(value) {
 }
 
 // ★ スペシャルライブ優勝の景品(名前が光る)の持続時間。liveHostScript.js側の値と揃える
-const PRIZE_DURATION_MS = 10 * 60 * 1000; // 10分間
+export const PRIZE_DURATION_MS = 10 * 60 * 1000; // 10分間
 
 // ★ スペシャルライブ優勝の景品(名前が光る)が、現在も有効期限内かどうか
 //   ユーザーデータには「付与日時(prizeGrantedAt)」だけを保持し、期限はここで都度計算する
-function hasActivePrize(cached) {
+export function hasActivePrize(cached) {
   const grantedAt = cached && cached.prizeGrantedAt;
   return typeof grantedAt === "number" && grantedAt + PRIZE_DURATION_MS > Date.now();
 }
 
 // ★ 指定したユーザーの情報（name/isAdmin/imageUrl/profileText/prizeGrantedAt）がキャッシュになければ取得する
-async function ensureUserCached(userId) {
+export async function ensureUserCached(userId) {
   if (getUserCache(userId)) return;
 
-  const userSnapshot = await db.collection("users_random").doc(userId).get();
-  if (userSnapshot.exists) {
+  const userSnapshot = await hedged(() => getDoc(doc(db, "users_random", userId)));
+  if (userSnapshot.exists()) {
     const userData = userSnapshot.data();
     setUserCache(userId, {
       name: userData.name || "名前未設定",
@@ -108,7 +120,7 @@ async function ensureUserCached(userId) {
 }
 
 // ★ 日時を「yyyy/mm/dd hh:mm」形式の文字列に整形するヘルパー
-function formatDateTime(date) {
+export function formatDateTime(date) {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
@@ -132,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ★ 管理者向け：全ユーザーをno順に一覧表示し、右端に最終確認日時を表示する
-async function openUserListModal() {
+export async function openUserListModal() {
   userListArea.innerHTML = "";
   const loadingMessage = document.createElement("p");
   loadingMessage.textContent = "読み込み中...";
@@ -140,7 +152,7 @@ async function openUserListModal() {
   userListModal.classList.remove("hidden");
 
   try {
-    const usersSnap = await db.collection("users_random").orderBy("no").get();
+    const usersSnap = await getDocs(query(collection(db, "users_random"), orderBy("no")));
     userListArea.innerHTML = "";
 
     if (usersSnap.empty) {
@@ -365,14 +377,12 @@ async function handleProfileEditOrSave() {
 
       profileEditButton.textContent = "保存中...";
 
-      await db.collection("users_random").doc(currentProfileUserId).set(
-        {
+      await setDoc(doc(db, "users_random", currentProfileUserId), {
           name: newName,
           profileText: newProfileText,
           imageUrl: finalImageUrl
         },
-        { merge: true }
-      );
+        { merge: true });
 
       const previousCache = getUserCache(currentProfileUserId) || {};
       const updated = setUserCache(currentProfileUserId, {
@@ -383,7 +393,8 @@ async function handleProfileEditOrSave() {
         prizeGrantedAt: previousCache.prizeGrantedAt || null
       });
 
-      if (currentProfileUserId === myUserId && typeof drawerUsername !== "undefined" && drawerUsername) {
+      const drawerUsername = document.getElementById("drawerUsername");
+      if (currentProfileUserId === ctx.getMyUserId() && drawerUsername) {
         drawerUsername.textContent = newName;
         drawerUsername.classList.toggle("admin", !!updated.isAdmin);
         drawerUsername.classList.toggle("prize", !updated.isAdmin && hasActivePrize(updated));
@@ -413,9 +424,9 @@ async function handleProfileEditOrSave() {
 }
 
 // プロフィールモーダルを開く関数。キャッシュにステータスメッセージまで揃っていれば再取得しない
-async function openProfileModal(userId, startEditMode = false) {
+export async function openProfileModal(userId, startEditMode = false) {
   currentProfileUserId = userId;
-  canEditCurrentProfile = meIsAdmin || userId === myUserId;
+  canEditCurrentProfile = ctx.getIsAdmin() || userId === ctx.getMyUserId();
   resetProfileEditMode();
 
   const cached = getUserCache(userId);
@@ -441,8 +452,8 @@ async function openProfileModal(userId, startEditMode = false) {
   }
 
   try {
-    const userSnapshot = await db.collection("users_random").doc(userId).get();
-    if (userSnapshot.exists) {
+    const userSnapshot = await hedged(() => getDoc(doc(db, "users_random", userId)));
+    if (userSnapshot.exists()) {
       const userData = userSnapshot.data();
       const updated = setUserCache(userId, {
         name: userData.name || "名前未設定",

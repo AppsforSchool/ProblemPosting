@@ -1,19 +1,10 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyAqIiNj0N4WruPSOkWbeo5gxzsNyeMkuLo",
-  authDomain: "appsforschool-study.firebaseapp.com",
-  projectId: "appsforschool-study",
-  storageBucket: "appsforschool-study.firebasestorage.app",
-  messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:a1363adbab57f1ceec60e5",
-  // ★ Realtime Databaseを使うために追加。Firebaseコンソール > Realtime Database の画面上部に
-  //   表示されているURLに書き換えてください（例: "https://appsforschool-study-default-rtdb.asia-southeast1.firebasedatabase.app"）
-  databaseURL: "https://appsforschool-study-default-rtdb.asia-southeast1.firebasedatabase.app"
-};
+import { hedged, auth, db, rtdb, onAuthStateChanged, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, orderBy, serverTimestamp, arrayUnion, rtdbRef, rtdbGet, rtdbSet, rtdbUpdate, rtdbServerTimestamp, onValue } from "./firebase.js";
+import { setLoadingStage, watchLoadingStall, finishLoading, createReadTracker } from "./loading.js";
+import { perfMark, perfStart, perfNote } from "./perf.js";
+import { initPush } from "./notify.js";
 
-const app = firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-const rtdb = firebase.database();
+perfMark("JSモジュールの読み込み・実行開始（HTML解析・Firebase等の取得）");
+let loadingFinished = false; // ★ RTDBのリスナーは何度も呼ばれるので、読み込み完了の処理は最初の1回だけにする
 
 // ★ 参加者/主催者の名前を、管理者/景品保持者なら虹色で表示するためのキャッシュ・判定ロジック。
 //   appScript.js/profileSystem.js側と同じ考え方(値は揃える)を、このページ用に単体で持たせている
@@ -33,8 +24,8 @@ function hasActivePrize(cached) {
 async function ensureUserInfo(userId) {
   if (userInfoCache[userId]) return userInfoCache[userId];
   try {
-    const snap = await db.collection("users_random").doc(userId).get();
-    const data = snap.exists ? snap.data() : {};
+    const snap = await hedged(() => getDoc(doc(db, "users_random", userId)));
+    const data = snap.exists() ? snap.data() : {};
     userInfoCache[userId] = { isAdmin: !!data.isAdmin, prizeGrantedAt: toMillisOrNull(data.prizeGrantedAt) };
   } catch (error) {
     console.error("ユーザー情報の取得に失敗しました:", error);
@@ -92,8 +83,6 @@ let questionTimeoutHandle = null;
 let countdownIntervalHandle = null;
 
 let loadingOverlay;
-let loadingStatusText;
-let loadingProgressBarFill;
 let noPermissionOverlay;
 let hostTitleText;
 
@@ -190,9 +179,9 @@ function openLiveShareModal(targetBookId) {
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
-  loadingStatusText = document.getElementById("loading-status-text");
-  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  perfMark("DOMContentLoaded（DOM構築完了まで）");
   setLoadingStage("Firebaseに接続しています｡", 10, 20);
+  watchLoadingStall(); // ★ 読み込みが長引いたら、止まっている段階と復旧ボタンを表示する
   noPermissionOverlay = document.getElementById("no-permission-overlay");
   hostTitleText = document.getElementById("host-title-text");
 
@@ -292,7 +281,7 @@ document.addEventListener("DOMContentLoaded", () => {
     waitingCommentSaveButton.disabled = true;
     waitingCommentCancelButton.disabled = true;
     try {
-      await sessionRef.child("recruitComment").set(newComment);
+      await rtdbSet(rtdbRef(sessionRef, "recruitComment"), newComment);
       isEditingWaitingComment = false;
       waitingCommentText.textContent = newComment || "(コメントはありません)";
       waitingCommentText.classList.remove("hidden");
@@ -370,17 +359,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.target === answerStatusNamesModal) answerStatusNamesModal.classList.add("hidden");
   });
 
-  rtdb.ref(".info/serverTimeOffset").on("value", snap => {
+  onValue(rtdbRef(rtdb, ".info/serverTimeOffset"), snap => {
     serverTimeOffset = snap.val() || 0;
   });
 
-  auth.onAuthStateChanged(async user => {
+  onAuthStateChanged(auth, async user => {
     if (!user) {
       window.location.href = "./index.html";
       return;
     }
     myUserId = user.email.split("@")[0];
-    Notify.initPush(db, myUserId); // ★ 通知の初期化は結果を待たない
+    perfMark("ログイン状態の確定（Firebase Auth）");
+    // ★ プッシュ通知の初期化（失敗しても画面の表示には影響させない。結果は待たない）
+    const endPushPerf = perfStart("OneSignal初期化（キー取得・SDK・login）");
+    Promise.resolve(initPush(db, myUserId)).then(endPushPerf, endPushPerf);
 
     bookId = getParmFromUrl("id");
     if (!bookId) {
@@ -390,17 +382,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      setLoadingStage("問題集の情報を確認しています｡", 20, 40);
-      const ok = await loadBookAndVerifyHost();
+      // ★ 問題集の情報と問題の一覧は互いに依存しない(主催者かどうかの判定は取得後に行う)ので、同時に発行する
+      setLoadingStage("問題集・問題を読み込んでいます｡", 15, 55);
+      const trackRead = createReadTracker(2, 15, 55);
+      const bookSnapshotPromise = trackRead("問題集の情報", hedged(() => getDoc(doc(db, "ProblemPosting", "books", "data", bookId))));
+      const problemsSnapshotPromise = trackRead("問題", hedged(() => getDocs(query(collection(db, "ProblemPosting", "books", "data", bookId, "problems"), orderBy("no")))));
+      bookSnapshotPromise.catch(() => {});
+      problemsSnapshotPromise.catch(() => {}); // ★ 権限が無くて使われないまま失敗しても、未処理のエラーとして残さない
+
+      const ok = await loadBookAndVerifyHost(bookSnapshotPromise);
+      perfMark("問題集の情報の到着待ち（Firestore）");
       if (!ok) {
         loadingOverlay.classList.add("hidden");
         noPermissionOverlay.classList.remove("hidden");
         return;
       }
-      setLoadingStage("問題を読み込んでいます｡", 40, 60);
-      await loadProblems();
+      await loadProblems(problemsSnapshotPromise);
+      perfMark("問題の到着待ちと整理（Firestore）");
       setLoadingStage("画像を読み込んでいます｡", 60, 84);
       await preloadProblemImages();
+      perfMark("画像の読み込み");
       setLoadingStage("進行状況に接続しています｡", 85, 98);
       attachSessionListener();
     } catch (error) {
@@ -411,35 +412,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-let loadingProgressCreepTimer = null;
-let loadingProgressCreepCurrent = 0;
-// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
-//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
-//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
-//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
-function setLoadingStage(text, percent, ceilingPercent) {
-  if (loadingProgressCreepTimer) {
-    clearInterval(loadingProgressCreepTimer);
-    loadingProgressCreepTimer = null;
-  }
-  if (loadingStatusText) loadingStatusText.textContent = text;
-  if (loadingProgressBarFill && typeof percent === "number") {
-    const clamped = Math.max(0, Math.min(100, percent));
-    loadingProgressBarFill.style.width = `${clamped}%`;
-    loadingProgressCreepCurrent = clamped;
-
-    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
-      loadingProgressCreepTimer = setInterval(() => {
-        const remaining = ceilingPercent - loadingProgressCreepCurrent;
-        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
-        loadingProgressCreepCurrent += remaining * 0.06;
-        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
-      }, 200);
-    }
-  }
-}
-
 function getParmFromUrl(parm) {
   const params = new URLSearchParams(window.location.search);
   return params.get(parm);
@@ -448,23 +420,16 @@ function now() {
   return Date.now() + serverTimeOffset;
 }
 
-async function loadBookAndVerifyHost() {
-  const bookDoc = await db.collection("ProblemPosting").doc("books").collection("data").doc(bookId).get();
-  if (!bookDoc.exists) return false;
+async function loadBookAndVerifyHost(bookSnapshotPromise) {
+  const bookDoc = await bookSnapshotPromise;
+  if (!bookDoc.exists()) return false;
   const data = bookDoc.data();
   hostTitleText.textContent = data.title || "";
   return data.madeBy === myUserId;
 }
 
-async function loadProblems() {
-  const snapshot = await db
-    .collection("ProblemPosting")
-    .doc("books")
-    .collection("data")
-    .doc(bookId)
-    .collection("problems")
-    .orderBy("no")
-    .get();
+async function loadProblems(problemsSnapshotPromise) {
+  const snapshot = await problemsSnapshotPromise;
 
   problemsData = snapshot.docs.map(doc => {
     const data = doc.data();
@@ -488,29 +453,39 @@ function preloadProblemImages() {
   const urls = problemsData.map(problem => problem[4]).filter(Boolean);
   if (urls.length === 0) return Promise.resolve();
 
-  return Promise.all(
+  let loadedCount = 0;
+  const allLoaded = Promise.all(
     urls.map(
       url =>
         new Promise(resolve => {
           const img = new Image();
-          img.onload = resolve;
-          img.onerror = resolve; // 画像取得に失敗しても全体の読み込みは止めない
+          img.onload = img.onerror = () => { // 画像取得に失敗しても全体の読み込みは止めない
+            loadedCount++;
+            resolve();
+          };
           img.src = url;
-          // 念のためのタイムアウト（回線が遅い場合などに読み込みを止めない）
-          setTimeout(resolve, 8000);
         })
     )
   );
+  // ★ 初回表示で画像の読み込みを待つのは最大3秒まで。超えた分は裏で読み込みを続け、読み込み画面は先に閉じる
+  return Promise.race([
+    allLoaded,
+    new Promise(resolve => setTimeout(() => {
+      if (loadedCount < urls.length) perfNote(`画像の読み込み待ちを3秒で打ち切りました（${loadedCount}/${urls.length}枚が完了。残りは裏で読み込み続行）`);
+      resolve();
+    }, 3000))
+  ]);
 }
 
 function attachSessionListener() {
-  sessionRef = rtdb.ref(`liveSessions/${bookId}`);
-  sessionRef.on(
-    "value",
-    snap => {
+  sessionRef = rtdbRef(rtdb, `liveSessions/${bookId}`);
+  onValue(sessionRef, snap => {
       sessionData = snap.val();
-      setLoadingStage("読み込みが完了しました｡", 100);
-      loadingOverlay.classList.add("hidden");
+      if (!loadingFinished) {
+        loadingFinished = true;
+        perfMark("進行状況(Realtime Database)の最初の受信");
+        finishLoading({ isAdmin: false, page: "liveHost.html（みんなで解く・主催者）", myUserId }); // ★ このページはユーザー文書の管理者判定をしないので、計測レポートは出さない
+      }
       if (!sessionData) {
         setPhase(phaseSessionMissing);
         return;
@@ -521,8 +496,7 @@ function attachSessionListener() {
       console.error("セッション情報の取得に失敗しました:", error);
       loadingOverlay.classList.add("hidden");
       LiveDialog.alert("セッション情報の取得に失敗しました。権限設定をご確認ください。\n" + error.message);
-    }
-  );
+    });
 }
 
 function setPhase(phase) {
@@ -1269,11 +1243,11 @@ async function startSession() {
   startSessionButton.disabled = true;
   try {
     const timeLimitSeconds = selectedTimeLimitSeconds;
-    await sessionRef.update({
+    await rtdbUpdate(sessionRef, {
       status: "countdown",
       timeLimitSeconds,
       currentQuestionIndex: 0,
-      countdownStartedAt: firebase.database.ServerValue.TIMESTAMP
+      countdownStartedAt: rtdbServerTimestamp()
     });
     runLocalCountdown(() => beginQuestion(0));
   } catch (error) {
@@ -1320,12 +1294,12 @@ async function beginQuestion(index) {
     shuffleChoices: problem[6]
   };
 
-  await sessionRef.update({
+  await rtdbUpdate(sessionRef, {
     status: "question",
     currentQuestionIndex: index,
     currentQuestion,
     currentAnswerKey: null,
-    questionStartedAt: firebase.database.ServerValue.TIMESTAMP,
+    questionStartedAt: rtdbServerTimestamp(),
     locked: false
   });
 
@@ -1354,12 +1328,12 @@ async function lockQuestion() {
   if (!sessionData || sessionData.status !== "question" || sessionData.locked) return;
   clearTimeout(questionTimeoutHandle);
   LiveAudio.playLock();
-  await sessionRef.update({ locked: true });
+  await rtdbUpdate(sessionRef, { locked: true });
 
   const index = sessionData.currentQuestionIndex;
   const answerType = problemsData[index][5];
   if (answerType === "descriptive") {
-    await sessionRef.update({ status: "grading" });
+    await rtdbUpdate(sessionRef, { status: "grading" });
   } else {
     await autoGradeAndShowResults(index);
   }
@@ -1380,10 +1354,10 @@ async function autoGradeAndShowResults(index) {
   const timeLimitSeconds = sessionData.timeLimitSeconds || 0;
   const questionStartedAt = sessionData.questionStartedAt || 0;
 
-  const answersSnap = await rtdb.ref(`liveSessions/${bookId}/answers/${index}`).get();
+  const answersSnap = await rtdbGet(rtdbRef(rtdb, `liveSessions/${bookId}/answers/${index}`));
   const answers = answersSnap.exists() ? answersSnap.val() : {};
 
-  const totalScoresSnap = await rtdb.ref(`liveSessions/${bookId}/totalScores`).get();
+  const totalScoresSnap = await rtdbGet(rtdbRef(rtdb, `liveSessions/${bookId}/totalScores`));
   const totalScores = totalScoresSnap.exists() ? totalScoresSnap.val() : {};
 
   const updates = {};
@@ -1414,7 +1388,7 @@ async function autoGradeAndShowResults(index) {
   updates["currentAnswerKey"] = { answerText, explanation: problem[3] || "" };
   updates["status"] = "results";
 
-  await rtdb.ref(`liveSessions/${bookId}`).update(updates);
+  await rtdbUpdate(rtdbRef(rtdb, `liveSessions/${bookId}`), updates);
 }
 
 function isSameIndexSet(a, b) {
@@ -1433,7 +1407,7 @@ async function requestAiGrading() {
   const problem = problemsData[index];
 
   try {
-    const answersSnap = await rtdb.ref(`liveSessions/${bookId}/answers/${index}`).get();
+    const answersSnap = await rtdbGet(rtdbRef(rtdb, `liveSessions/${bookId}/answers/${index}`));
     const answers = answersSnap.exists() ? answersSnap.val() : {};
     const entries = Object.entries(answers);
 
@@ -1478,10 +1452,10 @@ async function finalizeDescriptiveGrading(index, problem, scoreMap) {
   const timeLimitSeconds = sessionData.timeLimitSeconds || 0;
   const questionStartedAt = sessionData.questionStartedAt || 0;
 
-  const answersSnap = await rtdb.ref(`liveSessions/${bookId}/answers/${index}`).get();
+  const answersSnap = await rtdbGet(rtdbRef(rtdb, `liveSessions/${bookId}/answers/${index}`));
   const answers = answersSnap.exists() ? answersSnap.val() : {};
 
-  const totalScoresSnap = await rtdb.ref(`liveSessions/${bookId}/totalScores`).get();
+  const totalScoresSnap = await rtdbGet(rtdbRef(rtdb, `liveSessions/${bookId}/totalScores`));
   const totalScores = totalScoresSnap.exists() ? totalScoresSnap.val() : {};
 
   const updates = {};
@@ -1501,13 +1475,13 @@ async function finalizeDescriptiveGrading(index, problem, scoreMap) {
   updates["currentAnswerKey"] = { answerText: problem[7], explanation: problem[3] || "" };
   updates["status"] = "results";
 
-  await rtdb.ref(`liveSessions/${bookId}`).update(updates);
+  await rtdbUpdate(rtdbRef(rtdb, `liveSessions/${bookId}`), updates);
 }
 
 async function getGeminiApiKey() {
   if (geminiApiKeyCache) return geminiApiKeyCache;
-  const keyDoc = await db.collection("system_keys").doc("gemini").get();
-  const apiKey = keyDoc.exists ? keyDoc.data().apiKey : null;
+  const keyDoc = await hedged(() => getDoc(doc(db, "system_keys", "gemini")));
+  const apiKey = keyDoc.exists() ? keyDoc.data().apiKey : null;
   if (!apiKey) throw new Error("Gemini APIキーが設定されていません。（system_keys/gemini の apiKey）");
   geminiApiKeyCache = apiKey;
   return geminiApiKeyCache;
@@ -1632,7 +1606,7 @@ function handleNextButton() {
   const isLast = index >= problemsData.length - 1;
   if (isLast) {
     // ★ status を "finished" にした時点で、募集中の判定(appScript.js側)は自動的に外れる
-    sessionRef.update({ status: "finished" });
+    rtdbUpdate(sessionRef, { status: "finished" });
     bumpBookUpdatedAt();
     makeBookPublic();
     markParticipantsAsSolved();
@@ -1647,21 +1621,13 @@ function handleNextButton() {
 
 // ★ 「募集中/開始済み」表示が消えるタイミング(結果発表・中止)で、問題集の更新日時を今にしておく
 function bumpBookUpdatedAt() {
-  db.collection("ProblemPosting")
-    .doc("books")
-    .collection("data")
-    .doc(bookId)
-    .update({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+  updateDoc(doc(db, "ProblemPosting", "books", "data", bookId), { updatedAt: serverTimestamp() })
     .catch(error => console.error("更新日時の更新に失敗しました:", error));
 }
 
 // ★ ライブが終了(結果発表画面に到達)したら、この問題集の非公開設定を解除する(主催者側で自動的に公開する)
 function makeBookPublic() {
-  db.collection("ProblemPosting")
-    .doc("books")
-    .collection("data")
-    .doc(bookId)
-    .update({ isPrivate: false })
+  updateDoc(doc(db, "ProblemPosting", "books", "data", bookId), { isPrivate: false })
     .catch(error => console.error("公開設定の更新に失敗しました:", error));
 }
 
@@ -1669,11 +1635,7 @@ function makeBookPublic() {
 function markParticipantsAsSolved() {
   const participantIds = Object.keys(sessionData.participants || {});
   if (participantIds.length === 0) return;
-  db.collection("ProblemPosting")
-    .doc("books")
-    .collection("data")
-    .doc(bookId)
-    .update({ solvedBy: firebase.firestore.FieldValue.arrayUnion(...participantIds) })
+  updateDoc(doc(db, "ProblemPosting", "books", "data", bookId), { solvedBy: arrayUnion(...participantIds) })
     .catch(error => console.error("解答済み記録の更新に失敗しました:", error));
 }
 
@@ -1688,9 +1650,7 @@ function grantSpecialLivePrize() {
   const winner = ranking[0];
   if (!winner) return; // 0点でない参加者がいなければ、誰にも付与しない
 
-  db.collection("users_random")
-    .doc(winner.uid)
-    .set({ prizeGrantedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+  setDoc(doc(db, "users_random", winner.uid), { prizeGrantedAt: serverTimestamp() }, { merge: true })
     .catch(error => console.error("スペシャルライブの景品付与に失敗しました:", error));
 }
 
@@ -1700,7 +1660,7 @@ async function cancelRecruitment(triggerButton) {
   if (!(await LiveDialog.confirm("ライブを中止しますか？", { danger: true, okText: "中止する" }))) return;
   button.disabled = true;
   try {
-    await sessionRef.update({ status: "cancelled" });
+    await rtdbUpdate(sessionRef, { status: "cancelled" });
     bumpBookUpdatedAt();
     window.location.href = "./app.html";
   } catch (error) {
@@ -1720,7 +1680,7 @@ async function handleEndLiveClick() {
   if (!(await LiveDialog.confirm("ライブを終了しますか？", { okText: "終了する" }))) return;
   finishedHomeButton.disabled = true;
   try {
-    await sessionRef.update({ status: "ended" });
+    await rtdbUpdate(sessionRef, { status: "ended" });
   } catch (error) {
     console.error("ライブの終了処理に失敗しました:", error);
   }

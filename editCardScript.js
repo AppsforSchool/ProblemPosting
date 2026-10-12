@@ -1,15 +1,9 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyAqIiNj0N4WruPSOkWbeo5gxzsNyeMkuLo",
-  authDomain: "appsforschool-study.firebaseapp.com",
-  projectId: "appsforschool-study",
-  storageBucket: "appsforschool-study.firebasestorage.app",
-  messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:a1363adbab57f1ceec60e5"
-};
+import { hedged, auth, db, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } from "./firebase.js";
+import { setLoadingStage, watchLoadingStall, finishLoading, createReadTracker } from "./loading.js";
+import { perfMark, perfStart } from "./perf.js";
+import { initPush, sendPushToAllOthers } from "./notify.js";
 
-const app = firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+perfMark("JSモジュールの読み込み・実行開始（HTML解析・Firebase等の取得）");
 
 const MIN_CARDS = 1;
 const MAX_CARDS = 100;
@@ -25,8 +19,6 @@ function getParmFromUrl(parm) {
 }
 
 let loadingOverlay;
-let loadingStatusText;
-let loadingProgressBarFill;
 let noPermissionOverlay;
 let noPermissionHomeButton;
 let cardsListEl;
@@ -47,9 +39,9 @@ let exportJsonButton;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
-  loadingStatusText = document.getElementById("loading-status-text");
-  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  perfMark("DOMContentLoaded（DOM構築完了まで）");
   setLoadingStage("Firebaseに接続しています｡", 10, 25);
+  watchLoadingStall(); // ★ 読み込みが長引いたら、止まっている段階と復旧ボタンを表示する
   noPermissionOverlay = document.getElementById("no-permission-overlay");
   noPermissionHomeButton = document.getElementById("no-permission-home-button");
   cardsListEl = document.getElementById("cards-list");
@@ -85,15 +77,14 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  auth.onAuthStateChanged(async (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
-      setLoadingStage("ユーザー情報を確認しています｡", 25, 50);
+      perfMark("ログイン状態の確定（Firebase Auth）");
       myUserId = user.email.split("@")[0];
 
-      const mySnapshot = await db.collection("users_random").doc(myUserId).get();
-      meIsAdmin = mySnapshot.exists ? !!mySnapshot.data().isAdmin : false;
-
-      Notify.initPush(db, myUserId); // ★ 通知の初期化は結果を待たない
+      // ★ プッシュ通知の初期化（失敗しても編集画面の表示には影響させない。結果は待たない）
+      const endPushPerf = perfStart("OneSignal初期化（キー取得・SDK・login）");
+      Promise.resolve(initPush(db, myUserId)).then(endPushPerf, endPushPerf);
 
       currentDeckId = getParmFromUrl("id");
       if (!currentDeckId) {
@@ -102,7 +93,18 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      await loadDeckData(currentDeckId);
+      // ★ 自分のユーザー情報と暗記カードは互いに依存しない（権限の判定は取得後に行う）ので、同時に発行する
+      setLoadingStage("ユーザー情報・暗記カードを読み込んでいます｡", 15, 80);
+      const trackRead = createReadTracker(2, 15, 80);
+      const userSnapshotPromise = trackRead("ユーザー情報", hedged(() => getDoc(doc(db, "users_random", myUserId))));
+      const deckSnapshotPromise = trackRead("暗記カード", hedged(() => getDoc(doc(db, "ProblemPosting", "cards", "data", currentDeckId))));
+      deckSnapshotPromise.catch(() => {}); // ★ 権限が無くて使われないまま失敗しても、未処理のエラーとして残さない
+
+      const mySnapshot = await userSnapshotPromise;
+      meIsAdmin = mySnapshot.exists() ? !!mySnapshot.data().isAdmin : false;
+      perfMark("自分のユーザー情報の取得（Firestore）");
+
+      await loadDeckData(currentDeckId, deckSnapshotPromise);
       updateLastChecked();
     } else {
       console.log("logout");
@@ -111,41 +113,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// ★ ローディングオーバーレイ下部の小さいテキストを更新する
-// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-let loadingProgressCreepTimer = null;
-let loadingProgressCreepCurrent = 0;
-// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
-//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
-//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
-//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
-function setLoadingStage(text, percent, ceilingPercent) {
-  if (loadingProgressCreepTimer) {
-    clearInterval(loadingProgressCreepTimer);
-    loadingProgressCreepTimer = null;
-  }
-  if (loadingStatusText) loadingStatusText.textContent = text;
-  if (loadingProgressBarFill && typeof percent === "number") {
-    const clamped = Math.max(0, Math.min(100, percent));
-    loadingProgressBarFill.style.width = `${clamped}%`;
-    loadingProgressCreepCurrent = clamped;
-
-    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
-      loadingProgressCreepTimer = setInterval(() => {
-        const remaining = ceilingPercent - loadingProgressCreepCurrent;
-        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
-        loadingProgressCreepCurrent += remaining * 0.06;
-        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
-      }, 200);
-    }
-  }
-}
-
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
-  db.collection("users_random")
-    .doc(myUserId)
-    .set({ lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+  setDoc(doc(db, "users_random", myUserId), { lastOpenedAt: serverTimestamp() }, { merge: true })
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
@@ -250,14 +220,14 @@ async function checkForBackup() {
   }
 }
 
-async function loadDeckData(deckId) {
+async function loadDeckData(deckId, deckSnapshotPromise) {
   try {
     setLoadingStage("暗記カードの情報を読み込んでいます｡", 55, 95);
 
-    const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(deckId);
-    const deckSnap = await deckRef.get();
+    const deckSnap = await deckSnapshotPromise;
+    perfMark("暗記カードの到着待ち（Firestore）");
 
-    if (!deckSnap.exists) {
+    if (!deckSnap.exists()) {
       await AppDialog.alert("暗記カードが見つかりません。");
       window.location.href = "./app.html#cards";
       return;
@@ -304,8 +274,8 @@ async function loadDeckData(deckId) {
       addCardBlock();
     }
 
-    setLoadingStage("読み込みが完了しました｡", 100);
-    loadingOverlay.classList.add("hidden");
+    perfMark("カードフォームの構築");
+    finishLoading({ isAdmin: meIsAdmin, page: "editCard.html（暗記カードの編集）", myUserId }); // ★ 管理者にだけ計測結果を表示
 
     // ★ 前回の作業データが残っていれば復元するか確認する（このdeckId専用のバックアップ枠）
     checkForBackup();
@@ -502,7 +472,7 @@ async function handleUpdate() {
   setLoadingStage("暗記カードを更新しています｡", 40, 95);
 
   try {
-    const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(currentDeckId);
+    const deckRef = doc(db, "ProblemPosting", "cards", "data", currentDeckId);
 
     const updateData = {
       title,
@@ -513,24 +483,22 @@ async function handleUpdate() {
       isPrivate,
       cardCount: cardsPayload.length,
       cards: cardsPayload,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      updatedAt: serverTimestamp()
     };
     if (meIsAdmin && madeBy) {
       updateData.madeBy = madeBy;
     }
 
-    await deckRef.update(updateData);
+    await updateDoc(deckRef, updateData);
 
     // ★ 非公開→公開に変わった場合のみ、他のユーザーに通知する。結果は待たない
     if (!wasAlreadyPublic && !isPrivate) {
-      Notify.getAllOtherUserIds(db, myUserId).then(targetIds => {
-        Notify.sendPush(db, {
-          targetIds,
-          title: "新しい暗記カードが公開されました",
-          body: `「${title}」が公開されました。`,
-          url: `./answerCard.html?id=${currentDeckId}`,
-          topic: `card-published-${currentDeckId}`
-        });
+      sendPushToAllOthers(db, {
+        senderId: myUserId,
+        title: "新しい暗記カードが公開されました",
+        body: `「${title}」が公開されました。`,
+        url: `./answerCard.html?id=${currentDeckId}`,
+        topic: `card-published-${currentDeckId}`
       });
     }
 
@@ -560,8 +528,8 @@ async function handleDeleteDeck() {
   setLoadingStage("暗記カードを削除しています｡", 40, 95);
 
   try {
-    const deckRef = db.collection("ProblemPosting").doc("cards").collection("data").doc(currentDeckId);
-    await deckRef.delete();
+    const deckRef = doc(db, "ProblemPosting", "cards", "data", currentDeckId);
+    await deleteDoc(deckRef);
 
     setLoadingStage("読み込みが完了しました｡", 100);
     await AppDialog.alert("削除しました。");

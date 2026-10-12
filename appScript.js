@@ -1,20 +1,10 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyAqIiNj0N4WruPSOkWbeo5gxzsNyeMkuLo",
-  authDomain: "appsforschool-study.firebaseapp.com",
-  projectId: "appsforschool-study",
-  storageBucket: "appsforschool-study.firebasestorage.app",
-  messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:a1363adbab57f1ceec60e5",
-  // ★ Realtime Databaseを使うために追加。Firebaseコンソール > Realtime Database の画面上部に
-  //   表示されているURLに書き換えてください（例: "https://appsforschool-study-default-rtdb.asia-southeast1.firebasedatabase.app"）
-  databaseURL: "https://appsforschool-study-default-rtdb.asia-southeast1.firebasedatabase.app"
-};
+import { updateDoc, firestoreTransport, firestoreCacheMode, authStorageMode, hedged, auth, db, rtdb, onAuthStateChanged, signOut, collection, doc, getDoc, getDocs, setDoc, query, orderBy, serverTimestamp, rtdbRef, rtdbGet, rtdbSet, rtdbServerTimestamp, onChildAdded, onChildChanged, onChildRemoved } from "./firebase.js";
+import { setLoadingStage, watchLoadingStall, finishLoading, createReadTracker } from "./loading.js";
+import { perfMark, perfStart, perfNote } from "./perf.js";
+import { initPush, logoutPush, setupPushButton, sendPushToAllOthers } from "./notify.js";
 
-// Firebase 初期化とサービス取得
-const app = firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-const rtdb = firebase.database();
+perfMark("JSモジュールの読み込み・実行開始（HTML解析・Firebase等の取得）");
+
 const DEFAULT_RECRUIT_TIME_LIMIT_SECONDS = 20; // ★ 初期値。主催者は待機画面(liveHost.html)で変更できる
 
 // ★ iPadなどコンソールが見られない環境向けに、想定外のエラーをアラートで表示する
@@ -50,8 +40,6 @@ const subjectIdList = [
 const gradeIdList = ["不明", "1年", "2年", "3年", "総合"];
 
 let loadingOverlay;
-let loadingStatusText;
-let loadingProgressBarFill;
 let myUid = "";
 let myUserId = "";
 let meIsAdmin = false;
@@ -65,33 +53,6 @@ function setUserCache(userId, data) {
   return userDataCache[userId];
 }
 // ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-let loadingProgressCreepTimer = null;
-let loadingProgressCreepCurrent = 0;
-// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
-//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
-//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
-//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
-function setLoadingStage(text, percent, ceilingPercent) {
-  if (loadingProgressCreepTimer) {
-    clearInterval(loadingProgressCreepTimer);
-    loadingProgressCreepTimer = null;
-  }
-  if (loadingStatusText) loadingStatusText.textContent = text;
-  if (loadingProgressBarFill && typeof percent === "number") {
-    const clamped = Math.max(0, Math.min(100, percent));
-    loadingProgressBarFill.style.width = `${clamped}%`;
-    loadingProgressCreepCurrent = clamped;
-
-    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
-      loadingProgressCreepTimer = setInterval(() => {
-        const remaining = ceilingPercent - loadingProgressCreepCurrent;
-        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
-        loadingProgressCreepCurrent += remaining * 0.06;
-        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
-      }, 200);
-    }
-  }
-}
 
 // ★ Firestoreのタイムスタンプ(またはミリ秒数値)を、比較に使いやすいミリ秒数値へ揃える
 function toMillisOrNull(value) {
@@ -136,8 +97,8 @@ let imgbbApiKeyCache = null;
 // ★ ImgBBへの画像アップロード（チャットサイトと同じ仕様：system_keys/imgbb からAPIキーを取得してアップロードし、URLを保存する）
 async function uploadImageToImgbb(file) {
   if (!imgbbApiKeyCache) {
-    const keyDoc = await db.collection("system_keys").doc("imgbb").get();
-    if (!keyDoc.exists) {
+    const keyDoc = await hedged(() => getDoc(doc(db, "system_keys", "imgbb")));
+    if (!keyDoc.exists()) {
       throw new Error("APIキーの設定が見つかりません。セキュリティルールかドキュメントを確認してください。");
     }
     imgbbApiKeyCache = keyDoc.data().apiKey;
@@ -168,6 +129,8 @@ function getInitial(name) {
 function createAvatar(name, size, imageUrl) {
   if (imageUrl) {
     const img = document.createElement("img");
+    img.loading = "lazy"; // ★ 一覧の下のほうのアバターまで、初回表示で待たない
+    img.decoding = "async";
     img.classList.add("avatar-circle");
     if (size === "small") img.classList.add("small");
     if (size === "large") img.classList.add("large");
@@ -254,8 +217,8 @@ function buildSolvedByArea(id, book, isCurrentlyWaiting, session, contentType) {
 async function ensureUserCached(userId) {
   if (getUserCache(userId)) return;
 
-  const userSnapshot = await db.collection("users_random").doc(userId).get();
-  if (userSnapshot.exists) {
+  const userSnapshot = await hedged(() => getDoc(doc(db, "users_random", userId)));
+  if (userSnapshot.exists()) {
     const userData = userSnapshot.data();
     setUserCache(userId, {
       name: userData.name || "名前未設定",
@@ -346,22 +309,41 @@ function closeDrawer() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  perfMark("DOMContentLoaded（DOM構築完了まで）");
   loadingOverlay = document.getElementById("loading-overlay");
-  loadingStatusText = document.getElementById("loading-status-text");
-  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
   setLoadingStage("Firebaseに接続しています｡", 10, 20);
+  watchLoadingStall(); // ★ 読み込みが長引いたら、止まっている段階と「ログイン情報をリセット」ボタンを表示する
 
-  auth.onAuthStateChanged(async (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
+      perfMark("ログイン状態の確定（Firebase Auth）");
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
-      setLoadingStage("ユーザー情報を確認しています｡", 20, 30);
-      const userSnapshot = await db
-        .collection("users_random")
-        .doc(myUserId)
-        .get();
+      // ★ プッシュ通知の初期化（失敗しても一覧の表示には影響させない。結果は待たない）
+      perfNote(`Firestore通信方式: ${firestoreTransport} / 永続キャッシュ: ${firestoreCacheMode} / ログイン情報の保存先: ${authStorageMode}`);
+      const endPushPerf = perfStart("OneSignal初期化（キー取得・SDK・login）");
+      Promise.resolve(initPush(db, myUserId)).then(endPushPerf, endPushPerf);
+      setupPushButton("enable-push-button");
+
+      // ★ 以下の4つの読み取りは互いに依存しない（非公開の絞り込みは取得後にクライアント側で行う）ので、
+      //   順番に待たず同時に発行する。1つ終わるごとに進捗バーを実際の完了数で進める。
+      //   hedged() は、読み取りが4秒返らないときに同じ読み取りをもう1本出し直す（先に返ったほうを使う）
+      setLoadingStage("ユーザー情報・一覧を読み込んでいます｡", 15, 80);
+      const trackRead = createReadTracker(4, 15, 80);
+      const userSnapshotPromise = trackRead("ユーザー情報", hedged(() => getDoc(doc(db, "users_random", myUserId))));
+      const booksSnapshotPromise = trackRead("問題集一覧", hedged(() => getDocs(query(collection(db, "ProblemPosting", "books", "data"), orderBy("createdAt", "desc")))));
+      const cardsSnapshotPromise = trackRead("暗記カード一覧", hedged(() => getDocs(query(collection(db, "ProblemPosting", "cards", "data"), orderBy("createdAt", "desc")))));
+      // ★ 作成者・解答者の名前を出すためのユーザー情報は、身内サイト(約8人)なので全件を1回で取る。
+      //   これで「一覧が届いてから、ユーザーごとに getDoc を出す」往復が不要になる。失敗しても個別取得で補える
+      const allUsersPromise = trackRead("全ユーザー情報", hedged(() => getDocs(collection(db, "users_random")))).catch(error => {
+        console.warn("全ユーザー情報の一括取得に失敗（個別取得で補います）:", error);
+        return null;
+      });
+
+      const userSnapshot = await userSnapshotPromise;
       const userData = userSnapshot.data();
+      perfMark("自分のユーザー情報の取得（Firestore）");
       setUserCache(myUserId, {
         name: userData.name,
         isAdmin: userData.isAdmin,
@@ -381,37 +363,26 @@ document.addEventListener("DOMContentLoaded", () => {
       myUid = userData.uid;
       maybeShowNotice(userData.lastOpenedAt); // ★ 最終確認時刻に応じて、お知らせモーダルを表示する(結果を待たずに進める)
 
-      // ★ 通知の初期化は結果を待たず、ページ本来の処理をブロックしないようにする
-      Notify.initPush(db, myUserId);
-      Notify.setupPushButton("enable-push-button");
+      // ★ 非公開の絞り込みは meIsAdmin が必要なので、自分のユーザー情報が届いてから一覧を整理する
+      const [bookUserIds, cardUserIds] = await Promise.all([loadProblemBooks(booksSnapshotPromise), loadCardDecks(cardsSnapshotPromise)]);
+      perfMark("問題集・暗記カード一覧の到着待ちと整理（Firestore）");
 
-      //displayVocabularyBooks();
-      // ★ 問題集・暗記カード一覧のクエリ自体はFirestore SDKに進捗イベントが無いため、
-      //   ここは天井85%までの演出(擬似進捗)にとどめる。
-      //   一覧クエリ完了後のユーザー情報の並行取得(ensureUserCached)は、実際に完了した人数を
-      //   数えられるので、55%〜85%の区間は「何人中何人終わったか」の本物の進捗にしている
-      setLoadingStage("問題集・暗記カードを読み込んでいます｡", 30, 55);
-      const [bookUserIds, cardUserIds] = await Promise.all([loadProblemBooks(), loadCardDecks()]);
-
-      const allUserIdsToCache = new Set([...bookUserIds, ...cardUserIds]);
-      const totalUserFetches = allUserIdsToCache.size;
-      if (totalUserFetches === 0) {
-        setLoadingStage("問題集・暗記カードを読み込んでいます｡", 85);
-      } else {
-        let cachedCount = 0;
-        setLoadingStage(`ユーザー情報を読み込んでいます (0/${totalUserFetches})｡`, 55);
-        await Promise.all(
-          Array.from(allUserIdsToCache).map(userId =>
-            ensureUserCached(userId).then(() => {
-              cachedCount++;
-              setLoadingStage(
-                `ユーザー情報を読み込んでいます (${cachedCount}/${totalUserFetches})｡`,
-                55 + (cachedCount / totalUserFetches) * 30
-              );
-            })
-          )
-        );
+      const allUsersSnapshot = await allUsersPromise;
+      if (allUsersSnapshot) {
+        allUsersSnapshot.docs.forEach(userDoc => {
+          const data = userDoc.data() || {};
+          setUserCache(userDoc.id, {
+            name: data.name || "名前未設定",
+            isAdmin: data.isAdmin || false,
+            imageUrl: data.imageUrl || "",
+            profileText: data.profileText || "",
+            prizeGrantedAt: toMillisOrNull(data.prizeGrantedAt)
+          });
+        });
       }
+      // ★ 一括取得に含まれなかった人(削除済みユーザーなど)だけ個別に取得する(キャッシュ済みなら即returnする)
+      await Promise.all(Array.from(new Set([...bookUserIds, ...cardUserIds])).map(userId => ensureUserCached(userId)));
+      perfMark("全ユーザー情報の到着待ち・キャッシュ（Firestore）");
 
       setLoadingStage("表示を準備しています｡", 90);
       if (window.location.hash) {
@@ -421,8 +392,9 @@ document.addEventListener("DOMContentLoaded", () => {
         makeDisplayBooks("all", "all", sortOrderSelect.value, "all");
         resetHashToCurrentType(); // ★ 履歴を汚さないよう置き換えで #books を補っておく
       }
-      setLoadingStage("読み込みが完了しました｡", 100);
-      loadingOverlay.classList.add("hidden");
+      perfNote(`問題集: ${Object.keys(bookCache).length}件 / 暗記カード: ${Object.keys(deckCache).length}件 / 管理者: ${meIsAdmin ? "はい" : "いいえ"}`);
+      perfMark("一覧のDOM構築");
+      finishLoading({ isAdmin: meIsAdmin, page: "app.html（問題集一覧）", myUserId }); // ★ 管理者にだけ計測結果を表示
       updateLastChecked();
       attachLiveSessionsListener();
     } else {
@@ -434,9 +406,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
-  db.collection("users_random")
-    .doc(myUserId)
-    .set({ lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+  setDoc(doc(db, "users_random", myUserId), { lastOpenedAt: serverTimestamp() }, { merge: true })
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
@@ -457,8 +427,8 @@ const handleLogout = async () => {
   const isConfirmed = await AppDialog.confirm("ログアウトしますか？", { okText: "ログアウトする", danger: true });
   if (isConfirmed) {
     try {
-      await Notify.logoutPush();
-      await auth.signOut(auth);
+      await logoutPush();
+      await signOut(auth);
       console.log("ログアウトしました！");
       await AppDialog.alert("ログアウトしました。");
       window.location.href = "./index.html";
@@ -469,14 +439,9 @@ const handleLogout = async () => {
   }
 };
 
-async function loadProblemBooks() {
+async function loadProblemBooks(snapshotPromise) {
   try {
-    const querySnapshot = await db
-      .collection("ProblemPosting")
-      .doc("books")
-      .collection("data")
-      .orderBy("createdAt", "desc")
-      .get();
+    const querySnapshot = await snapshotPromise;
 
     const userIdsToCache = new Set();
 
@@ -536,7 +501,7 @@ async function loadProblemBooks() {
 //   ・他人の非公開問題集が新たに募集を開始した場合は、Firestoreから該当の問題集を取得して一覧に追加する
 //   ・募集が終わった(finished/cancelled)場合、他人の非公開問題集なら一覧から取り除く
 function attachLiveSessionsListener() {
-  const sessionsRef = rtdb.ref("liveSessions");
+  const sessionsRef = rtdbRef(rtdb, "liveSessions");
   let errorAlertShown = false;
   const reportError = error => {
     console.error("募集状況の取得に失敗しました:", error);
@@ -549,8 +514,7 @@ function attachLiveSessionsListener() {
     }
   };
 
-  sessionsRef
-    .once("value")
+  rtdbGet(sessionsRef)
     .then(snap => {
       const all = snap.val() || {};
       // ★ 初回表示時、既に募集中のものはすべて強調したい。
@@ -575,9 +539,9 @@ function attachLiveSessionsListener() {
     })
     .catch(reportError);
 
-  sessionsRef.on("child_added", snap => handleLiveSessionUpdate(snap.key, snap.val()), reportError);
-  sessionsRef.on("child_changed", snap => handleLiveSessionUpdate(snap.key, snap.val()), reportError);
-  sessionsRef.on("child_removed", snap => handleLiveSessionUpdate(snap.key, null), reportError);
+  onChildAdded(sessionsRef, snap => handleLiveSessionUpdate(snap.key, snap.val()), reportError);
+  onChildChanged(sessionsRef, snap => handleLiveSessionUpdate(snap.key, snap.val()), reportError);
+  onChildRemoved(sessionsRef, snap => handleLiveSessionUpdate(snap.key, null), reportError);
 }
 
 async function handleLiveSessionUpdate(bookId, session) {
@@ -638,9 +602,9 @@ async function handleLiveSessionUpdate(bookId, session) {
 
 async function fetchAndAddBookToCache(bookId) {
   try {
-    const doc = await db.collection("ProblemPosting").doc("books").collection("data").doc(bookId).get();
-    if (!doc.exists) return;
-    const data = doc.data();
+    const bookDocSnap = await hedged(() => getDoc(doc(db, "ProblemPosting", "books", "data", bookId)));
+    if (!bookDocSnap.exists()) return;
+    const data = bookDocSnap.data();
     let subjectId = data.subjectId || 0;
     if (9 < subjectId) subjectId = 0;
     let gradeId = data.gradeId || 0;
@@ -670,14 +634,9 @@ async function fetchAndAddBookToCache(bookId) {
   }
 }
 
-async function loadCardDecks() {
+async function loadCardDecks(snapshotPromise) {
   try {
-    const querySnapshot = await db
-      .collection("ProblemPosting")
-      .doc("cards")
-      .collection("data")
-      .orderBy("createdAt", "desc")
-      .get();
+    const querySnapshot = await snapshotPromise;
 
     const userIdsToCache = new Set();
 
@@ -1165,7 +1124,7 @@ document.addEventListener("DOMContentLoaded", () => {
     recruitCommentSaveButton.disabled = true;
     recruitCommentCancelButton.disabled = true;
     try {
-      await rtdb.ref(`liveSessions/${settingModalBookId}/recruitComment`).set(newComment);
+      await rtdbSet(rtdbRef(rtdb, `liveSessions/${settingModalBookId}/recruitComment`), newComment);
       isEditingRecruitComment = false;
       recruitCommentText.textContent = newComment || "(コメントはありません)";
       recruitCommentEditArea.classList.add("hidden");
@@ -1190,7 +1149,7 @@ document.addEventListener("DOMContentLoaded", () => {
     recruitStartConfirmButton.textContent = "セッションを作成中…";
     recruitStartModalClose.classList.add("hidden");
     try {
-      await rtdb.ref(`liveSessions/${bookId}`).set({
+      await rtdbSet(rtdbRef(rtdb, `liveSessions/${bookId}`), {
         hostUserId: myUserId,
         status: "waiting",
         timeLimitSeconds,
@@ -1204,7 +1163,7 @@ document.addEventListener("DOMContentLoaded", () => {
         participants: {},
         answers: {},
         totalScores: {},
-        createdAt: firebase.database.ServerValue.TIMESTAMP
+        createdAt: rtdbServerTimestamp()
       });
       // ★ liveSessionsCacheはattachLiveSessionsListener()のchild_addedで自動更新されるが、
       //   モーダルの再表示はそれを待たず即座に行いたいのでここでも反映しておく
@@ -1222,14 +1181,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // ★ 通知の送信は結果を待たず(awaitせず)、本来の処理を遅らせないようにする
       const recruitBookTitle = (bookCache[bookId] && bookCache[bookId][0]) || "問題集";
-      Notify.getAllOtherUserIds(db, myUserId).then(targetIds => {
-        Notify.sendPush(db, {
-          targetIds,
-          title: "みんなで解く・募集開始",
-          body: `${(getUserCache(myUserId) && getUserCache(myUserId).name) || myUserId}さんが「${recruitBookTitle}」の募集を開始しました。`,
-          url: "./app.html",
-          topic: `live-recruit-${bookId}`
-        });
+      sendPushToAllOthers(db, {
+        senderId: myUserId,
+        title: "みんなで解く・募集開始",
+        body: `${(getUserCache(myUserId) && getUserCache(myUserId).name) || myUserId}さんが「${recruitBookTitle}」の募集を開始しました。`,
+        url: "./app.html",
+        topic: `live-recruit-${bookId}`
       });
     } catch (error) {
       console.error(error);
@@ -1256,7 +1213,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     joinButton.disabled = true;
     try {
-      const statusSnap = await rtdb.ref(`liveSessions/${bookId}/status`).get();
+      const statusSnap = await rtdbGet(rtdbRef(rtdb, `liveSessions/${bookId}/status`));
       const status = statusSnap.exists() ? statusSnap.val() : null;
       if (status !== "waiting") {
         joinButton.classList.add("hidden");
@@ -1265,9 +1222,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const myCached = getUserCache(myUserId) || {};
-      await rtdb.ref(`liveSessions/${bookId}/participants/${myUserId}`).set({
+      await rtdbSet(rtdbRef(rtdb, `liveSessions/${bookId}/participants/${myUserId}`), {
         name: myCached.name || myUserId,
-        joinedAt: firebase.database.ServerValue.TIMESTAMP
+        joinedAt: rtdbServerTimestamp()
       });
       window.location.href = `./liveAnswer.html?id=${bookId}`;
     } catch (error) {
@@ -1743,7 +1700,7 @@ async function openUserListModal() {
   userListModal.classList.remove("hidden");
 
   try {
-    const usersSnap = await db.collection("users_random").orderBy("no").get();
+    const usersSnap = await getDocs(query(collection(db, "users_random"), orderBy("no")));
     userListArea.innerHTML = "";
 
     if (usersSnap.empty) {
@@ -1967,14 +1924,12 @@ async function handleProfileEditOrSave() {
 
       profileEditButton.textContent = "保存中...";
 
-      await db.collection("users_random").doc(currentProfileUserId).set(
-        {
+      await setDoc(doc(db, "users_random", currentProfileUserId), {
           name: newName,
           profileText: newProfileText,
           imageUrl: finalImageUrl
         },
-        { merge: true }
-      );
+        { merge: true });
 
       const previousCache = getUserCache(currentProfileUserId) || {};
       const updated = setUserCache(currentProfileUserId, {
@@ -2041,8 +1996,8 @@ async function openProfileModal(userId, startEditMode = false) {
   }
 
   try {
-    const userSnapshot = await db.collection("users_random").doc(userId).get();
-    if (userSnapshot.exists) {
+    const userSnapshot = await hedged(() => getDoc(doc(db, "users_random", userId)));
+    if (userSnapshot.exists()) {
       const userData = userSnapshot.data();
       const updated = setUserCache(userId, {
         name: userData.name || "名前未設定",
@@ -2088,7 +2043,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function getContentDocRef(id, type) {
   const topDoc = type === "card" ? "cards" : "books";
-  return db.collection("ProblemPosting").doc(topDoc).collection("data").doc(id);
+  return doc(db, "ProblemPosting", topDoc, "data", id);
 }
 
 async function openImpressionsModal(bookId, type) {
@@ -2096,8 +2051,8 @@ async function openImpressionsModal(bookId, type) {
   impressionsModal.classList.remove("hidden");
 
   try {
-    const bookSnap = await getContentDocRef(bookId, type).get();
-    const impressions = (bookSnap.exists && bookSnap.data().impressions) || {};
+    const bookSnap = await hedged(() => getDoc(getContentDocRef(bookId, type)));
+    const impressions = (bookSnap.exists() && bookSnap.data().impressions) || {};
     const entries = Object.entries(impressions).filter(([, text]) => text && text.trim() !== "");
 
     impressionsArea.innerHTML = "";
@@ -2195,7 +2150,7 @@ async function saveImpressionEdit() {
   impressionEditSaveButton.textContent = "保存中...";
 
   try {
-    await getContentDocRef(impressionEditBookId, impressionEditType).update({
+    await updateDoc(getContentDocRef(impressionEditBookId, impressionEditType), {
       [`impressions.${impressionEditTargetUserId}`]: text
     });
 

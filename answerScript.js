@@ -1,16 +1,10 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyAqIiNj0N4WruPSOkWbeo5gxzsNyeMkuLo",
-  authDomain: "appsforschool-study.firebaseapp.com",
-  projectId: "appsforschool-study",
-  storageBucket: "appsforschool-study.firebasestorage.app",
-  messagingSenderId: "740735293440",
-  appId: "1:740735293440:web:a1363adbab57f1ceec60e5"
-};
+import { hedged, auth, db, onAuthStateChanged, signOut, collection, doc, getDoc, getDocs, setDoc, updateDoc, increment, query, orderBy, serverTimestamp, arrayUnion, arrayRemove } from "./firebase.js";
+import { setLoadingStage, watchLoadingStall, finishLoading, createReadTracker } from "./loading.js";
+import { perfMark, perfStart, perfNote } from "./perf.js";
+import { initPush, logoutPush, setupPushButton } from "./notify.js";
+import { initProfileSystem, getUserCache, setUserCache, toMillisOrNull, hasActivePrize, openUserListModal, openProfileModal } from "./profileSystem.js";
 
-// Firebase 初期化とサービス取得
-const app = firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+perfMark("JSモジュールの読み込み・実行開始（HTML解析・Firebase等の取得）");
 
 const subjectIdList = [
   "不明",
@@ -36,6 +30,7 @@ let lastDescriptiveSubmission = null;
 let myUid = "";
 let myUserId = "";
 let meIsAdmin = false;
+initProfileSystem({ getMyUserId: () => myUserId, getIsAdmin: () => meIsAdmin });
 
 let problemsData = [];
 
@@ -86,8 +81,6 @@ let impressionInput;
 let impressionSaveButton;
 
 let loadingOverlay;
-let loadingStatusText;
-let loadingProgressBarFill;
 let drawerOverlay;
 let accountSettingsDrawer;
 let drawerCloseButton;
@@ -99,9 +92,9 @@ let drawerEditProfileButton;
 let drawerUserListButton;
 document.addEventListener("DOMContentLoaded", () => {
   loadingOverlay = document.getElementById("loading-overlay");
-  loadingStatusText = document.getElementById("loading-status-text");
-  loadingProgressBarFill = document.getElementById("loading-progress-bar-fill");
+  perfMark("DOMContentLoaded（DOM構築完了まで）");
   setLoadingStage("Firebaseに接続しています｡", 5, 15);
+  watchLoadingStall(); // ★ 読み込みが長引いたら、止まっている段階と復旧ボタンを表示する
   drawerOverlay = document.getElementById("drawerOverlay");
   accountSettingsDrawer = document.getElementById("accountSettingsDrawer");
   drawerCloseButton = document.getElementById("drawerCloseButton");
@@ -202,13 +195,8 @@ async function openImpressionModal() {
   impressionModal.classList.remove("hidden");
 
   try {
-    const bookSnap = await db
-      .collection("ProblemPosting")
-      .doc("books")
-      .collection("data")
-      .doc(currentBookId)
-      .get();
-    const impressions = (bookSnap.exists && bookSnap.data().impressions) || {};
+    const bookSnap = await getDoc(doc(db, "ProblemPosting", "books", "data", currentBookId));
+    const impressions = (bookSnap.exists() && bookSnap.data().impressions) || {};
     impressionInput.value = impressions[myUserId] || "";
   } catch (error) {
     console.error("感想の取得エラー:", error);
@@ -224,12 +212,7 @@ async function saveImpression() {
   impressionSaveButton.textContent = "保存中...";
 
   try {
-    await db
-      .collection("ProblemPosting")
-      .doc("books")
-      .collection("data")
-      .doc(currentBookId)
-      .update({
+    await updateDoc(doc(db, "ProblemPosting", "books", "data", currentBookId), {
         [`impressions.${myUserId}`]: text
       });
     await AppDialog.alert("感想を保存しました。");
@@ -253,17 +236,38 @@ function closeDrawer() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  auth.onAuthStateChanged(async (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
+      perfMark("ログイン状態の確定（Firebase Auth）");
       myUserId = user.email.split("@")[0];
       drawerUserId.textContent = myUserId;
 
-      setLoadingStage("ユーザー情報を確認しています｡", 15, 35);
-      const userSnapshot = await db
-        .collection("users_random")
-        .doc(myUserId)
-        .get();
+      // ★ プッシュ通知の初期化（失敗しても問題の表示には影響させない。結果は待たない）
+      const endPushPerf = perfStart("OneSignal初期化（キー取得・SDK・login）");
+      Promise.resolve(initPush(db, myUserId)).then(endPushPerf, endPushPerf);
+      setupPushButton("enable-push-button");
+
+      const bookId = getParmFromUrl("id");
+      if (!bookId) {
+        await AppDialog.alert("問題集が指定されていません。");
+        return;
+      }
+      currentBookId = bookId;
+
+      // ★ 自分のユーザー情報・問題集の情報・問題の一覧は互いに依存しない（権限の判定は取得後に行う）ので、
+      //   順番に待たず同時に発行する。hedged() は、読み取りが4秒返らないときに同じ読み取りを出し直す
+      setLoadingStage("ユーザー情報・問題を読み込んでいます｡", 15, 65);
+      const trackRead = createReadTracker(3, 15, 65);
+      const userSnapshotPromise = trackRead("ユーザー情報", hedged(() => getDoc(doc(db, "users_random", myUserId))));
+      const bookSnapshotPromise = trackRead("問題集の情報", hedged(() => getDoc(doc(db, "ProblemPosting", "books", "data", bookId))));
+      const problemsSnapshotPromise = trackRead("問題", hedged(() => getDocs(query(collection(db, "ProblemPosting", "books", "data", bookId, "problems"), orderBy("no")))));
+      // ★ 権限が無くて使われないまま失敗した場合に、「未処理のエラー」として残らないようにしておく
+      bookSnapshotPromise.catch(() => {});
+      problemsSnapshotPromise.catch(() => {});
+
+      const userSnapshot = await userSnapshotPromise;
       const userData = userSnapshot.data();
+      perfMark("自分のユーザー情報の取得（Firestore）");
       myFavorites = userData.favorites || [];
       setUserCache(myUserId, {
         name: userData.name,
@@ -283,29 +287,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
       myUid = userData.uid;
 
-      // ★ 通知の初期化は結果を待たず、ページ本来の処理をブロックしないようにする
-      Notify.initPush(db, myUserId);
-      Notify.setupPushButton("enable-push-button");
-
-      const bookId = getParmFromUrl("id");
-      if (!bookId) {
-        await AppDialog.alert("問題集が指定されていません。");
-        return;
-      }
-      currentBookId = bookId;
-      setLoadingStage("問題を読み込んでいます｡", 40, 68);
-      const ok = await loadProblemBook(bookId);
+      const ok = await loadProblemBook(bookId, bookSnapshotPromise, problemsSnapshotPromise);
+      perfMark("問題集・問題の到着待ちと整理（Firestore）");
       if (!ok) {
         loadingOverlay.classList.add("hidden");
         document.getElementById("no-permission-overlay").classList.remove("hidden");
         return;
       }
       await preloadAllProblemImages();
-      setLoadingStage("読み込みが完了しました｡", 100);
-      loadingOverlay.classList.add("hidden");
+      perfMark("画像の読み込み");
       document.getElementById("problem-area").classList.remove("hidden");
-      
+
       nextProblem(0);
+      perfMark("最初の問題の表示");
+      finishLoading({ isAdmin: meIsAdmin, page: "answer.html（問題を解く）", myUserId }); // ★ 管理者にだけ計測結果を表示
       updateLastChecked();
     } else {
       console.log("logout");
@@ -324,17 +319,12 @@ async function handleToggleFavorite() {
   favoriteButton.textContent = isFavorited ? "削除中..." : "追加中...";
 
   try {
-    await db
-      .collection("users_random")
-      .doc(myUserId)
-      .set(
-        {
+    await setDoc(doc(db, "users_random", myUserId), {
           favorites: isFavorited
-            ? firebase.firestore.FieldValue.arrayRemove(favoriteEntry)
-            : firebase.firestore.FieldValue.arrayUnion(favoriteEntry)
+            ? arrayRemove(favoriteEntry)
+            : arrayUnion(favoriteEntry)
         },
-        { merge: true }
-      );
+        { merge: true });
     if (isFavorited) {
       myFavorites = myFavorites.filter(
         f => !(f && f.type === "problem" && f.bookId === currentBookId && f.index === originalIndex)
@@ -357,9 +347,7 @@ async function handleToggleFavorite() {
 
 // ★ 最終アクセス日時の更新。優先度が低いので他の読み込みを妨げないよう、待たずに投げっぱなしにする
 function updateLastChecked() {
-  db.collection("users_random")
-    .doc(myUserId)
-    .set({ lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+  setDoc(doc(db, "users_random", myUserId), { lastOpenedAt: serverTimestamp() }, { merge: true })
     .catch(error => console.error("最終アクセス日時の更新エラー:", error));
 }
 
@@ -368,16 +356,12 @@ function incrementMonthlyProblemCount() {
   const now = new Date();
   const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-  db.collection("users_random")
-    .doc(myUserId)
-    .set(
-      {
+  setDoc(doc(db, "users_random", myUserId), {
         monthlyProblemCounts: {
-          [yearMonth]: firebase.firestore.FieldValue.increment(1)
+          [yearMonth]: increment(1)
         }
       },
-      { merge: true }
-    )
+      { merge: true })
     .catch(error => console.error("月間解答数の更新エラー:", error));
 }
 
@@ -385,8 +369,8 @@ const handleLogout = async () => {
   const isConfirmed = await AppDialog.confirm("ログアウトしますか？", { okText: "ログアウトする", danger: true });
   if (isConfirmed) {
     try {
-      await Notify.logoutPush();
-      await auth.signOut(auth);
+      await logoutPush();
+      await signOut(auth);
       console.log("ログアウトしました！");
       await AppDialog.alert("ログアウトしました。");
       window.location.href = "./index.html";
@@ -413,19 +397,14 @@ function shuffleArray(array) {
   return result;
 }
 
-async function loadProblemBook(bookId) {
+async function loadProblemBook(bookId, bookSnapshotPromise, problemsSnapshotPromise) {
   try {
     const titleAreaTitle = document.getElementById("title-area-title");
     const allProblemsCount = document.getElementById("all-problems-count");
     
-    const bookDocRef = await db
-      .collection("ProblemPosting")
-      .doc("books")
-      .collection("data")
-      .doc(bookId);
-    const bookData = await bookDocRef.get();
+    const bookData = await bookSnapshotPromise;
 
-    if (!bookData.exists) return false;
+    if (!bookData.exists()) return false;
 
     // ★ 非公開の問題集は、作成者本人か管理者以外はIDを知っていても解けないようにする
     const isPrivate = !!bookData.get("isPrivate");
@@ -436,14 +415,7 @@ async function loadProblemBook(bookId) {
 
     titleAreaTitle.textContent = bookData.get("title");
     
-    const problemsSnapshot = await db
-      .collection("ProblemPosting")
-      .doc("books")
-      .collection("data")
-      .doc(bookId)
-      .collection("problems")
-      .orderBy("no")
-      .get();
+    const problemsSnapshot = await problemsSnapshotPromise;
 
     for (const doc of problemsSnapshot.docs) {
       const data = doc.data();
@@ -503,33 +475,6 @@ async function loadProblemBook(bookId) {
 }
 
 // ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する
-let loadingProgressCreepTimer = null;
-let loadingProgressCreepCurrent = 0;
-// ★ ローディングオーバーレイ下部の段階テキストと、その下の進捗バーをまとめて更新する。
-//   第3引数(ceilingPercent)を渡すと、そのステージの処理が終わるまでの間、実際の進捗は
-//   わからないままでも「天井」に向けて0.2秒ごとに少しずつゲージを近づけていく(擬似的な演出)。
-//   次にsetLoadingStageが呼ばれた時点でこのタイマーは自動的に止まり、指定された値にきっちり揃う。
-function setLoadingStage(text, percent, ceilingPercent) {
-  if (loadingProgressCreepTimer) {
-    clearInterval(loadingProgressCreepTimer);
-    loadingProgressCreepTimer = null;
-  }
-  if (loadingStatusText) loadingStatusText.textContent = text;
-  if (loadingProgressBarFill && typeof percent === "number") {
-    const clamped = Math.max(0, Math.min(100, percent));
-    loadingProgressBarFill.style.width = `${clamped}%`;
-    loadingProgressCreepCurrent = clamped;
-
-    if (typeof ceilingPercent === "number" && ceilingPercent > clamped) {
-      loadingProgressCreepTimer = setInterval(() => {
-        const remaining = ceilingPercent - loadingProgressCreepCurrent;
-        if (remaining < 0.5) return; // 天井の手前で止め、本当の進捗が来るのを待つ
-        loadingProgressCreepCurrent += remaining * 0.06;
-        loadingProgressBarFill.style.width = `${loadingProgressCreepCurrent}%`;
-      }, 200);
-    }
-  }
-}
 
 // ★ 1枚の画像を読み込む。失敗しても他の画像の読み込みを止めないよう、常にresolveする
 function preloadImage(url) {
@@ -542,11 +487,16 @@ function preloadImage(url) {
     img.onload = () => resolve();
     img.onerror = () => resolve();
     img.src = url;
+    // ★ 回線が遅い・画像が返ってこない場合に、読み込み画面が閉じなくならないよう8秒で打ち切る(後からでも表示はされる)
+    setTimeout(resolve, 8000);
   });
 }
 
 // ★ 問題集内の全ての画像を、ローディング中にまとめて読み込み切っておく
 //   （こうしておくと、解答中に問題を切り替えても画像は既にブラウザにキャッシュされているため即表示される）
+// ★ 初回表示で画像の読み込みを待つ上限。超えた分はそのまま裏で読み込みを続け、読み込み画面は先に閉じる
+const IMAGE_WAIT_LIMIT_MS = 3000;
+
 async function preloadAllProblemImages() {
   const imageUrls = problemsData.map(p => p[4]).filter(url => !!url);
   if (imageUrls.length === 0) return;
@@ -556,12 +506,17 @@ async function preloadAllProblemImages() {
   const percentFor = count => 70 + (count / imageUrls.length) * 25;
   setLoadingStage(`画像を読み込んでいます (${loadedCount}/${imageUrls.length})｡`, percentFor(loadedCount));
 
-  await Promise.all(imageUrls.map(url =>
+  const allLoaded = Promise.all(imageUrls.map(url =>
     preloadImage(url).then(() => {
       loadedCount++;
       setLoadingStage(`画像を読み込んでいます (${loadedCount}/${imageUrls.length})｡`, percentFor(loadedCount));
     })
   ));
+  const timedOut = await Promise.race([
+    allLoaded.then(() => false),
+    new Promise(resolve => setTimeout(() => resolve(true), IMAGE_WAIT_LIMIT_MS))
+  ]);
+  if (timedOut) perfNote(`画像の読み込み待ちを${IMAGE_WAIT_LIMIT_MS / 1000}秒で打ち切りました（${loadedCount}/${imageUrls.length}枚が完了。残りは裏で読み込み続行）`);
 }
 
 
@@ -998,8 +953,8 @@ async function runDescriptiveGrading(submittedText) {
 async function getGeminiApiKey() {
   if (geminiApiKeyCache) return geminiApiKeyCache;
 
-  const keyDoc = await db.collection("system_keys").doc("gemini").get();
-  const apiKey = keyDoc.exists ? keyDoc.data().apiKey : null;
+  const keyDoc = await hedged(() => getDoc(doc(db, "system_keys", "gemini")));
+  const apiKey = keyDoc.exists() ? keyDoc.data().apiKey : null;
   if (!apiKey) {
     throw new Error("Gemini APIキーが設定されていません。（system_keys/gemini の apiKey）");
   }
@@ -1137,12 +1092,8 @@ function showResultModal() {
   resultScoreText.textContent = `${correctAnswersCount} / ${problemsData.length} 問正解`;
   resultModal.classList.remove("hidden");
 
-  db.collection("ProblemPosting")
-    .doc("books")
-    .collection("data")
-    .doc(currentBookId)
-    .update({
-      solvedBy: firebase.firestore.FieldValue.arrayUnion(myUserId)
+  updateDoc(doc(db, "ProblemPosting", "books", "data", currentBookId), {
+      solvedBy: arrayUnion(myUserId)
     })
     .catch(error => console.error("解答済み記録エラー:", error));
 }
