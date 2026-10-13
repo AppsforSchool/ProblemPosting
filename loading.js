@@ -2,8 +2,10 @@
 //   ・setLoadingStage(text, percent, ceilingPercent) … 段階テキストと進捗バーの更新
 //       ceilingPercent を渡すと、次の更新が来るまでの間、上限に向けてゆっくり進める(通信待ちで止まって見えないための演出)
 //   ・watchLoadingStall()  … 読み込みが長引いたとき、止まっている段階と環境を表示し、復旧ボタンを出す
-//   ・finishLoading(...)   … 読み込み完了：画面を閉じ、管理者にだけ計測レポートを表示する
-import { perfMark, perfShowReport, perfWatchStall } from "./perf.js";
+//   ・finishLoading(...)   … 読み込み完了：画面を閉じる。OneSignalの初期化が未完了なら左上に「通知の受信を準備中…」を出し、
+//                             管理者にだけ「計測結果をみる」ボタンを出す
+import { perfMark, perfNotifyReportAvailable, perfWatchStall } from "./perf.js";
+import { notifyPageLoadFinished } from "./notify.js";
 import { probeEnvironment, attachRecoveryButton } from "./recover.js";
 import { runFirestoreDiagnostics } from "./diag.js";
 
@@ -51,13 +53,16 @@ export function watchLoadingStall() {
   );
 }
 
-// ★ 読み込み完了：オーバーレイを閉じ、管理者にだけ計測レポート(通信診断ボタン付き)を表示する
+// ★ 読み込み完了：オーバーレイを閉じる。
+//   ・OneSignalの初期化がまだ終わっていなければ、左上に「通知の受信を準備中…」を表示する(終わる・失敗・15秒のいずれかで消える)
+//   ・管理者にだけ、左上に「計測結果をみる」ボタン(通信診断つきのパネルを開く)を1分間表示する
 export function finishLoading({ isAdmin, page, myUserId }) {
   setLoadingStage("読み込みが完了しました｡", 100);
   const overlay = document.getElementById("loading-overlay");
   if (overlay) overlay.classList.add("hidden");
   perfMark("オーバーレイを閉じて表示");
-  perfShowReport({ isAdmin: !!isAdmin, page, diagnostics: () => runFirestoreDiagnostics(myUserId) });
+  notifyPageLoadFinished();
+  perfNotifyReportAvailable({ isAdmin: !!isAdmin, page, diagnostics: () => runFirestoreDiagnostics(myUserId) });
 }
 
 // ★ 同時に発行した読み取りが「いくつ終わったか」で、進捗バーを実際の完了数に応じて進める。

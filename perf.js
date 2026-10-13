@@ -5,13 +5,16 @@
 //   perfStart("名前") → end() … 並行して走る処理の開始〜終了を記録する（OneSignalなど）
 //   perfSample("名前", ms)    … 同じ種類の処理を何度も行うもの（未読数クエリなど）の件数・平均・最大をまとめる
 //   perfNote("文字列")        … 件数などの補足メモ
-//   perfShowReport({isAdmin}) … 管理者なら画面に結果を出す（1ページにつき1回だけ）
+//   perfNotifyReportAvailable({isAdmin,page,diagnostics}) … 管理者にだけ、左上の通知欄に「計測結果をみる」ボタンを1分間出す
+//   perfShowReport({page,diagnostics}) … 計測結果のパネルを開く（上のボタンから呼ばれる）
+
+import { createButtonBadge } from "./statusBadge.js";
 
 const spans = [];     // { label, start, end|null, kind: "main" | "parallel" }
 const samples = {};   // label -> { count, sum, max }
 const notes = [];
 let lastMainEnd = 0;  // 直前のメイン処理が終わった時刻（最初はページ遷移の開始 = 0）
-let shown = false;
+let reportNotified = false;
 
 const now = () => performance.now();
 
@@ -138,10 +141,11 @@ function injectStyle() {
 }
 
 // ★ 読み込みが終わったあとに呼ぶ。管理者でなければ何も表示しない
-export function perfShowReport({ isAdmin, page, diagnostics }) {
-  if (shown) return;
-  shown = true;
-  if (!isAdmin) return;
+// ★ 計測結果のパネルを開く（左上の「計測結果をみる」ボタンから呼ばれる）。
+//   開くたびに、その時点の内容で作り直す（開いたまま、もう一度押しても重ならない）。
+export function perfShowReport({ page, diagnostics }) {
+  const existing = document.getElementById("perf-report");
+  if (existing) existing.remove();
 
   const { text: baseText } = buildReport(page || location.pathname.split("/").pop() || "page");
   let fullText = baseText;
@@ -184,4 +188,17 @@ export function perfShowReport({ isAdmin, page, diagnostics }) {
     }
   });
   document.body.appendChild(wrap);
+}
+
+// ★ 読み込みが終わったときに呼ぶ。管理者にだけ、画面左上の通知欄に「計測結果をみる」ボタンを1分間出す
+//   （以前は、読み込みのたびに結果パネルを自動で開いていた）。押すと、その時点の計測結果パネルが開く。
+//   1回だけ作る（読み込み完了の処理が複数回呼ばれても、ボタンは増えない）。
+export function perfNotifyReportAvailable({ isAdmin, page, diagnostics }) {
+  if (reportNotified) return;
+  reportNotified = true;
+  if (!isAdmin) return;
+
+  const badge = createButtonBadge("計測結果をみる", () => perfShowReport({ page, diagnostics }), 3);
+  badge.show();
+  setTimeout(() => badge.remove(), 60 * 1000); // 1分たったらフェードアウトして消す
 }

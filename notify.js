@@ -4,6 +4,7 @@
 //   ★ サイトごとにOneSignalのアプリを分けているため、ここのドキュメントIDだけをサイトごとに変える
 //     （チャットサイト: "onesignal" / 問題投稿サイト: "onesignal_ProblemPosting"）
 import { collection, doc, getDoc, getDocs, hedged } from "./firebase.js";
+import { createTextBadge, setStatusBadgeVisible } from "./statusBadge.js";
 
 const KEY_DOC_ID = "onesignal_ProblemPosting";
 
@@ -30,11 +31,35 @@ function withTimeout(promise, ms, message) {
   ]);
 }
 
+// ★ 「通知の受信を準備中…」バッジ（通知を「受け取る」ための端末側の準備。送信には影響しない）
+//   ページの読み込みが終わった時点で、OneSignalの初期化がまだ終わっていなければ、画面左上（ヘッダーのすぐ下）に表示し、
+//   初期化の処理が終わったら（成功・失敗・15秒のタイムアウトのいずれでも）消す。表示の対象は、ページを開いたときの最初の自動初期化だけで、
+//   「通知をオンにする」ボタンからの再試行中は出さない（ボタン側に進行状況が出るため）。
+let pushBadgeTracking = false;     // 最初の自動初期化を追跡中か
+let pushBadgeDone = false;         // その初期化が終わったか（成功・失敗とも）
+let pageLoadFinished = false;      // ページの読み込みが終わったか
+let pushBadgeEl = null;
+
+function updatePushBadge() {
+  const show = pageLoadFinished && pushBadgeTracking && !pushBadgeDone;
+  if (!show && !pushBadgeEl) return;
+  if (!pushBadgeEl) pushBadgeEl = createTextBadge("通知の受信を準備中…", 1); // ★ 共通部品（statusBadge.js）。order=1 ＝ いちばん上
+  setStatusBadgeVisible(pushBadgeEl, show);
+}
+
+// ★ ページの読み込みが終わった（読み込み画面を閉じた）ときに呼ぶ
+export function notifyPageLoadFinished() {
+  pageLoadFinished = true;
+  updatePushBadge();
+}
+
 // ★ ログイン後に1回呼ぶ。OneSignalを初期化し、Firebaseのユーザー名(userId)と端末を紐づける
 export function initPush(db, userId) {
   ctx = { db, userId };
   if (initPromise) return initPromise;
   initError = null;
+  const trackBadge = !pushBadgeTracking && !pushBadgeDone; // ★ ページを開いたときの最初の初期化だけバッジの対象にする
+  if (trackBadge) { pushBadgeTracking = true; updatePushBadge(); }
   initPromise = (async () => {
     initStep = "Firestoreからキーを取得中";
     const { appId } = await loadKeys(db);
@@ -69,6 +94,9 @@ export function initPush(db, userId) {
     initError = e;
     initPromise = null;   // 次回押したときに再試行できるようにする
     console.warn("プッシュ通知の初期化に失敗:", e);
+  }).finally(() => {
+    // ★ 成功・失敗・15秒のタイムアウトのいずれでも、最初の初期化の処理が終わったらバッジを消す
+    if (trackBadge) { pushBadgeDone = true; updatePushBadge(); }
   });
   return initPromise;
 }
