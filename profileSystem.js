@@ -55,8 +55,6 @@ export function getInitial(name) {
 export function createAvatar(name, size, imageUrl) {
   if (imageUrl) {
     const img = document.createElement("img");
-    img.loading = "lazy"; // ★ 一覧の下のほうのアバターまで、初回表示で待たない
-    img.decoding = "async";
     img.classList.add("avatar-circle");
     if (size === "small") img.classList.add("small");
     if (size === "large") img.classList.add("large");

@@ -1,9 +1,15 @@
 import { updateDoc, firestoreTransport, firestoreCacheMode, authStorageMode, hedged, auth, db, rtdb, onAuthStateChanged, signOut, collection, doc, getDoc, getDocs, setDoc, query, orderBy, serverTimestamp, rtdbRef, rtdbGet, rtdbSet, rtdbServerTimestamp, onChildAdded, onChildChanged, onChildRemoved } from "./firebase.js";
 import { setLoadingStage, watchLoadingStall, finishLoading, createReadTracker } from "./loading.js";
 import { perfMark, perfStart, perfNote } from "./perf.js";
+import { createImageGroupTracker } from "./statusBadge.js";
 import { initPush, logoutPush, setupPushButton, sendPushToAllOthers } from "./notify.js";
 
 perfMark("JSモジュールの読み込み・実行開始（HTML解析・Firebase等の取得）");
+
+// ★ 一覧のカードに出るユーザーのアイコンの読み込み状況を数える（左上に「ユーザーのアイコンを読み込み中…(n/m)」を出す）。
+//   アイコンの読み込みは一覧を描画した時点（読み込み画面が出ている間）に始まるが、読み込み画面はアイコンの完了を待たずに閉じるため、
+//   閉じた時点で読めていないものがあれば、finishLoading から finish() が呼ばれて通知が出る。order=2 は OneSignal(1) の下
+const userIconTracker = createImageGroupTracker("ユーザーのアイコン", 2, true);
 
 const DEFAULT_RECRUIT_TIME_LIMIT_SECONDS = 20; // ★ 初期値。主催者は待機画面(liveHost.html)で変更できる
 
@@ -129,8 +135,6 @@ function getInitial(name) {
 function createAvatar(name, size, imageUrl) {
   if (imageUrl) {
     const img = document.createElement("img");
-    img.loading = "lazy"; // ★ 一覧の下のほうのアバターまで、初回表示で待たない
-    img.decoding = "async";
     img.classList.add("avatar-circle");
     if (size === "small") img.classList.add("small");
     if (size === "large") img.classList.add("large");
@@ -187,7 +191,7 @@ function buildSolvedByArea(id, book, isCurrentlyWaiting, session, contentType) {
     const MAX_SHOWN = 4;
     solvedBy.slice(0, MAX_SHOWN).forEach(userId => {
       const cached = getUserCache(userId) || {};
-      const avatar = createAvatar(cached.name, "small", cached.imageUrl);
+      const avatar = userIconTracker.track(createAvatar(cached.name, "small", cached.imageUrl)); // ★ 一覧のアイコンは読み込み状況を数える
       avatar.classList.add("solved-by-avatar");
       stack.appendChild(avatar);
     });
@@ -394,7 +398,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       perfNote(`問題集: ${Object.keys(bookCache).length}件 / 暗記カード: ${Object.keys(deckCache).length}件 / 管理者: ${meIsAdmin ? "はい" : "いいえ"}`);
       perfMark("一覧のDOM構築");
-      finishLoading({ isAdmin: meIsAdmin, page: "app.html（問題集一覧）", myUserId }); // ★ 管理者にだけ計測結果を表示
+      finishLoading({ isAdmin: meIsAdmin, page: "app.html（問題集一覧）", myUserId, imageTrackers: [userIconTracker] }); // ★ 管理者にだけ計測結果を表示
       updateLastChecked();
       attachLiveSessionsListener();
     } else {

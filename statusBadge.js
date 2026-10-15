@@ -1,7 +1,7 @@
 // ★ 画面左上（ヘッダーのすぐ下）に、読み込み中などの小さな通知（角丸の四角形）を縦に積んで出す共通部品。
 //   ・「通知の受信を準備中…」（notify.js）、「画像を読み込み中…(a/b)」＋ゲージ（talkScript.js）、
 //     「計測結果をみる」ボタン（perf.js、管理者のみ）が、同じ場所に縦に並ぶ。
-//   ・並び順は order で決める（小さいほうが上）。OneSignal = 1、画像 = 2、計測結果 = 3。
+//   ・並び順は order で決める（小さいほうが上）。OneSignal = 1、アイコンの読み込み = 2〜3、メッセージ画像 = 4、計測結果 = 9。
 //   ・消えるとき：フェードアウトしながら高さも0に縮め、下にあった通知が上に詰まる（同時に動く）。
 //     出るとき：その逆（フェードインしながら、高さが広がる）。
 //   ・表示のたびにヘッダーの高さを測り直す（画面幅や新旧UIで変わるため）。
@@ -179,6 +179,53 @@ export function createButtonBadge(text, onClick, order) {
     remove() {
       setStatusBadgeVisible(el, false);
       setTimeout(() => el.remove(), DURATION + 100);
+    }
+  };
+}
+
+// ★ 画像（アイコン）のグループの読み込み状況を数えて、「読み込み中」の通知を出す部品
+//   例：createImageGroupTracker("ユーザーのアイコン", 2, true) → 「ユーザーのアイコンを読み込み中…(3/17)」
+//   ・track(img)  … 読み込みを数える対象の <img> を渡す（読み込み完了／失敗のどちらでも「読めた」と数える）
+//   ・finish()    … ページの読み込み完了（読み込み画面を閉じた）ときに呼ぶ。この時点で、まだ読めていない画像があれば通知を出す。
+//                    finish() の後に作られた画像は数えない（あとからの更新で通知が何度も出ないように）
+//   ・全部読めたら通知は消える（フェードアウト＋ほかの通知が上に詰まる）。
+//   ・念のため、finish() から30秒たっても終わらないときは、通知を消す（取り消された画像などで出しっぱなしにならないように）
+//   showCount が false のときは、「トークルームのアイコンを読み込み中…」のように、数を付けない。
+export function createImageGroupTracker(label, order, showCount) {
+  let total = 0;
+  let loaded = 0;
+  let finished = false;
+  let gaveUp = false;
+  let badge = null;
+
+  function update() {
+    const pending = total - loaded;
+    const show = finished && !gaveUp && pending > 0;
+    if (!show && !badge) return;
+    if (!badge) badge = createTextBadge("", order);
+    if (show) badge.textContent = showCount ? `${label}を読み込み中…(${loaded}/${total})` : `${label}を読み込み中…`;
+    setStatusBadgeVisible(badge, show);
+  }
+
+  return {
+    track(img) {
+      // 画像がない人・部屋は、頭文字の丸（<div>）になる。読み込む画像が無いので、数えない
+      if (finished || !(img instanceof HTMLImageElement)) return img;
+      total++;
+      if (img.complete) {
+        loaded++; // キャッシュ済み、または失敗済み
+      } else {
+        const done = () => { loaded++; update(); };
+        img.addEventListener("load", done, { once: true });
+        img.addEventListener("error", done, { once: true });
+      }
+      return img;
+    },
+    finish() {
+      if (finished) return;
+      finished = true;
+      update();
+      if (total - loaded > 0) setTimeout(() => { gaveUp = true; update(); }, 30 * 1000);
     }
   };
 }

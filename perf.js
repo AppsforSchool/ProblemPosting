@@ -198,7 +198,7 @@ export function perfNotifyReportAvailable({ isAdmin, page, diagnostics }) {
   reportNotified = true;
   if (!isAdmin) return;
 
-  const badge = createButtonBadge("計測結果をみる", () => perfShowReport({ page, diagnostics }), 3);
+  const badge = createButtonBadge("計測結果をみる", () => perfShowReport({ page, diagnostics }), 9);
   badge.show();
   setTimeout(() => badge.remove(), 60 * 1000); // 1分たったらフェードアウトして消す
 }

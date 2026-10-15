@@ -3,6 +3,7 @@
 //       ceilingPercent を渡すと、次の更新が来るまでの間、上限に向けてゆっくり進める(通信待ちで止まって見えないための演出)
 //   ・watchLoadingStall()  … 読み込みが長引いたとき、止まっている段階と環境を表示し、復旧ボタンを出す
 //   ・finishLoading(...)   … 読み込み完了：画面を閉じる。OneSignalの初期化が未完了なら左上に「通知の受信を準備中…」を出し、
+//                             読み込み中のアイコンがあれば「ユーザーのアイコンを読み込み中…(n/m)」を出し、
 //                             管理者にだけ「計測結果をみる」ボタンを出す
 import { perfMark, perfNotifyReportAvailable, perfWatchStall } from "./perf.js";
 import { notifyPageLoadFinished } from "./notify.js";
@@ -55,13 +56,16 @@ export function watchLoadingStall() {
 
 // ★ 読み込み完了：オーバーレイを閉じる。
 //   ・OneSignalの初期化がまだ終わっていなければ、左上に「通知の受信を準備中…」を表示する(終わる・失敗・15秒のいずれかで消える)
+//   ・imageTrackers(createImageGroupTracker で作ったもの)に finish() を呼び、まだ読めていないアイコンがあれば
+//     「ユーザーのアイコンを読み込み中…(n/m)」を表示する(全部読めたら消える)
 //   ・管理者にだけ、左上に「計測結果をみる」ボタン(通信診断つきのパネルを開く)を1分間表示する
-export function finishLoading({ isAdmin, page, myUserId }) {
+export function finishLoading({ isAdmin, page, myUserId, imageTrackers = [] }) {
   setLoadingStage("読み込みが完了しました｡", 100);
   const overlay = document.getElementById("loading-overlay");
   if (overlay) overlay.classList.add("hidden");
   perfMark("オーバーレイを閉じて表示");
   notifyPageLoadFinished();
+  imageTrackers.forEach((tracker) => tracker.finish()); // ★ アイコンが読み込み中なら、「〜を読み込み中…(n/m)」を表示する
   perfNotifyReportAvailable({ isAdmin: !!isAdmin, page, diagnostics: () => runFirestoreDiagnostics(myUserId) });
 }
 
